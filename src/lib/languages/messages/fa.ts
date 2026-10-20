@@ -134,7 +134,7 @@ const messages = {
   sidebarSalesReports: "گزارش‌های فروش",
   sidebarHrReports: "گزارش‌های منابع انسانی",
   sidebarInventoryReports: "گزارش‌های انبار",
-  sidebarGeneral: "عمومی",
+  sidebarGeneral: "تنظیمات عمومی",
   sidebarCompanyInformation: "اطلاعات شرکت",
   settingsOrganizationWorkspace: "سازمان",
   sidebarOrganizationStructure: "ساختار سازمانی",
