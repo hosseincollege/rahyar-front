@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Circle, Database, LoaderCircle } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type TestDataModuleKey, type TestDataModuleStatus } from '@/lib/api/development/development-api';
+import { developmentApi, type TestDataAccountCredential, type TestDataModuleKey, type TestDataModuleStatus } from '@/lib/api/development/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 
@@ -12,9 +12,8 @@ const modules: Array<{
   title: Parameters<typeof uiMessage>[1];
   countLabels: Record<string, Parameters<typeof uiMessage>[1]>;
 }> = [
-  { key: 'dashboard', title: 'sidebarDashboard', countLabels: { announcements: 'sidebarAnnouncements' } },
   { key: 'rahcom', title: 'sidebarRahkam', countLabels: { tickets: 'sidebarAllTickets' } },
-  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'sidebarOrganizationStructure', departments: 'sidebarOrganizationStructure', announcements: 'sidebarAnnouncements' } },
+  { key: 'settings', title: 'sidebarSettings', countLabels: { provinces: 'sidebarOrganizationStructure', accounts: 'settingsAccessWorkspace' } },
 ];
 
 export default function TestDataPage() {
@@ -26,6 +25,7 @@ export default function TestDataPage() {
   const [workingKey, setWorkingKey] = useState<TestDataModuleKey | null>(null);
   const [applyingAll, setApplyingAll] = useState(false);
   const [failedKeys, setFailedKeys] = useState<TestDataModuleKey[]>([]);
+  const [createdAccounts, setCreatedAccounts] = useState<TestDataAccountCredential[]>([]);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const visibleStatuses = modules.map(({ key }) => statuses.find((item) => item.moduleKey === key));
   const appliedCount = visibleStatuses.filter((item) => item?.applied).length;
@@ -57,6 +57,7 @@ export default function TestDataPage() {
     try {
       const result = await developmentApi.applyTestData(moduleKey);
       updateModuleStatus(result);
+      if (result.accounts) setCreatedAccounts(result.accounts);
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) setDenied(true);
       else setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
@@ -68,12 +69,15 @@ export default function TestDataPage() {
   const applyAllModules = async () => {
     setApplyingAll(true);
     setFailedKeys([]);
-    const order: TestDataModuleKey[] = ['settings', 'rahcom', 'dashboard'];
+    setCreatedAccounts([]);
+    let generatedAccounts: TestDataAccountCredential[] = [];
+    const order: TestDataModuleKey[] = ['settings', 'rahcom'];
     for (const moduleKey of order) {
       setWorkingKey(moduleKey);
       try {
         const result = await developmentApi.applyTestData(moduleKey);
         updateModuleStatus(result);
+        if (result.accounts) generatedAccounts = result.accounts;
       } catch (error) {
         if (error instanceof ApiError && error.status === 403) {
           setDenied(true);
@@ -84,6 +88,7 @@ export default function TestDataPage() {
     }
     setWorkingKey(null);
     setApplyingAll(false);
+    setCreatedAccounts(generatedAccounts);
   };
 
   const countLabel = (count: number) => t('testDataRecordCount').replace('{count}', new Intl.NumberFormat(locale).format(count));
@@ -153,6 +158,20 @@ export default function TestDataPage() {
                 );
               })}
             </div>
+          )}
+          {createdAccounts.length > 0 && (
+            <section className="space-y-3 rounded-2xl border border-emerald-500/20 bg-card p-4 shadow-sm sm:p-5" dir={getLocaleDirection(locale)}>
+              <div>
+                <h2 className="font-semibold text-foreground">حساب‌های آزمایشی ساخته‌شده</h2>
+                <p className="mt-1 text-sm text-muted-foreground">این رمزها فقط در همین صفحه و تا زمان تازه‌سازی آن نمایش داده می‌شوند. آن‌ها را در محل امن نگه دارید.</p>
+              </div>
+              <div className="max-h-[28rem] overflow-auto rounded-xl border border-border">
+                <table className="w-full min-w-[42rem] text-right text-sm">
+                  <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="p-3">استان</th><th className="p-3">نام</th><th className="p-3">نام کاربری</th><th className="p-3">رمز عبور</th></tr></thead>
+                  <tbody>{createdAccounts.map((account) => <tr key={account.username} className="border-t border-border"><td className="p-3">{account.province}</td><td className="p-3">{account.name}</td><td className="p-3 font-mono" dir="ltr">{account.username}</td><td className="p-3 font-mono" dir="ltr">{account.password}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </section>
           )}
         </>
       )}

@@ -16,7 +16,7 @@ export type ImpersonationContext =
     };
 
 type AccessTokenResponse = { access_token: string };
-export type TestDataModuleKey = 'dashboard' | 'rahcom' | 'settings';
+export type TestDataModuleKey = 'rahcom' | 'settings';
 export type TestDataModuleStatus = {
   moduleKey: TestDataModuleKey;
   applied: boolean;
@@ -24,6 +24,8 @@ export type TestDataModuleStatus = {
   recordCounts: Record<string, number>;
   totalRecords: number;
 };
+export type TestDataAccountCredential = { name: string; username: string; password: string; province: string };
+export type TestDataApplyResult = TestDataModuleStatus & { accounts?: TestDataAccountCredential[] };
 
 export type SiteVisitsRange = '7d' | '30d' | '90d' | 'all';
 export type SiteVisitSummary = { onlineVisitors: number; uniqueIps: number; sessions: number; pageViews: number };
@@ -77,7 +79,7 @@ export const developmentApi = {
     return apiClient.get<{ modules: TestDataModuleStatus[] }>('/development/test-data/status');
   },
   applyTestData(moduleKey: TestDataModuleKey) {
-    return apiClient.post<TestDataModuleStatus>(`/development/test-data/${moduleKey}/apply`);
+    return apiClient.post<TestDataApplyResult>(`/development/test-data/${moduleKey}/apply`);
   },
   getSiteVisits(range: SiteVisitsRange, page: number, search: string) {
     const params = new URLSearchParams({ range, page: String(page), search });

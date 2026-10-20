@@ -4,13 +4,10 @@ import Link from 'next/link';
 import { LogIn, Moon, Sun, Monitor, ShieldCheck, UserPlus } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { useEffect, useState } from 'react';
-
-function getBackendBaseUrl() {
-  return (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://rahyar-back-piuy.vercel.app' : 'http://localhost:3016')).replace(/\/+$/, '');
-}
+import { API_BASE_URL } from '@/lib/api-client';
 
 export function PublicHeader() {
-  const [hasUsers, setHasUsers] = useState(true);
+  const [registrationState, setRegistrationState] = useState<'unknown' | 'open' | 'closed'>('unknown');
   const [showRegisterNotice, setShowRegisterNotice] = useState(false);
   const { theme, setTheme } = useTheme();
   const nextTheme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
@@ -18,10 +15,10 @@ export function PublicHeader() {
 
   useEffect(() => {
     let active = true;
-    void fetch(`${getBackendBaseUrl()}/setup/status`, { cache: 'no-store' })
+    void fetch(`${API_BASE_URL}/setup/status`, { cache: 'no-store' })
       .then((response) => response.ok ? response.json() as Promise<{ hasUsers?: boolean }> : Promise.reject())
-      .then((status) => { if (active) setHasUsers(status.hasUsers !== false); })
-      .catch(() => { if (active) setHasUsers(true); });
+      .then((status) => { if (active) setRegistrationState(status.hasUsers === false ? 'open' : status.hasUsers === true ? 'closed' : 'unknown'); })
+      .catch(() => { if (active) setRegistrationState('unknown'); });
     return () => { active = false; };
   }, []);
 
@@ -30,12 +27,12 @@ export function PublicHeader() {
     <header dir="rtl" className="sticky top-0 z-40 relative flex h-16 items-center border-b border-border bg-card/90 px-5 backdrop-blur-md">
       <nav className="absolute start-2 flex items-center gap-1.5 md:start-5" aria-label="منوی اصلی">
         <Link href="/login" aria-label="ورود" title="ورود" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted"><LogIn size={18} /></Link>
-        {hasUsers === true ? (
+        {registrationState === 'closed' ? (
           <button type="button" onClick={() => setShowRegisterNotice(true)} aria-label="ثبت‌نام" title="ثبت‌نام" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted"><UserPlus size={18} /></button>
-        ) : hasUsers === false ? (
+        ) : registrationState === 'open' ? (
           <Link href="/register" aria-label="ثبت‌نام" title="ثبت‌نام" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted"><UserPlus size={18} /></Link>
         ) : (
-          <Link href="/login" aria-label="ثبت‌نام" title="ثبت‌نام" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted"><UserPlus size={18} /></Link>
+          <button type="button" onClick={() => setShowRegisterNotice(true)} aria-label="ثبت‌نام" title="ثبت‌نام" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted"><UserPlus size={18} /></button>
         )}
         <button type="button" onClick={() => setTheme(nextTheme)} aria-label="تغییر پوسته" title="تغییر پوسته" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-foreground transition-colors hover:bg-muted"><ThemeIcon size={18} /></button>
       </nav>
@@ -47,11 +44,11 @@ export function PublicHeader() {
       {showRegisterNotice && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/60 p-4" role="presentation" onClick={() => setShowRegisterNotice(false)}>
           <section role="dialog" aria-modal="true" aria-labelledby="register-notice-title" dir="rtl" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-card p-6 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <h2 id="register-notice-title" className="text-lg font-black">ثبت‌نام غیرفعال است</h2>
-            <p className="mt-2 text-sm text-muted-foreground">حساب مالک سامانه قبلاً ساخته شده است. برای ورود به صفحهٔ ورود بروید.</p>
+            <h2 id="register-notice-title" className="text-lg font-black">{registrationState === 'closed' ? 'ثبت‌نام غیرفعال است' : 'وضعیت ثبت‌نام بررسی نشد'}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{registrationState === 'closed' ? 'حساب مالک سامانه قبلاً ساخته شده است. برای ورود به صفحهٔ ورود بروید.' : 'ارتباط با سرور یا پایگاه داده برقرار نشد. تنظیمات اتصال بک‌اند را بررسی و دوباره تلاش کنید.'}</p>
             <div className="mt-5 flex justify-center gap-2">
               <button type="button" onClick={() => setShowRegisterNotice(false)} className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted">بستن</button>
-              <Link href="/login" className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">رفتن به ورود</Link>
+              {registrationState === 'closed' ? <Link href="/login" className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">رفتن به ورود</Link> : <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">تلاش دوباره</button>}
             </div>
           </section>
         </div>
