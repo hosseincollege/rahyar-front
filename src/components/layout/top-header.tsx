@@ -8,10 +8,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getCurrentOrganizationId, getCurrentUser, logout, type AuthUser } from '@/lib/api/shared/auth-api';
 import { resolveOrganizationLogoUrl, settingsApi, type OrganizationBranding } from '@/lib/api/settings/settings-api';
-import { LogOut, Menu, Monitor, Moon, ShieldCheck, Sun, User, X } from 'lucide-react';
+import { LogOut, Menu, Monitor, Moon, Search, ShieldCheck, Sun, User, X } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
@@ -62,6 +62,8 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
+  const [systemsSearch, setSystemsSearch] = useState('');
   const [organizationBranding, setOrganizationBranding] =
     useState<OrganizationBranding | null>(null);
   const { theme, setTheme } = useTheme();
@@ -69,6 +71,22 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
   const direction = getLocaleDirection(locale);
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
+
+  useEffect(() => {
+    if (pathname !== '/rahcom/systems') return;
+    const frame = window.requestAnimationFrame(() => {
+      const value = window.sessionStorage.getItem('rahyar-rahcom-systems-search') || '';
+      setSystemsSearch(value);
+      window.dispatchEvent(new CustomEvent('rahyar:systems-search', { detail: { query: value } }));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
+
+  const updateSystemsSearch = (value: string) => {
+    setSystemsSearch(value);
+    window.sessionStorage.setItem('rahyar-rahcom-systems-search', value);
+    window.dispatchEvent(new CustomEvent('rahyar:systems-search', { detail: { query: value } }));
+  };
 
   useEffect(() => {
     if (!isAccountMenuOpen) return;
@@ -230,13 +248,18 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
 
         {/* کپسول حساب کاربری در سوی مقابل کنترل‌ها */}
         <div className="pointer-events-none order-2 flex shrink-0 items-center gap-1.5">
-        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="ltr">
-        <div className="hidden md:block">
-          <HeaderProvinceSelector userId={user?.id} />
-        </div>
-        <div className="hidden md:block">
-          <HeaderAccountSwitcher userId={user?.id} />
-        </div>
+        {pathname === '/rahcom/systems' && <label className="pointer-events-auto relative block min-w-0 max-sm:absolute max-sm:top-[calc(100%+0.5rem)] max-sm:end-3 max-sm:z-20 max-sm:w-[calc(100vw-1.5rem)]">
+          <Search size={16} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={systemsSearch}
+            onChange={(event) => updateSystemsSearch(event.target.value)}
+            aria-label={message('rahcomSearchSystems')}
+            placeholder={message('rahcomSearchSystems')}
+            className="h-9 w-40 rounded-xl border border-[var(--border)] bg-[var(--surface)] pe-9 ps-3 text-xs text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] max-sm:w-full md:w-56 md:text-sm"
+          />
+        </label>}
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="rtl">
         <div ref={accountMenuRef} dir={direction} className="pointer-events-none relative shrink-0">
           <button
             id="user-profile-header-btn"
@@ -288,12 +311,6 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
           </button>
           {isAccountMenuOpen && (
             <div role="menu" className={`pointer-events-auto absolute end-0 top-full z-[60] mt-2 min-w-48 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-lg md:top-1/2 md:mt-0 md:min-w-36 md:p-1 md:-translate-y-1/2 ${direction === 'rtl' ? 'md:right-full md:left-auto md:me-2' : 'md:left-full md:right-auto md:ms-2'}`}>
-              <div className="md:hidden">
-                <HeaderProvinceSelector userId={user?.id} embedded />
-                <div className="my-1 border-t border-[var(--border)]" />
-                <HeaderAccountSwitcher userId={user?.id} embedded />
-                <div className="my-1 border-t border-[var(--border)]" />
-              </div>
               <button
                 type="button"
                 role="menuitem"
@@ -307,6 +324,8 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
           )}
         </div>
         </div>
+        <HeaderAccountSwitcher userId={user?.id} />
+        <HeaderProvinceSelector userId={user?.id} />
         </div>
       </div>
 

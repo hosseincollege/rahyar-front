@@ -11,28 +11,25 @@ export interface SettingsTabItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  activeHrefs?: readonly string[];
 }
 
 interface SettingsTabsProps {
   items: SettingsTabItem[];
-  ariaLabel?: string;
 }
 
-export function SettingsTabs({ items, ariaLabel = 'Navigation tabs' }: SettingsTabsProps) {
+export function SettingsTabs({ items }: SettingsTabsProps) {
   const pathname = usePathname();
 
   return (
     <nav
-      aria-label={ariaLabel}
+      aria-label="بخش‌های تنظیمات"
       className="overflow-x-auto border-b border-border/60 pb-1"
     >
       <div className="flex gap-2 overflow-x-auto">
         {items.map((item) => {
           const Icon = item.icon;
-          const isActive = [item.href, ...(item.activeHrefs ?? [])].some(
-            (href) => pathname === href || pathname.startsWith(`${href}/`),
-          );
+          const isActive =
+            pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link

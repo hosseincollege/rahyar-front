@@ -33,33 +33,6 @@ export type SiteVisitor = { ipAddress: string; visits: number; pageViews: number
 export type SiteVisitorPageView = { path: string; moduleKey: string; enteredAt: string; leftAt: string | null; durationSeconds: number };
 export type SiteVisitorSession = { id: string; startedAt: string; lastSeenAt: string; endedAt: string | null; pageViews: SiteVisitorPageView[] };
 
-const HEADER_SWITCHER_EVENT = 'development-header-switcher-setting-changed';
-const HEADER_SWITCHER_KEY_PREFIX = 'development-header-account-switcher:';
-
-function headerSwitcherKey(userId: string) {
-  return `${HEADER_SWITCHER_KEY_PREFIX}${userId}`;
-}
-
-export function isHeaderAccountSwitcherEnabled(userId?: string) {
-  if (typeof window === 'undefined' || !userId) return false;
-  const saved = window.localStorage.getItem(headerSwitcherKey(userId));
-  return saved === null ? true : saved === 'true';
-}
-
-export function setHeaderAccountSwitcherEnabled(userId: string, enabled: boolean) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(headerSwitcherKey(userId), String(enabled));
-  window.dispatchEvent(new CustomEvent(HEADER_SWITCHER_EVENT, { detail: { userId } }));
-}
-
-export function getHeaderAccountSwitcherPreferenceEvent() {
-  return HEADER_SWITCHER_EVENT;
-}
-
-export function getHeaderAccountSwitcherPreferenceKey(userId: string) {
-  return headerSwitcherKey(userId);
-}
-
 export const developmentApi = {
   getAccounts() {
     return apiClient.get<{ accounts: DevelopmentAccount[] }>('/development/accounts');

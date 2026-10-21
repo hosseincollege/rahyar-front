@@ -1,6 +1,6 @@
 // صفحه مدیریت ساختار سازمانی.
 // Frontend - Next.js
-// مدیریت یکپارچه ساختار سازمانی: شعب، تیم‌ها، خروجی و درون‌ریزی JSON.
+// مدیریت یکپارچه ساختار سازمانی: شعب، واحدها، خروجی و درون‌ریزی JSON.
 
 'use client';
 
@@ -36,7 +36,7 @@ import {
   type BranchItem,
   type DepartmentItem,
 } from '@/lib/api/settings/settings-api';
-import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
+import { getCurrentOrganizationId, refreshCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import {
   organizationStructureImportSample,
   organizationStructureToApiPayload,
@@ -146,7 +146,15 @@ export function OrganizationStructurePage() {
   }, []);
 
   const loadOrganizationStructure = useCallback(async () => {
-    const organizationId = getCurrentOrganizationId();
+    setIsLoading(true);
+    let organizationId: string | null;
+    try {
+      organizationId = await refreshCurrentOrganizationId();
+    } catch (error) {
+      setIsLoading(false);
+      showToast('error', error instanceof Error ? error.message : 'دریافت اطلاعات سازمان ناموفق بود.');
+      return;
+    }
 
     if (!organizationId) {
       setBranches([]);
@@ -155,7 +163,7 @@ export function OrganizationStructurePage() {
 
       showToast(
         'error',
-        'شناسه سازمان در نشست کاربر یافت نشد. لطفاً مجدداً وارد شوید.',
+        'این حساب به سازمان فعالی متصل نیست. عضویت سازمانی کاربر را بررسی کنید.',
       );
 
       return;
@@ -391,15 +399,15 @@ export function OrganizationStructurePage() {
     const errors: Partial<Record<keyof DepartmentFormState, string>> = {};
 
     if (!departmentForm.name.trim()) {
-      errors.name = 'نام تیم الزامی است.';
+      errors.name = 'نام واحد الزامی است.';
     }
 
     if (!departmentForm.code.trim()) {
-      errors.code = 'کد تیم الزامی است.';
+      errors.code = 'کد واحد الزامی است.';
     }
 
     if (!departmentForm.branchId) {
-      errors.branchId = 'استان تیم را انتخاب کنید.';
+      errors.branchId = 'استان واحد را انتخاب کنید.';
     }
 
     setDepartmentFormErrors(errors);
@@ -441,7 +449,7 @@ export function OrganizationStructurePage() {
       setDepartmentForm({ ...INITIAL_DEPARTMENT_FORM });
       setDepartmentFormErrors({});
 
-      showToast('success', 'تیم جدید با موفقیت افزوده شد.');
+      showToast('success', 'واحد جدید با موفقیت افزوده شد.');
 
       await loadOrganizationStructure();
     } catch (error) {
@@ -451,7 +459,7 @@ export function OrganizationStructurePage() {
         'error',
         error instanceof Error
           ? error.message
-          : 'ثبت تیم با خطا مواجه شد. کد تیم نباید تکراری باشد.',
+          : 'ثبت واحد با خطا مواجه شد. کد واحد نباید تکراری باشد.',
       );
     } finally {
       setIsSavingDepartment(false);
@@ -464,7 +472,7 @@ export function OrganizationStructurePage() {
     }
 
     const confirmed = window.confirm(
-      `آیا از حذف تیم «${department.name}» اطمینان دارید؟`,
+      `آیا از حذف واحد «${department.name}» اطمینان دارید؟`,
     );
 
     if (!confirmed) {
@@ -479,7 +487,7 @@ export function OrganizationStructurePage() {
         current.filter((item) => item.id !== department.id),
       );
 
-      showToast('success', 'تیم با موفقیت حذف شد.');
+      showToast('success', 'واحد با موفقیت حذف شد.');
     } catch (error) {
       console.error('Failed to delete department:', error);
 
@@ -487,7 +495,7 @@ export function OrganizationStructurePage() {
         'error',
         error instanceof Error
           ? error.message
-          : 'حذف تیم با خطا مواجه شد.',
+          : 'حذف واحد با خطا مواجه شد.',
       );
     } finally {
       setDeletingDepartmentId(null);
@@ -654,7 +662,7 @@ export function OrganizationStructurePage() {
           </div>
 
           <p className="mt-1 text-xs text-muted-foreground">
-            مدیریت استان‌ها و تیم‌های هر استان
+            مدیریت استان‌ها و واحدهای هر استان
           </p>
         </div>
 
@@ -856,7 +864,7 @@ export function OrganizationStructurePage() {
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-emerald-600" />
             <h3 className="text-sm font-bold text-[var(--foreground)]">
-              تیم‌ها
+              واحدها
             </h3>
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
               {visibleDepartments.length}
@@ -885,7 +893,7 @@ export function OrganizationStructurePage() {
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
               >
                 <Plus size={14} />
-                افزودن تیم
+                افزودن واحد
               </button>
             )}
           </div>
@@ -902,12 +910,12 @@ export function OrganizationStructurePage() {
 
               <p className="mt-4 text-base font-medium text-gray-900 dark:text-gray-100">
                 {selectedBranch
-                  ? `برای ${selectedBranch.name} تیمی ثبت نشده است`
-                  : 'هیچ تیمی تعریف نشده است'}
+                  ? `برای ${selectedBranch.name} واحدی ثبت نشده است`
+                  : 'هیچ واحدی تعریف نشده است'}
               </p>
 
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                جهت ایجاد ساختار سازمانی، اولین تیم را اضافه کنید.
+                جهت ایجاد ساختار سازمانی، اولین واحد را اضافه کنید.
               </p>
             </div>
           ) : (
@@ -915,7 +923,7 @@ export function OrganizationStructurePage() {
               <table className="w-full text-right text-sm">
                 <thead className="border-b border-gray-200 bg-gray-50/50 text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
                   <tr>
-                    <th className="px-6 py-4">نام تیم</th>
+                    <th className="px-6 py-4">نام واحد</th>
                     <th className="px-6 py-4">کد</th>
                     <th className="px-6 py-4">استان</th>
                     {canEditStructure && (
@@ -1185,11 +1193,11 @@ export function OrganizationStructurePage() {
                   id="department-modal-title"
                   className="text-base font-bold text-[var(--foreground)]"
                 >
-                  افزودن تیم جدید
+                  افزودن واحد جدید
                 </h3>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  مشخصات واحد یا تیم سازمانی را تکمیل کنید.
+                  مشخصات واحد یا واحد سازمانی را تکمیل کنید.
                 </p>
               </div>
 
@@ -1210,7 +1218,7 @@ export function OrganizationStructurePage() {
                   htmlFor="department-name"
                   className="text-xs font-medium"
                 >
-                  نام تیم *
+                  نام واحد *
                 </label>
 
                 <input
@@ -1238,7 +1246,7 @@ export function OrganizationStructurePage() {
                   htmlFor="department-code"
                   className="text-xs font-medium"
                 >
-                  کد تیم *
+                  کد واحد *
                 </label>
 
                 <input
@@ -1305,7 +1313,7 @@ export function OrganizationStructurePage() {
                   disabled={isSavingDepartment}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {isSavingDepartment ? 'در حال ثبت...' : 'ثبت تیم'}
+                  {isSavingDepartment ? 'در حال ثبت...' : 'ثبت واحد'}
                 </button>
               </div>
             </form>
@@ -1332,8 +1340,8 @@ export function OrganizationStructurePage() {
                 </h3>
 
                 <p className="mt-1 text-xs leading-6 text-muted-foreground">
-                  فایل JSON شامل شعب و تیم‌ها را انتخاب کنید. موارد تکراری
-                  براساس نام استان و کد تیم ثبت نمی‌شوند.
+                  فایل JSON شامل شعب و واحدها را انتخاب کنید. موارد تکراری
+                  براساس نام استان و کد واحد ثبت نمی‌شوند.
                 </p>
               </div>
 

@@ -239,6 +239,26 @@ export async function getMyProfile(): Promise<MyProfile> {
   return response.user;
 }
 
+export async function refreshCurrentOrganizationId(): Promise<string | null> {
+  const profile = await getMyProfile();
+  const cached = getCurrentUser();
+  const sameUser = cached?.id === profile.id;
+  const refreshedUser: AuthUser = {
+    ...(sameUser ? cached : {}),
+    id: profile.id,
+    username: profile.username,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    name: [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || profile.username,
+    email: profile.email ?? undefined,
+    phone: profile.phone ?? undefined,
+    organizationId: profile.organizationId ?? null,
+  };
+  saveUser(refreshedUser);
+  if (isBrowser()) window.dispatchEvent(new Event('auth:user-updated'));
+  return refreshedUser.organizationId ?? null;
+}
+
 export async function updateMyProfile(data: UpdateMyProfile): Promise<MyProfile> {
   const response = await apiClient.patch<{ user: MyProfile }, UpdateMyProfile>('/auth/me', data);
   const cached = getCurrentUser();

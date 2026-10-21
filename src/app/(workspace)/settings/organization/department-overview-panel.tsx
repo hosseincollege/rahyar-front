@@ -179,7 +179,7 @@ export function DepartmentOverviewPanel({
             جزئیات دپارتمان {overview.name}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            {overview.branch?.name || 'واحد سازمانی'} · {overview.employees.length} نفر · {overview.teams.length} تیم
+            {overview.branch?.name || 'واحد سازمانی'} · {overview.employees.length} نفر · {overview.teams.length} واحد
           </p>
         </div>
         <button
@@ -383,7 +383,7 @@ export function DepartmentOverviewPanel({
         <div className="space-y-4 rounded-xl border border-border p-4">
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-sm font-bold text-foreground">
-              تیم‌ها ({overview.teams.length})
+              واحدها ({overview.teams.length})
             </h4>
             {canEdit && !teamFormOpen && (
               <button
@@ -391,7 +391,7 @@ export function DepartmentOverviewPanel({
                 onClick={() => startTeamEdit()}
                 className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
               >
-                <Plus size={14} /> تیم جدید
+                <Plus size={14} /> واحد جدید
               </button>
             )}
           </div>
@@ -404,7 +404,7 @@ export function DepartmentOverviewPanel({
                   maxLength={100}
                   value={teamForm.name}
                   onChange={(event) => setTeamForm((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="نام تیم"
+                  placeholder="نام واحد"
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
                 />
                 <input
@@ -412,18 +412,18 @@ export function DepartmentOverviewPanel({
                   maxLength={50}
                   value={teamForm.code}
                   onChange={(event) => setTeamForm((current) => ({ ...current, code: event.target.value }))}
-                  placeholder="کد تیم"
+                  placeholder="کد واحد"
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
                 />
               </div>
               {overview.employees.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  ابتدا کارمند را به دپارتمان اضافه کنید، سپس تیم بسازید.
+                  ابتدا کارمند را به دپارتمان اضافه کنید، سپس واحد بسازید.
                 </p>
               ) : (
                 <>
                   <label className="block text-xs text-muted-foreground">
-                    سرپرست تیم
+                    سرپرست واحد
                     <select
                       value={teamForm.managerEmployeeId}
                       onChange={(event) => setTeamForm((current) => ({ ...current, managerEmployeeId: event.target.value, employeeIds: event.target.value && !current.employeeIds.includes(event.target.value) ? [...current.employeeIds, event.target.value] : current.employeeIds }))}
@@ -439,7 +439,7 @@ export function DepartmentOverviewPanel({
                   </label>
                   <fieldset className="space-y-2">
                     <legend className="text-xs font-semibold text-muted-foreground">
-                      اعضای تیم
+                      اعضای واحد
                     </legend>
                     <div className="grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
                       {overview.employees.map((employee) => (
@@ -479,7 +479,7 @@ export function DepartmentOverviewPanel({
                   disabled={busyAction === 'team' || overview.employees.length === 0}
                   className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                 >
-                  {teamForm.id ? 'ذخیره تغییرات تیم' : 'ثبت تیم'}
+                  {teamForm.id ? 'ذخیره تغییرات واحد' : 'ثبت واحد'}
                 </button>
               </div>
             </form>
@@ -487,7 +487,7 @@ export function DepartmentOverviewPanel({
 
           {overview.teams.length === 0 ? (
             <p className="rounded-lg bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-              هنوز تیمی برای این دپارتمان تعریف نشده است.
+              هنوز واحدی برای این دپارتمان تعریف نشده است.
             </p>
           ) : (
             <div className="space-y-3">
@@ -508,7 +508,7 @@ export function DepartmentOverviewPanel({
                           type="button"
                           onClick={() => startTeamEdit(team)}
                           className="rounded-lg p-2 text-muted-foreground hover:bg-muted"
-                          aria-label={`ویرایش تیم ${team.name}`}
+                          aria-label={`ویرایش واحد ${team.name}`}
                         >
                           <Users size={15} />
                         </button>
@@ -516,14 +516,14 @@ export function DepartmentOverviewPanel({
                           type="button"
                           disabled={busyAction === `delete:${team.id}`}
                           onClick={() => {
-                            if (window.confirm(`تیم «${team.name}» حذف شود؟`)) {
+                            if (window.confirm(`واحد «${team.name}» حذف شود؟`)) {
                               void runAction(`delete:${team.id}`, () =>
                                 settingsApi.deleteDepartmentTeam(team.id),
                               );
                             }
                           }}
                           className="rounded-lg p-2 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
-                          aria-label={`حذف تیم ${team.name}`}
+                          aria-label={`حذف واحد ${team.name}`}
                         >
                           <Trash2 size={15} />
                         </button>

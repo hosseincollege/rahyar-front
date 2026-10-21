@@ -313,6 +313,20 @@ export const apiClient = {
     >(path, 'DELETE', undefined, init);
     return unwrapData<TResponse>(response);
   },
+
+  async deleteWithBody<TResponse, TBody>(
+    path: string,
+    body: TBody,
+    init?: RequestInit,
+  ): Promise<TResponse> {
+    const response = await request<TResponse | ApiSuccessResponse<TResponse>>(
+      path,
+      'DELETE',
+      body,
+      init,
+    );
+    return unwrapData<TResponse>(response);
+  },
 };
 
 export function logout(): void {

@@ -3,15 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, isHeaderAccountSwitcherEnabled, setHeaderAccountSwitcherEnabled } from '@/lib/api/development/development-api';
-import { getCurrentUser } from '@/lib/api/shared/auth-api';
+import { developmentApi } from '@/lib/api/development/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 
 export default function AccountSwitchingPage() {
   const { locale } = usePreferences();
-  const [userId, setUserId] = useState<string>();
-  const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -21,9 +18,6 @@ export default function AccountSwitchingPage() {
     setLoading(true); setDenied(false); setFailed(false);
     try {
       await developmentApi.getAccounts();
-      const id = getCurrentUser()?.id;
-      setUserId(id);
-      setEnabled(isHeaderAccountSwitcherEnabled(id));
     } catch (error) {
       setDenied(error instanceof ApiError && error.status === 403);
       setFailed(!(error instanceof ApiError && error.status === 403));
@@ -45,10 +39,10 @@ export default function AccountSwitchingPage() {
         {loading ? <p className="text-sm text-muted-foreground">{t('developmentAccountListLoading')}</p>
           : denied ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{t('developmentAccessDenied')}</p>
           : failed ? <div role="alert" className="space-y-2"><p className="text-sm text-red-700 dark:text-red-300">{t('developmentAccountListFailed')}</p><button type="button" onClick={() => void checkAccess()} className="text-sm font-semibold text-primary underline">{t('projectsRetry')}</button></div>
-          : userId ? <label htmlFor="header-account-switcher-enabled" className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4">
-            <input id="header-account-switcher-enabled" type="checkbox" checked={enabled} onChange={(event) => { setEnabled(event.target.checked); setHeaderAccountSwitcherEnabled(userId, event.target.checked); }} className="mt-1 h-4 w-4 accent-primary" />
-            <span><span className="block text-sm font-semibold text-foreground">{t('developmentShowSwitcherInHeader')}</span><span className="mt-1 block text-sm leading-6 text-muted-foreground">{t('developmentShowSwitcherInHeaderDescription')}</span></span>
-          </label> : <p role="alert" className="text-sm text-red-700 dark:text-red-300">{t('developmentAccessDenied')}</p>}
+          : <div className="rounded-xl border border-border p-4">
+            <p className="text-sm font-semibold text-foreground">{t('developmentShowSwitcherInHeader')}</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('developmentShowSwitcherInHeaderDescription')}</p>
+          </div>}
       </section>
     </main>
   );
