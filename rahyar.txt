@@ -1,0 +1,43 @@
+cd rahyar-front
+npm run dev
+
+
+
+cd rahyar-back
+npm run start:dev
+
+
+
+فرانت
+npm run build
+
+
+git add .
+git commit -m "Final working "
+git push origin main --force
+
+
+
+
+
+
+ریست خودکار و کامل با Prisma
+
+npx prisma migrate reset --force
+
+
+npx prisma validate
+npx prisma migrate deploy   # اگر جداول ساخته نشده‌اند
+npx prisma generate
+
+
+npx prisma validate     # باید OK بدهد
+npx prisma db push      # ساخت جداول
+npx prisma generate     # تولید کلاینت
+npm run start:dev
+
+
+ریست دیتابیس ورسل تو پوشه بکند پاورشل
+
+$env:DATABASE_URL="postgres://997a41df45e55cd7dda11cdb700a9f6c2f5362a724ed444693843d32f7f3bddb:sk_HklO46Oc0aAKQSR4ZE-dZ@db.prisma.io:5432/postgres?sslmode=require"
+npx prisma db push --force-reset --schema=prisma/schema
