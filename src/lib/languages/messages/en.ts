@@ -1,4 +1,4 @@
-﻿import type { UiMessage } from "../types";
+import type { UiMessage } from "../types";
 
 const messages = {
   usersTotal: "Total users",
@@ -654,6 +654,10 @@ const messages = {
   testDataWarehouses: "Warehouses",
   testDataStockBalances: "Stock balances",
   testDataMovements: "Stock movements",
+  settingsOther: "Other settings",
+  rahcomMap: "Map",
+  rahcomMapPlaceholder: "The RahCom map preview will appear here.",
+  rahcomRequests: "Requests",
 } satisfies Record<UiMessage, string>;
 
 export default messages;

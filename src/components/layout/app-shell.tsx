@@ -26,7 +26,6 @@ export function AppShell({ children }: AppShellProps) {
   const activeAppearance = appearancePreview ?? organizationAppearance;
   const activeContrast = contrastPreview ?? contrastPreferences;
   const direction = getLocaleDirection(locale);
-  const [isProfileActive, setIsProfileActive] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -77,9 +76,6 @@ export function AppShell({ children }: AppShellProps) {
           />
         )}
         <Sidebar
-          isMainCollapsed={false}
-          isProfileActive={isProfileActive}
-          onSetProfileActive={setIsProfileActive}
           isMobileOpen={isMobileNavOpen}
           onMobileClose={() => setIsMobileNavOpen(false)}
         />
