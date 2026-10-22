@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowUpRight, Search } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/lib/languages/types';
+import type { UiMessage } from '@/lib/ui-messages';
 
 const destinations: Array<{ href: string; title: UiMessage }> = [
   { href: '/dashboard', title: 'sidebarDashboard' },

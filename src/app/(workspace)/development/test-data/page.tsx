@@ -12,8 +12,8 @@ const modules: Array<{
   title: Parameters<typeof uiMessage>[1];
   countLabels: Record<string, Parameters<typeof uiMessage>[1]>;
 }> = [
-  { key: 'rahcom', title: 'sidebarRahkam', countLabels: { tickets: 'sidebarAllTickets' } },
-  { key: 'settings', title: 'sidebarSettings', countLabels: { provinces: 'sidebarOrganizationStructure', accounts: 'settingsAccessWorkspace' } },
+  { key: 'rahcom', title: 'sidebarRahkam', countLabels: { systems: 'rahcomSystemsList', activities: 'rahcomActions' } },
+  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'accountBranches', departments: 'testDataDepartments', teams: 'testDataTeams', accounts: 'testDataAccounts', preferences: 'testDataPreferences' } },
 ];
 
 export default function TestDataPage() {
@@ -25,6 +25,7 @@ export default function TestDataPage() {
   const [workingKey, setWorkingKey] = useState<TestDataModuleKey | null>(null);
   const [applyingAll, setApplyingAll] = useState(false);
   const [failedKeys, setFailedKeys] = useState<TestDataModuleKey[]>([]);
+  const [applyErrors, setApplyErrors] = useState<Partial<Record<TestDataModuleKey, string>>>({});
   const [createdAccounts, setCreatedAccounts] = useState<TestDataAccountCredential[]>([]);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const visibleStatuses = modules.map(({ key }) => statuses.find((item) => item.moduleKey === key));
@@ -53,14 +54,19 @@ export default function TestDataPage() {
 
   const applyModule = async (moduleKey: TestDataModuleKey) => {
     setWorkingKey(moduleKey);
+    if (moduleKey === 'settings') setCreatedAccounts([]);
     setFailedKeys((current) => current.filter((key) => key !== moduleKey));
+    setApplyErrors((current) => { const next = { ...current }; delete next[moduleKey]; return next; });
     try {
       const result = await developmentApi.applyTestData(moduleKey);
       updateModuleStatus(result);
       if (result.accounts) setCreatedAccounts(result.accounts);
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) setDenied(true);
-      else setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
+      else {
+        setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
+        setApplyErrors((current) => ({ ...current, [moduleKey]: error instanceof Error ? error.message : '' }));
+      }
     } finally {
       setWorkingKey(null);
     }
@@ -69,6 +75,7 @@ export default function TestDataPage() {
   const applyAllModules = async () => {
     setApplyingAll(true);
     setFailedKeys([]);
+    setApplyErrors({});
     setCreatedAccounts([]);
     let generatedAccounts: TestDataAccountCredential[] = [];
     const order: TestDataModuleKey[] = ['settings', 'rahcom'];
@@ -84,6 +91,7 @@ export default function TestDataPage() {
           break;
         }
         setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
+        setApplyErrors((current) => ({ ...current, [moduleKey]: error instanceof Error ? error.message : '' }));
       }
     }
     setWorkingKey(null);
@@ -147,7 +155,7 @@ export default function TestDataPage() {
                             })}
                           </ul>
                         )}
-                        {failedKeys.includes(key) && <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-300">{t('testDataApplyFailed')}</p>}
+                        {failedKeys.includes(key) && <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-300">{t('testDataApplyFailed')}{applyErrors[key] ? <span dir="auto"> · {applyErrors[key]}</span> : null}</p>}
                       </div>
                     </div>
                     <button type="button" onClick={() => void applyModule(key)} disabled={loading || busy || workingKey !== null || applyingAll || denied} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
@@ -162,13 +170,13 @@ export default function TestDataPage() {
           {createdAccounts.length > 0 && (
             <section className="space-y-3 rounded-2xl border border-emerald-500/20 bg-card p-4 shadow-sm sm:p-5" dir={getLocaleDirection(locale)}>
               <div>
-                <h2 className="font-semibold text-foreground">حساب‌های آزمایشی ساخته‌شده</h2>
-                <p className="mt-1 text-sm text-muted-foreground">این رمزها فقط در همین صفحه و تا زمان تازه‌سازی آن نمایش داده می‌شوند. آن‌ها را در محل امن نگه دارید.</p>
+                <h2 className="font-semibold text-foreground">{t('testDataAccountsTitle')}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{t('testDataOneTimeCredentialNote')}</p>
               </div>
               <div className="max-h-[28rem] overflow-auto rounded-xl border border-border">
                 <table className="w-full min-w-[42rem] text-right text-sm">
-                  <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="p-3">استان</th><th className="p-3">نام</th><th className="p-3">نام کاربری</th><th className="p-3">رمز عبور</th></tr></thead>
-                  <tbody>{createdAccounts.map((account) => <tr key={account.username} className="border-t border-border"><td className="p-3">{account.province}</td><td className="p-3">{account.name}</td><td className="p-3 font-mono" dir="ltr">{account.username}</td><td className="p-3 font-mono" dir="ltr">{account.password}</td></tr>)}</tbody>
+                  <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="p-3">{t('testDataProvince')}</th><th className="p-3">{t('testDataName')}</th><th className="p-3">{t('testDataUsername')}</th><th className="p-3">{t('testDataEmail')}</th><th className="p-3">{t('testDataPassword')}</th></tr></thead>
+                  <tbody>{createdAccounts.map((account) => <tr key={account.username} className="border-t border-border"><td className="p-3">{account.province}</td><td className="p-3">{account.name}</td><td className="p-3 font-mono" dir="ltr">{account.username}</td><td className="p-3 font-mono" dir="ltr">{account.email}</td><td className="p-3 font-mono" dir="ltr">{account.password}</td></tr>)}</tbody>
                 </table>
               </div>
             </section>

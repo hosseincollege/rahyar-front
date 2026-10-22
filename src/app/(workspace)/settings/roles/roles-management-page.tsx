@@ -28,7 +28,7 @@ import {
   getLocaleDirection,
 } from "@/components/preferences-provider";
 import { uiMessage } from "@/lib/ui-messages";
-import type { UiMessage } from "@/lib/languages/types";
+import type { UiMessage } from "@/lib/ui-messages";
 import {
   parseRolesImportData,
   rolesImportDataToItems,
@@ -81,6 +81,8 @@ const PERMISSION_OPTIONS: { key: string; label: UiMessage }[] = [
   { key: "roles.write", label: "permissionManage" },
   { key: "settings.read", label: "permissionView" },
   { key: "settings.write", label: "permissionManage" },
+  { key: "rahcom.read", label: "permissionView" },
+  { key: "rahcom.write", label: "permissionManage" },
   { key: "accounting.read", label: "permissionView" },
   { key: "accounting.write", label: "permissionManage" },
   { key: "hr.read", label: "permissionView" },
@@ -113,6 +115,10 @@ const PERMISSION_GROUPS: { label: UiMessage; permissionKeys: string[] }[] = [
   {
     label: "permissionGroupOrganization",
     permissionKeys: ["settings.read", "settings.write"],
+  },
+  {
+    label: "permissionGroupRahcom",
+    permissionKeys: ["rahcom.read", "rahcom.write"],
   },
   {
     label: "permissionGroupFinance",
@@ -186,6 +192,7 @@ export function RolesManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedRoles, setHasLoadedRoles] = useState(false);
   const [savedRolesSnapshot, setSavedRolesSnapshot] = useState("");
+  const [deletedRoleIds, setDeletedRoleIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<UiMessage | null>(null);
@@ -196,7 +203,7 @@ export function RolesManagementPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const organizationId = getCurrentOrganizationId();
   const hasUnsavedChanges =
-    hasLoadedRoles && serializeRoles(roles) !== savedRolesSnapshot;
+    hasLoadedRoles && (serializeRoles(roles) !== savedRolesSnapshot || deletedRoleIds.length > 0);
   const formatCount = (count: number) =>
     new Intl.NumberFormat(locale).format(count);
   const formatNotice = (notice: LocalizedNotice) =>
@@ -224,6 +231,7 @@ export function RolesManagementPage() {
 
       const normalizedRoles = receivedRoles.map(normalizeRole);
       setRoles(normalizedRoles);
+      setDeletedRoleIds([]);
       setSavedRolesSnapshot(serializeRoles(normalizedRoles));
       setHasLoadedRoles(true);
     } catch (error) {
@@ -300,6 +308,7 @@ export function RolesManagementPage() {
     setRoles((currentRoles) =>
       currentRoles.filter((_, index) => index !== roleIndex),
     );
+    if (role.id) setDeletedRoleIds((current) => [...new Set([...current, role.id!])]);
 
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -331,11 +340,13 @@ export function RolesManagementPage() {
       const saved = await saveRoles(
         payload as unknown as RoleItem[],
         organizationId,
+        deletedRoleIds,
       );
       const normalizedRoles = (Array.isArray(saved) ? saved : []).map(
         normalizeRole,
       );
       setRoles(normalizedRoles);
+      setDeletedRoleIds([]);
       setSavedRolesSnapshot(serializeRoles(normalizedRoles));
       setHasLoadedRoles(true);
       setSuccessMessage({ key: "rolesSaved" });

@@ -23,7 +23,7 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
   return `https://balad.ir/directions/driving?destination=${encodeURIComponent(`${lng},${lat}`)}#16/${lat}/${lng}`;
 }
 
-export function RahcomSystemsList() {
+export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }) {
   const { locale } = usePreferences();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,7 @@ export function RahcomSystemsList() {
   useEffect(() => {
     let active = true;
     rahcomApi.systems()
-      .then((result) => { if (active) setSystems(result); })
+      .then((result) => { if (active) { setSystems(result); setError(''); } })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
       })
@@ -165,7 +165,7 @@ export function RahcomSystemsList() {
                     </button>
                   </div>
                   {selectedSystemId === system.id ? <div className="mt-4 border-t border-border pt-4">
-                    {editingSystemId === system.id && editForm ? <div className="space-y-4">
+                    {canManage && editingSystemId === system.id && editForm ? <div className="space-y-4">
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {([
                           ['systemName', 'rahcomSystemName', 'text'], ['systemCode', 'rahcomSystemCode', 'text'],
@@ -179,8 +179,8 @@ export function RahcomSystemsList() {
                       <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { setEditingSystemId(null); setEditForm(null); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm text-foreground"><X size={16}/>{t('rahcomCancel')}</button><button type="button" disabled={savingSystem} onClick={() => void saveEdit(system.id)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"><Save size={16}/>{t('rahcomSave')}</button></div>
                     </div> : <>
                       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap gap-2"><button type="button" disabled={!hasCoordinates} onClick={() => setRouteSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><MapPinned size={16} />{t('rahcomRoute')}</button><button type="button" onClick={() => void removeSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-destructive/30 px-4 text-sm font-medium text-destructive hover:bg-destructive/5"><Trash2 size={15}/>{t('rahcomDelete')}</button></div>
-                        <button type="button" onClick={() => startEdit(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-accent"><Pencil size={15}/>{t('rahcomEditSystem')}</button>
+                        <div className="flex flex-wrap gap-2"><button type="button" disabled={!hasCoordinates} onClick={() => setRouteSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><MapPinned size={16} />{t('rahcomRoute')}</button>{canManage && <button type="button" onClick={() => void removeSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-destructive/30 px-4 text-sm font-medium text-destructive hover:bg-destructive/5"><Trash2 size={15}/>{t('rahcomDelete')}</button>}</div>
+                        {canManage && <button type="button" onClick={() => startEdit(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-accent"><Pencil size={15}/>{t('rahcomEditSystem')}</button>}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="flex min-w-0 items-center justify-between gap-2 rounded-xl bg-muted/40 px-3 py-3 text-sm"><span className="shrink-0 text-muted-foreground">{t('rahcomSystemCode')}</span><span dir="ltr" className="truncate font-mono text-xs text-foreground">{system.systemCode}</span><button type="button" onClick={() => void copyValue(codeKey, system.systemCode)} aria-label={t('rahcomCopyCode')} title={t('rahcomCopyCode')} className="inline-flex shrink-0 items-center gap-1 rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">{copiedKey === codeKey ? <Check size={15}/> : <Copy size={15}/>}<span className="text-xs">{copiedKey === codeKey ? t('rahcomCopied') : t('rahcomCopyCode')}</span></button></div>

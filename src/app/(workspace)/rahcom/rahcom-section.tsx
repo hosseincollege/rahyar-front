@@ -1,12 +1,14 @@
 'use client';
 
-import { ClipboardList, LocateFixed, Minus, Plus, Waypoints } from 'lucide-react';
+import { LocateFixed, Minus, Plus, Waypoints } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { OpenStreetMap, type RahcomMapControls } from '@/components/rahcom/open-street-map';
 import { RahcomActions } from '@/components/rahcom/rahcom-actions';
 import { RahcomSystemsList } from '@/components/rahcom/rahcom-systems-list';
-import { getCurrentUser } from '@/lib/api/shared/auth-api';
+import { RahcomDailyTraffic } from '@/components/rahcom/rahcom-daily-traffic';
+import { getCurrentOrganizationId, getCurrentUser } from '@/lib/api/shared/auth-api';
+import { settingsApi } from '@/lib/api/settings/settings-api';
 import { uiMessage } from '@/lib/ui-messages';
 
 export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic';
@@ -20,6 +22,8 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [mapControls, setMapControls] = useState<RahcomMapControls | null>(null);
   const [mapLocating, setMapLocating] = useState(false);
   const [mapLocationError, setMapLocationError] = useState(false);
+  const [accessState, setAccessState] = useState<'loading' | 'allowed' | 'denied' | 'error'>('loading');
+  const [canManageRahcom, setCanManageRahcom] = useState(false);
   const handleMapCount = useCallback((count: number) => setMapSystemsCount(count), []);
   const handleMapError = useCallback((error: string) => setMapSystemsError(error), []);
   const handleMapControls = useCallback((controls: RahcomMapControls | null) => setMapControls(controls), []);
@@ -28,6 +32,23 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     setMapLocationError(status.error);
   }, []);
   const titleKey = section === 'map' ? 'rahcomMap' : section === 'actions' ? 'rahcomActions' : section === 'systems' ? 'rahcomSystemsList' : 'rahcomDailyTraffic';
+
+  useEffect(() => {
+    let active = true;
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) {
+      setAccessState('denied');
+      return;
+    }
+    void settingsApi.getOrganizationAccess(organizationId).then((access) => {
+      if (!active) return;
+      setCanManageRahcom(Boolean(access.canManageRahcom));
+      setAccessState(access.canViewRahcom ? 'allowed' : 'denied');
+    }).catch(() => {
+      if (active) setAccessState('error');
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const userId = getCurrentUser()?.id;
@@ -77,23 +98,26 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
             setFocusProvince(enabled);
             window.localStorage.setItem('rahyar-rahcom-focus-province', String(enabled));
           }} />
-          تمرکز روی محدودهٔ استان
+          {uiMessage(locale, 'rahcomFocusProvince')}
         </label>}
       </header>
 
-      {section === 'map' ? (
+      {accessState === 'loading' ? (
+        <p role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">{uiMessage(locale, 'rahcomSystemsLoading')}</p>
+      ) : accessState === 'denied' ? (
+        <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</p>
+      ) : accessState === 'error' ? (
+        <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessCheckFailed')}</p>
+      ) : section === 'map' ? (
         <section aria-label={uiMessage(locale, 'rahcomMap')} className="h-[70vh] min-h-[460px] max-h-[820px] overflow-hidden rounded-2xl border border-border bg-card">
-          <OpenStreetMap focusProvince={focusProvince} onSystemsCountChange={handleMapCount} onSystemsErrorChange={handleMapError} onControlsReady={handleMapControls} onLocationStatusChange={handleLocationStatus} />
+          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} onSystemsCountChange={handleMapCount} onSystemsErrorChange={handleMapError} onControlsReady={handleMapControls} onLocationStatusChange={handleLocationStatus} />
         </section>
       ) : section === 'actions' ? (
-        <RahcomActions />
+        <RahcomActions canManage={canManageRahcom} />
       ) : section === 'systems' ? (
-        <RahcomSystemsList />
+        <RahcomSystemsList canManage={canManageRahcom} />
       ) : (
-        <section aria-label={uiMessage(locale, 'rahcomDailyTraffic')} className="rounded-2xl border border-border bg-card p-6">
-          <h2 className="flex items-center gap-2 font-semibold text-foreground"><ClipboardList size={18} />{uiMessage(locale, 'rahcomDailyTraffic')}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{uiMessage(locale, 'rahcomComingSoon')}</p>
-        </section>
+        <RahcomDailyTraffic />
       )}
     </main>
   );

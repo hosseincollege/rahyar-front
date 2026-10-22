@@ -24,7 +24,7 @@ export type TestDataModuleStatus = {
   recordCounts: Record<string, number>;
   totalRecords: number;
 };
-export type TestDataAccountCredential = { name: string; username: string; password: string; province: string };
+export type TestDataAccountCredential = { name: string; username: string; email: string; password: string; province: string };
 export type TestDataApplyResult = TestDataModuleStatus & { accounts?: TestDataAccountCredential[] };
 
 export type SiteVisitsRange = '7d' | '30d' | '90d' | 'all';

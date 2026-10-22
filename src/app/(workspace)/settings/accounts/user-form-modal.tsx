@@ -26,6 +26,7 @@ interface UserFormModalProps {
   onSave: (formData: UserFormData) => Promise<void>;
   branches: Array<{ id: string; name: string }>;
   teams: Array<{ id: string; name: string; branchId?: string }>;
+  roles: Array<{ key: string; name: string }>;
   isAdmin: boolean;
 }
 
@@ -38,6 +39,7 @@ export function UserFormModal({
   onSave,
   branches,
   teams,
+  roles,
   isAdmin,
 }: UserFormModalProps) {
   const [formData, setFormData] = useState<UserFormData>(initialData);
@@ -183,7 +185,13 @@ export function UserFormModal({
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               >
                 <option value="USER">کاربر</option>
-                {isAdmin && <option value="SUPER_ADMIN">ادمین</option>}
+                {isAdmin && roles.filter(({ key }) => key !== 'USER').map((role) => (
+                  <option key={role.key} value={role.key}>{role.name}</option>
+                ))}
+                {isAdmin && roles.length === 0 && <option value="SUPER_ADMIN">ادمین</option>}
+                {formData.role && !['USER', ...roles.map(({ key }) => key), ...(roles.length === 0 ? ['SUPER_ADMIN'] : [])].includes(formData.role) && (
+                  <option value={formData.role}>{formData.role}</option>
+                )}
               </select>
             </div>
 

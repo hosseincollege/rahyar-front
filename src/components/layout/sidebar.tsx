@@ -12,7 +12,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getCurrentUser, logout, AuthUser } from '@/lib/api/shared/auth-api';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/lib/languages/types';
+import type { UiMessage } from '@/lib/ui-messages';
 
 import { Code2, ExternalLink, LayoutDashboard, LogOut, Settings, User, Waypoints } from 'lucide-react';
 

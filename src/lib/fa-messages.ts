@@ -1,6 +1,4 @@
-import type { UiMessage } from "../types";
-
-const messages = {
+const faMessages = {
   usersTotal: "تعداد کل کاربران",
   usersSearchPlaceholder: "جست‌وجو بر اساس نام، ایمیل یا نقش",
   usersNoMatch: "حسابی با این جست‌وجو پیدا نشد.",
@@ -331,6 +329,7 @@ const messages = {
   permissionGroupDashboard: "داشبورد",
   permissionGroupPeople: "کاربران و نقش‌ها",
   permissionGroupOrganization: "تنظیمات سازمان",
+  permissionGroupRahcom: "رهکام",
   permissionGroupFinance: "مالی و حسابداری",
   permissionGroupHr: "منابع انسانی",
   permissionGroupInventory: "انبار",
@@ -612,7 +611,18 @@ const messages = {
   developmentTitle: "توسعه",
   developmentDescription: "ابزارهای فنی برای توسعه و ارزیابی سامانه.",
   testDataTitle: "داده‌های تست",
-  testDataDescription: "با اجرای هر بخش، مجموعه‌ای از رکوردهای واقعی‌نما با وضعیت‌های متنوع ایجاد می‌شود. رکوردها در صفحه‌های اصلی قابل مشاهده و ویرایش‌اند و اجرای دوباره موارد موجود را تکراری نمی‌کند.",
+  testDataDescription: "داده‌های نمونه با برچسب مشخص ساخته می‌شوند تا در بخش‌های اصلی سامانه قابل بررسی باشند. اجرای دوباره، رکوردهای موجود را تغییر نمی‌دهد یا تکراری نمی‌کند.",
+  testDataTeams: "تیم‌ها",
+  testDataDepartments: "واحدها",
+  testDataAccounts: "حساب‌های نمونه",
+  testDataPreferences: "ترجیحات کاربری",
+  testDataAccountsTitle: "حساب‌های آزمایشی ساخته‌شده",
+  testDataOneTimeCredentialNote: "رمزها فقط هنگام ساخت حساب نمایش داده می‌شوند. آن‌ها را در محل امن نگه دارید؛ اجرای دوباره رمز را تغییر نمی‌دهد.",
+  testDataProvince: "شعبه",
+  testDataName: "نام",
+  testDataUsername: "نام کاربری",
+  testDataEmail: "ایمیل",
+  testDataPassword: "رمز عبور",
   developmentAccountSwitching: "جابه‌جایی حساب",
   developmentAccountSwitchingDescription: "با این گزینه، منوی انتخاب حساب را کنار کپسول حساب کاربری در تاپ‌هدر نمایش دهید یا پنهان کنید.",
   developmentAccountListLoading: "در حال دریافت حساب‌های سازمان…",
@@ -647,6 +657,7 @@ const messages = {
   testDataStockBalances: "موجودی‌ها",
   testDataMovements: "گردش‌های انبار",
   rahcomMap: "نقشه",
+  rahcomFocusProvince: "تمرکز روی محدودهٔ استان",
   rahcomMapPlaceholder: "پیش‌نمایش نقشهٔ رهکام در این بخش نمایش داده می‌شود.",
   rahcomRequests: "درخواست‌ها",
   rahcomLocateMe: "موقعیت من",
@@ -667,6 +678,8 @@ const messages = {
   rahcomPerformedBy: "ثبت‌کننده",
   rahcomSystemOptional: "سامانه (اختیاری)",
   rahcomHistoryLoadError: "بارگذاری تاریخچهٔ مراجعات انجام نشد.",
+  rahcomAccessDenied: "برای مشاهدهٔ بخش رهکام مجوز دسترسی ندارید.",
+  rahcomAccessCheckFailed: "بررسی دسترسی رهکام انجام نشد.",
   rahcomCloseHistory: "بستن تاریخچه",
   rahcomSystemData: "بارگذاری اطلاعات رهکام",
   rahcomDataUploadHint: "استان را انتخاب و فایل اکسل دارای ستون‌های name، code، latitude و longitude را بارگذاری کنید. ستون‌های electricityBillId، simIp، radarIp، cameraIp، pcIp، routerIp، laptopIp و details اختیاری هستند.",
@@ -718,7 +731,7 @@ const messages = {
   rahcomRouteNeshan: "نشان",
   rahcomRouteBalad: "بلد",
   rahcomComingSoon: "جزئیات این بخش پس از اعلام نیازمندی‌ها اضافه می‌شود.",
-} satisfies Record<UiMessage, string>;
+} as const;
 
-export default messages;
+export default faMessages;
 

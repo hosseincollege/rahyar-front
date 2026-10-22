@@ -6,7 +6,7 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/lib/api/development/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/lib/languages/types';
+import type { UiMessage } from '@/lib/ui-messages';
 
 const moduleLabels: Record<string, UiMessage> = {
   dashboard: 'sidebarDashboard', accounting: 'sidebarAccounting', commerce: 'sidebarCommercial',

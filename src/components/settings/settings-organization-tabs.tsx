@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/lib/languages/types';
+import type { UiMessage } from '@/lib/ui-messages';
 
 const tabs: Array<{ href: string; label: UiMessage }> = [
   { href: '/settings/company', label: 'sidebarGeneral' },

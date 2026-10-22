@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import type { BrightnessPreferences, CalendarSystem, ContrastPreferences } from '@/components/preferences-provider';
-import type { Locale } from '@/lib/languages';
+import type { Locale } from '@/lib/ui-messages';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 
 export type UserPreferences = {

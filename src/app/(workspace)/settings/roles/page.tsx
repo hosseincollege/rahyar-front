@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { RolesManagementPage } from './roles-management-page';
 
 export default function RolesSettingsPage() {
-  redirect('/settings/accounts');
+  return <RolesManagementPage />;
 }

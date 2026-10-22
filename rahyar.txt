@@ -18,6 +18,11 @@ git push origin main --force
 
 
 
+برای اینکه پروژه‌ی روی سیستمت دقیقاً و ۱۰۰٪ شبیه به گیت‌هاب بشه
+
+git fetch origin
+git reset --hard origin/main
+git clean -fd
 
 
 

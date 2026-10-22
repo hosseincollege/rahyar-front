@@ -1,6 +1,8 @@
-import { localeRegistry, type Locale } from './languages';
-import type { UiMessage } from './languages/types';
+import faMessages from './fa-messages';
 
-export function uiMessage(locale: Locale, key: UiMessage): string {
-  return localeRegistry[locale].messages[key];
+export type Locale = 'fa';
+export type UiMessage = keyof typeof faMessages;
+
+export function uiMessage(_locale: Locale, key: UiMessage): string {
+  return faMessages[key];
 }

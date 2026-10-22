@@ -34,8 +34,15 @@ export interface CompanySettings {
 export interface OrganizationAccess {
   canView: boolean;
   canEdit: boolean;
+  canAccessWorkspace?: boolean;
+  canViewUsers?: boolean;
+  canViewRahcom?: boolean;
+  canManageRahcom?: boolean;
+  canViewRoles?: boolean;
+  canManageRoles?: boolean;
   canManageUsers?: boolean;
   isAdmin?: boolean;
+  permissionKeys?: string[];
   branchId?: string | null;
 }
 
@@ -500,11 +507,12 @@ export const settingsApi = {
   async saveUsers(
     users: UserItem[],
     orgId: string,
+    deletedUserIds: string[] = [],
   ): Promise<UserItem[]> {
     const id = assertOrgId(orgId);
-    return apiClient.put<UserItem[], UserItem[]>(
+    return apiClient.put<UserItem[], { users: UserItem[]; deletedUserIds: string[] }>(
       `/settings/users/${id}`,
-      users,
+      { users, deletedUserIds },
     );
   },
 
@@ -516,9 +524,13 @@ export const settingsApi = {
   async saveRoles(
     roles: RoleItem[],
     orgId: string,
+    deletedRoleIds: string[] = [],
   ): Promise<RoleItem[]> {
     const id = assertOrgId(orgId);
-    return apiClient.put<RoleItem[], RoleItem[]>(`/settings/roles/${id}`, roles);
+    return apiClient.put<RoleItem[], { roles: RoleItem[]; deletedRoleIds: string[] }>(
+      `/settings/roles/${id}`,
+      { roles, deletedRoleIds },
+    );
   },
 
   async importOrganization(
@@ -580,7 +592,8 @@ export const getUsers = (orgId: string): Promise<UserItem[]> =>
 export const saveUsers = (
   users: UserItem[],
   orgId: string,
-): Promise<UserItem[]> => settingsApi.saveUsers(users, orgId);
+  deletedUserIds?: string[],
+): Promise<UserItem[]> => settingsApi.saveUsers(users, orgId, deletedUserIds);
 
 export const getRoles = (orgId: string): Promise<RoleItem[]> =>
   settingsApi.getRoles(orgId);
@@ -588,4 +601,5 @@ export const getRoles = (orgId: string): Promise<RoleItem[]> =>
 export const saveRoles = (
   roles: RoleItem[],
   orgId: string,
-): Promise<RoleItem[]> => settingsApi.saveRoles(roles, orgId);
+  deletedRoleIds?: string[],
+): Promise<RoleItem[]> => settingsApi.saveRoles(roles, orgId, deletedRoleIds);

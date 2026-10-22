@@ -8,7 +8,7 @@ import { RahcomSystemHistory } from '@/components/rahcom/rahcom-system-history';
 import { iranProvinces, rahcomApi, type RahcomActivity, type RahcomSystem } from '@/lib/rahcom-api';
 
 function today() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tehran' }); }
-export function RahcomActions() {
+export function RahcomActions({ canManage = false }: { canManage?: boolean }) {
   const { locale } = usePreferences();
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const [date, setDate] = useState(today());
@@ -37,20 +37,20 @@ export function RahcomActions() {
     catch (e) { setError(e instanceof Error ? e.message : 'Could not save action.'); }
     finally { setSaving(false); }
   }
-  async function remove(id: string) { try { await rahcomApi.deleteActivity(id); await load(); } catch (e) { setError(e instanceof Error ? e.message : 'Could not delete action.'); } }
+async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm'))) return; try { await rahcomApi.deleteActivity(id); await load(); } catch (e) { setError(e instanceof Error ? e.message : t('rahcomSystemDeleteFailed')); } }
   const labels = { EMAIL_SENT: t('rahcomEmailSent'), SYSTEM_VISIT: t('rahcomSystemVisit'), OTHER: t('rahcomOther') };
   return <section className="space-y-4" dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'}>
     <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t('rahcomActions')}</h2><label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomVisitDate')}<input aria-label={t('rahcomVisitDate')} type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label></div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomSystemOptional')}<select value={systemId} onChange={(e) => { setSystemId(e.target.value); if (e.target.value) setType('SYSTEM_VISIT'); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="">{t('rahcomSystemOptional')}</option>{systems.map(item => <option key={item.id} value={item.id}>{item.systemName} · {iranProvinces.find(([id]) => id === item.province)?.[1] ?? item.province}</option>)}</select></label>
+      {canManage && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomSystemOptional')}<select value={systemId} onChange={(e) => { setSystemId(e.target.value); setType(e.target.value ? 'SYSTEM_VISIT' : 'EMAIL_SENT'); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="">{t('rahcomSystemOptional')}</option>{systems.map(item => <option key={item.id} value={item.id}>{item.systemName} · {iranProvinces.find(([id]) => id === item.province)?.[1] ?? item.province}</option>)}</select></label>
         <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomActions')}<select value={type} disabled={Boolean(systemId)} onChange={(e) => setType(e.target.value as typeof type)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:opacity-60">{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        {!systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomQuantity')}<input aria-label={t('rahcomQuantity')} type="number" min={1} max={100000} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
+        {!systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomQuantity')}<input aria-label={t('rahcomQuantity')} type="number" min={1} max={100000} step={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
         {systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomAccompaniedBy')}<input value={accompaniedBy} onChange={e => setAccompaniedBy(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
         {systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomHandedOverTo')}<input value={handedOverTo} onChange={e => setHandedOverTo(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
         <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">{systemId ? t('rahcomWorkPerformed') : t('rahcomDescription')}<input aria-label={t('rahcomDescription')} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={systemId ? t('rahcomWorkPerformed') : t('rahcomDescription')} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>
         <button type="button" disabled={saving || !date} onClick={() => void add()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />}{t('rahcomAdd')}</button>
-      </div>
+      </div>}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     </div>
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -66,7 +66,7 @@ export function RahcomActions() {
               {item.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{item.description}</p>}
               {(item.performedBy || item.accompaniedBy || item.handedOverTo) && <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">{item.performedBy && <span>{t('rahcomPerformedBy')}: {item.performedBy}</span>}{item.accompaniedBy && <span>{t('rahcomAccompaniedBy')}: {item.accompaniedBy}</span>}{item.handedOverTo && <span>{t('rahcomHandedOverTo')}: {item.handedOverTo}</span>}</div>}
             </div>
-            <div className="flex items-center gap-1">{linkedSystem && <button type="button" onClick={() => setHistorySystemId(current => current === linkedSystem.id ? '' : linkedSystem.id)} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs text-foreground hover:bg-accent"><Clock3 size={15}/>{t('rahcomHistory')}<ChevronDown size={14} className={historyOpen ? 'rotate-180' : ''}/></button>}<button type="button" aria-label={t('rahcomDelete')} onClick={() => void remove(item.id)} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button></div>
+            <div className="flex items-center gap-1">{linkedSystem && <button type="button" onClick={() => setHistorySystemId(current => current === linkedSystem.id ? '' : linkedSystem.id)} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs text-foreground hover:bg-accent"><Clock3 size={15}/>{t('rahcomHistory')}<ChevronDown size={14} className={historyOpen ? 'rotate-180' : ''}/></button>}{canManage && <button type="button" aria-label={t('rahcomDelete')} onClick={() => void remove(item.id)} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 size={16} /></button>}</div>
           </div>
           {historyOpen && linkedSystem && <div className="border-t border-border pt-3"><RahcomSystemHistory system={linkedSystem}/></div>}
         </article>;

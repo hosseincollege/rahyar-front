@@ -21,7 +21,7 @@ export type RahcomMapControls = {
 };
 
 type PopupLabels = {
-  code: string; latitude: string; longitude: string; copyCode: string; copyCoordinates: string; copied: string;
+  code: string; copyCode: string; copyCoordinates: string; copied: string;
   electricityBillId: string; simIp: string; radarIp: string; cameraIp: string; pcIp: string; routerIp: string; laptopIp: string;
   edit: string; save: string; cancel: string; remove: string; route: string; history: string;
   dragHint: string; deleteConfirm: string; updateFailed: string; deleteFailed: string;
@@ -40,19 +40,19 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
-function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, editing: boolean, status: string, copiedValue = '') {
+function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: boolean, editing: boolean, status: string, copiedValue = '') {
   const copyButton = (value: string, label: string) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value)}">${escapeHtml(copiedValue === value ? labels.copied : label)}</button>`;
-  const row = (label: string, value: string, coordinate?: 'latitude' | 'longitude') => `<div class="rahcom-popup-row"><span>${escapeHtml(label)}</span><b ${coordinate ? `data-coordinate="${coordinate}"` : ''} dir="ltr">${escapeHtml(value)}</b></div>`;
+  const row = (label: string, value: string) => `<div class="rahcom-popup-row"><span>${escapeHtml(label)}</span><b dir="ltr">${escapeHtml(value)}</b></div>`;
   const coordinatePair = formatRahcomCoordinates(system.latitude, system.longitude);
   const optionalRows = ([
     [labels.electricityBillId, system.electricityBillId], [labels.simIp, system.simIp], [labels.radarIp, system.radarIp],
     [labels.cameraIp, system.cameraIp], [labels.pcIp, system.pcIp], [labels.routerIp, system.routerIp], [labels.laptopIp, system.laptopIp],
   ] as const).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => row(label, value));
   const codeRow = `<div class="rahcom-popup-row"><span>${escapeHtml(labels.code)}</span><b dir="ltr">${escapeHtml(system.systemCode)}</b>${copyButton(system.systemCode, labels.copyCode)}</div>`;
-  const coordinates = `<div class="rahcom-popup-data">${codeRow}<div class="rahcom-popup-copy-row"><span>${escapeHtml(labels.copyCoordinates)}</span><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'data-coordinate-copy data-copy-value=')}</div>${row(labels.latitude, String(system.latitude), 'latitude')}${row(labels.longitude, String(system.longitude), 'longitude')}${optionalRows.join('')}</div>`;
-  const actions = editing
+  const coordinates = `<div class="rahcom-popup-data">${codeRow}<div class="rahcom-popup-copy-row"><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'aria-label="' + escapeHtml(labels.copyCoordinates) + '" data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
+  const actions = editing && canManage
     ? `<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save">${escapeHtml(labels.save)}</button><button type="button" data-popup-action="cancel">${escapeHtml(labels.cancel)}</button></div>`
-    : `<div class="rahcom-popup-actions"><button type="button" data-popup-action="edit">${escapeHtml(labels.edit)}</button><button type="button" data-popup-action="route">${escapeHtml(labels.route)}</button><button type="button" data-popup-action="history">${escapeHtml(labels.history)}</button><button type="button" data-popup-action="delete" class="danger">${escapeHtml(labels.remove)}</button></div>`;
+    : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit">${escapeHtml(labels.edit)}</button>` : ''}<button type="button" data-popup-action="route">${escapeHtml(labels.route)}</button><button type="button" data-popup-action="history">${escapeHtml(labels.history)}</button>${canManage ? `<button type="button" data-popup-action="delete" class="danger">${escapeHtml(labels.remove)}</button>` : ''}</div>`;
   return `<div class="rahcom-system-popup" dir="rtl"><strong class="rahcom-popup-title">${escapeHtml(system.systemName)}</strong>${coordinates}<div data-popup-status role="status" class="rahcom-popup-status">${escapeHtml(status)}</div>${actions}</div>`;
 }
 
@@ -62,8 +62,9 @@ function getStoredProvince() {
   return window.localStorage.getItem(`rahyar-selected-province:${userId || 'current'}`) || 'isfahan';
 }
 
-export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsErrorChange, onControlsReady, onLocationStatusChange }: {
+export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCountChange, onSystemsErrorChange, onControlsReady, onLocationStatusChange }: {
   focusProvince: boolean;
+  canManage?: boolean;
   onSystemsCountChange?: (count: number) => void;
   onSystemsErrorChange?: (error: string) => void;
   onControlsReady?: (controls: RahcomMapControls | null) => void;
@@ -74,6 +75,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
   const currentMarker = useRef<CircleMarker | null>(null);
   const systemsLayer = useRef<LayerGroup | null>(null);
   const fittedProvince = useRef<string | null>(null);
+  const fittedSystemsProvince = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [location, setLocation] = useState<Point | null>(null);
   const [locating, setLocating] = useState(false);
@@ -89,7 +91,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
   const { locale } = usePreferences();
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const popupLabels = useMemo<PopupLabels>(() => ({
-    code: t('rahcomSystemCode'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'),
+    code: t('rahcomSystemCode'),
     copyCode: t('rahcomCopyCode'), copyCoordinates: t('rahcomCopyCoordinates'), copied: t('rahcomCopied'),
     electricityBillId: t('rahcomElectricityBillId'), simIp: t('rahcomSimIp'), radarIp: t('rahcomRadarIp'), cameraIp: t('rahcomCameraIp'), pcIp: t('rahcomPcIp'), routerIp: t('rahcomRouterIp'), laptopIp: t('rahcomLaptopIp'), edit: t('rahcomEditCoordinates'),
     save: t('rahcomSaveCoordinates'), cancel: t('rahcomCancel'), remove: t('rahcomDelete'),
@@ -243,7 +245,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
       });
       const markers: Marker[] = systems.map((system) => {
         const marker = leafletMarker([system.latitude, system.longitude], { icon: systemIcon, draggable: false })
-          .bindPopup(systemPopupHtml(system, popupLabels, false, ''), { minWidth: 250, maxWidth: 340 })
+          .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: 250, maxWidth: 340 })
           .addTo(layer);
 
         marker.on('popupopen', ({ popup }) => {
@@ -254,11 +256,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
           const updateCoordinatesInPopup = () => {
             const position = marker.getLatLng();
             const content = popup.getElement();
-            const latitude = content?.querySelector<HTMLElement>('[data-coordinate="latitude"]');
-            const longitude = content?.querySelector<HTMLElement>('[data-coordinate="longitude"]');
             const coordinatePair = content?.querySelector<HTMLElement>('[data-coordinate-pair]');
-            if (latitude) latitude.textContent = position.lat.toFixed(6);
-            if (longitude) longitude.textContent = position.lng.toFixed(6);
             if (coordinatePair) coordinatePair.textContent = formatRahcomCoordinates(position.lat, position.lng);
             const copyCoordinatesButton = content?.querySelector<HTMLButtonElement>('[data-coordinate-copy]');
             if (copyCoordinatesButton) copyCoordinatesButton.dataset.copyValue = formatRahcomCoordinates(position.lat, position.lng);
@@ -271,7 +269,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
             marker.setLatLng([system.latitude, system.longitude]);
           });
           const renderPopup = () => {
-            popup.setContent(systemPopupHtml(system, popupLabels, editing, status, copiedValue));
+            popup.setContent(systemPopupHtml(system, popupLabels, canManage, editing, status, copiedValue));
             popup.update();
             const root = popup.getElement()?.querySelector<HTMLElement>('.rahcom-system-popup');
             if (!root) return;
@@ -290,6 +288,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
               });
             });
             root.querySelector<HTMLButtonElement>('[data-popup-action="edit"]')?.addEventListener('click', () => {
+              if (!canManage) return;
               editing = true;
               status = '';
               marker.dragging?.enable();
@@ -305,6 +304,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
               renderPopup();
             });
             root.querySelector<HTMLButtonElement>('[data-popup-action="save"]')?.addEventListener('click', async () => {
+              if (!canManage) return;
               const position = marker.getLatLng();
               try {
               await rahcomApi.updateSystem(system.id, { latitude: position.lat, longitude: position.lng });
@@ -321,6 +321,7 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
             root.querySelector<HTMLButtonElement>('[data-popup-action="route"]')?.addEventListener('click', () => setRouteSystem(system));
             root.querySelector<HTMLButtonElement>('[data-popup-action="history"]')?.addEventListener('click', () => setHistorySystem(system));
             root.querySelector<HTMLButtonElement>('[data-popup-action="delete"]')?.addEventListener('click', async () => {
+              if (!canManage) return;
               if (!window.confirm(`${popupLabels.deleteConfirm} ${system.systemName}`)) return;
               try {
                 await rahcomApi.deleteSystem(system.id);
@@ -334,13 +335,14 @@ export function OpenStreetMap({ focusProvince, onSystemsCountChange, onSystemsEr
         });
         return marker;
       });
-      if (markers.length && (!(province === 'isfahan' && provinceBoundary) || !focusProvince)) {
+      if (markers.length && fittedSystemsProvince.current !== province && (!(province === 'isfahan' && provinceBoundary) || !focusProvince)) {
         const bounds = latLngBounds(markers.map((marker) => marker.getLatLng()));
         mapRef.current?.fitBounds(bounds, { padding: [36, 36], maxZoom: 12 });
+        fittedSystemsProvince.current = province;
       }
     });
     return () => { cancelled = true; };
-  }, [mapReady, systems, t, popupLabels, province, provinceBoundary, focusProvince]);
+  }, [mapReady, systems, t, popupLabels, province, provinceBoundary, focusProvince, canManage]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
