@@ -1,0 +1,195 @@
+ببین میخوام خیلی دقت کنی
+من دو لیست از تجهیزات سامانه‌های سولار بهت میدم:
+لیست اول که میفرستم اولش یه کلمه  DOWN نوشته :
+این‌ها تجهیزاتی هستند که قطع و غیرفعال هستند.
+لیست دوم که میفرستم اولش یه کلمه Unreachable نوشته :
+این‌ها تجهیزاتی هستند که در دسترس نیستند (احتمال قطعی ارتباط یا مشکل شبکه).
+نمونه کد سامانه هم اینجوریه
+007E13026
+حالا میخوام
+1- یک جدول نهایی بساز که:
+   - هر ردیف = یک کد سامانه
+   - چند تا ستون شامل نوع تجهیزات باشند (lte1 , lte2 , Router، رادار، دوربین )
+و یه ستون هم اول باشه ردیف که شماره گذاری بشه
+2- اگر تجهیز در لیست DOWN بود:
+   🔴 یک دایره قرمز به همراه اسم تجهیز برای اون سامانه قرار بده
+3- اگر تجهیز در لیست Unreachable بود:
+   ⚪ علامت طوسی به همراه اسم تجهیز قرار بده
+4- این ها رو هم اصلا کاری نداریم بهشون
+   - PC
+   - RLY
+و حسابی دقت کن و کار ساده ای هم هست
+من هر دو تا لیست رو تو جدول میخوام
+خب صبر کن تا لیست Down رو برات بفرستم
+و صبر کن تا تو پیام بعدی لیست Unreachable رو هم بفرستم و اونوقت جدول نهایی و دقیق رو بهم بدی . من هر دو لیست رو در یک جدول میخوام
+
+
+
+DownDown
+Rahcom (CAM-1-ESF-Intercity-Mobile-047N13002)(1016426)(10.66.30.197)
+Rahcom (CAM-1-ESF-Intercity-Mobile-062N13004)(1015401)(10.66.9.5)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007E13002)(1013895)(172.23.37.4)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007E13010)(1013716)(172.23.37.22)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007E13011)(1013711)(172.23.37.25)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007E13012)(6114792)(172.23.37.110)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007E13015)(6114812)(172.23.37.121)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007W13001)(1015403)(172.23.37.91)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007W13002)(1013802)(172.23.37.16)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007W13009)(6114732)(172.23.37.133)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007W13011)(1013616)(172.23.37.26)
+Rahcom (LTE-1-ESF-Intercity-Mobile-007W13040)(6114742)(172.23.37.129)
+Rahcom (LTE-1-ESF-Intercity-Mobile-047N13005)(1015065)(172.23.37.57)
+Rahcom (LTE-1-ESF-Intercity-Mobile-047S13003)(1014966)(172.23.37.76)
+Rahcom (LTE-1-ESF-Intercity-Mobile-047S13080)(8038669)(172.19.166.41)
+Rahcom (LTE-1-ESF-Intercity-Mobile-051N13010)(6499389)(172.23.37.162)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062D13029)(6114855)(172.23.37.99)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062D13030)(6264349)(172.23.37.145)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062D13031)(6114858)(172.23.37.125)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062N13004)(1015401)(172.23.37.89)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062N13006)(1015402)(172.23.37.90)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062N13009)(1014987)(172.23.37.74)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062N13011)(1013797)(172.23.37.18)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062N13014)(1015417)(172.23.37.97)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062S13002)(6264350)(172.23.37.148)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062S13009)(6489169)(172.23.37.156)
+Rahcom (LTE-1-ESF-Intercity-Mobile-062S13013)(1015022)(172.23.37.66)
+Rahcom (LTE-1-ESF-Intercity-Mobile-063E13007)(1014989)(172.23.37.73)
+Rahcom (LTE-1-ESF-Intercity-Mobile-063W13008)(6114757)(172.23.37.107)
+Rahcom (LTE-1-ESF-Intercity-Mobile-065E13001)(1001492)(172.23.37.37)
+Rahcom (LTE-1-ESF-Intercity-Mobile-065E13005)(1015405)(172.23.37.93)
+Rahcom (LTE-1-ESF-Intercity-Mobile-065E13015)(6502671)(172.23.37.165)
+Rahcom (LTE-1-ESF-Intercity-Mobile-065P63087)(1014437)(172.20.39.42)
+Rahcom (LTE-1-ESF-Intercity-Mobile-065W13000)(1013123)(172.23.37.30)
+Rahcom (LTE-1-ESF-Intercity-Mobile-065W13015)(6264433)(172.23.37.131)
+Rahcom (LTE-1-ESF-Intercity-Mobile-071E13009)(1015046)(172.23.37.63)
+Rahcom (LTE-1-ESF-Intercity-Mobile-071E13010)(1016963)(172.23.37.84)
+Rahcom (LTE-1-ESF-Intercity-Mobile-071W13022)(1016974)(172.23.37.79)
+Rahcom (LTE-1-ESF-Intercity-Mobile-586N13202)(6563908)(172.23.37.186)
+Rahcom (LTE-1-ESF-Intercity-Mobile-656E13204)(6562462)(172.23.37.184)
+Rahcom (LTE-1-ESF-Intercity-Mobile-903N13004)(6161239)(172.23.37.144)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13001)(6502826)(28.221.2.144)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13003)(6502828)(28.221.2.149)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13006)(6502829)(28.221.6.21)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13016)(6502835)(28.221.2.158)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13017)(6502836)(28.221.0.23)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13021)(6502837)(28.221.2.201)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13023)(6502838)(28.221.6.225)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13024)(6502839)(28.221.5.16)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13027)(6502842)(28.221.3.202)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007E13029)(6502843)(28.221.6.40)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13005)(6502846)(28.221.5.57)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13007)(6502847)(28.221.1.227)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13013)(6502850)(28.221.6.34)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13014)(6502851)(28.221.2.151)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13017)(6502853)(28.221.5.6)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13021)(6502854)(28.221.6.217)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13023)(6502855)(28.221.4.142)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13024)(6502856)(28.221.6.47)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13026)(6502858)(28.221.5.43)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13027)(6502859)(28.221.6.49)
+Rahcom (LTE-2-ESF-Intercity-Mobile-007W13029)(6502860)(28.221.3.220)
+Rahcom (LTE-2-ESF-Intercity-Mobile-009E13002)(6502863)(28.221.2.17)
+Rahcom (LTE-2-ESF-Intercity-Mobile-009W13001)(6502865)(28.221.1.237)
+Rahcom (LTE-2-ESF-Intercity-Mobile-009W13003)(6502866)(28.221.5.204)
+Rahcom (LTE-2-ESF-Intercity-Mobile-047N13002)(6502867)(28.221.2.185)
+Rahcom (LTE-2-ESF-Intercity-Mobile-047N13003)(6502868)(28.221.2.205)
+Rahcom (LTE-2-ESF-Intercity-Mobile-047S13002)(6502870)(28.221.3.7)
+Rahcom (LTE-2-ESF-Intercity-Mobile-047S13005)(6502872)(28.221.5.152)
+Rahcom (LTE-2-ESF-Intercity-Mobile-051N13002)(6502874)(28.221.5.99)
+Rahcom (LTE-2-ESF-Intercity-Mobile-051N13003)(6502875)(28.221.2.82)
+Rahcom (LTE-2-ESF-Intercity-Mobile-051S13001)(6502877)(28.221.2.106)
+Rahcom (LTE-2-ESF-Intercity-Mobile-051S13002)(6502878)(28.221.2.5)
+Rahcom (LTE-2-ESF-Intercity-Mobile-051S13004)(6502879)(28.221.1.250)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062D13032)(6502883)(28.221.6.29)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062N13001)(6502884)(28.221.5.142)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062N13003)(6502885)(28.221.3.226)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062N13007)(6502888)(28.221.0.20)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062N13010)(6502890)(28.221.4.38)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062N13020)(6502893)(28.221.5.168)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062N31001)(6530287)(28.221.4.18)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13001)(6502896)(28.221.5.235)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13002)(6502897)(28.221.7.161)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13004)(6502898)(28.221.2.52)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13005)(6502899)(28.221.5.234)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13008)(6502900)(28.221.2.47)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13015)(6502903)(28.221.0.6)
+Rahcom (LTE-2-ESF-Intercity-Mobile-062S13020)(6502904)(28.221.7.52)
+Rahcom (LTE-2-ESF-Intercity-Mobile-063D13010)(6502906)(28.221.2.249)
+Rahcom (LTE-2-ESF-Intercity-Mobile-063E13001)(6502907)(28.221.1.242)
+Rahcom (LTE-2-ESF-Intercity-Mobile-063E13005)(6502908)(28.221.1.229)
+Rahcom (LTE-2-ESF-Intercity-Mobile-063E13008)(6502910)(28.221.2.216)
+Rahcom (LTE-2-ESF-Intercity-Mobile-063W13001)(6502911)(28.221.5.222)
+Rahcom (LTE-2-ESF-Intercity-Mobile-063W13004)(6502912)(28.221.7.196)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065E13005)(6502916)(28.221.7.165)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065E13011)(6502917)(28.221.4.245)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065E13014)(6502919)(28.221.2.66)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065E13016)(6502921)(28.221.2.135)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065W13007)(6502924)(28.221.4.234)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065W13010)(6502925)(28.221.5.24)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065W13012)(6502926)(28.221.2.84)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065W13013)(6502927)(28.221.6.69)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065W13014)(6502928)(28.221.2.197)
+Rahcom (LTE-2-ESF-Intercity-Mobile-065W13016)(6502930)(28.221.5.73)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071D13001)(6502931)(28.221.6.30)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071D13004)(6502932)(28.221.5.71)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071E13014)(6502935)(28.221.6.11)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071E13020)(6502936)(28.221.1.223)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071E13024)(6502937)(28.221.7.222)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071E13030)(6502938)(28.221.2.109)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071E13035)(6502939)(28.221.2.182)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071W13013)(6502941)(28.221.2.211)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071W13017)(6502942)(28.221.5.30)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071W13021)(6502943)(28.221.5.72)
+Rahcom (LTE-2-ESF-Intercity-Mobile-071W13023)(6502945)(28.221.6.201)
+Rahcom (LTE-2-ESF-Intercity-Mobile-586N13203)(6502923)(28.221.5.139)
+Rahcom (LTE-2-ESF-Intercity-Mobile-903N13002)(6502947)(28.221.5.232)
+Rahcom (LTE-2-ESF-Intercity-Mobile-903S13002)(6502949)(28.221.2.56)
+Rahcom (LTE-2-ESF-Intercity-Mobile-903S13004)(6502950)(28.221.2.60)
+Rahcom (LTE-2-ESF-Intercity-Mobile-917S13001)(6502951)(28.221.3.4)
+Rahcom (LTE-2-ESF-Intercity-Mobile-961W13201)(6528279)(28.221.6.44)
+Rahcom (LTE-2-ESF-Intercity-Mobile-961W13202)(6528281)(28.221.6.46)
+Rahcom (RAD-1-ESF-Intercity-Mobile-007E13021)(1014440)(10.66.16.7)
+Rahcom (RLY-1-ESF-Intercity-Mobile-009E13003)(1015428)(10.66.25.253)
+Rahcom (RTR-1-ESF-Intercity-Mobile-071D13004)(6114740)(10.66.14.1)
+Rahcom (RTR-2-ESF-Intercity-Mobile-063D13010)(6114746)(10.66.13.130)
+Rahcom (RTR-2-ESF-Intercity-Mobile-071D13001)(6114793)(10.66.4.66)
+
+
+
+
+
+
+UnreachableUnreachable
+Rahcom (CAM-1-ESF-Intercity-ESF0052-007E13025)(6186534)(10.66.16.197)
+Rahcom (CAM-1-ESF-Intercity-Mobile-062D13029)(6114855)(10.66.0.197)
+Rahcom (CAM-1-ESF-Intercity-Mobile-062S13002)(6264350)(10.66.27.5)
+Rahcom (CAM-1-ESF-Intercity-Mobile-065E13005)(1015405)(10.66.18.133)
+Rahcom (CAM-1-ESF-Intercity-Mobile-065W13000)(1013123)(10.66.18.197)
+Rahcom (CAM-1-ESF-Intercity-Mobile-586N13203)(6528279)(10.66.36.133)
+Rahcom (CAM-1-ESF-Intercity-Mobile-656E13204)(6562462)(10.66.36.5)
+Rahcom (CAM-1-ESF-Intercity-Mobile-903N13004)(6161239)(10.66.24.197)
+Rahcom (RAD-1-ESF-Intercity-Mobile-007E13025)(6186534)(10.66.16.199)
+Rahcom (RAD-1-ESF-Intercity-Mobile-062D13029)(6114855)(10.66.0.199)
+Rahcom (RAD-1-ESF-Intercity-Mobile-062S13002)(6264350)(10.66.27.7)
+Rahcom (RAD-1-ESF-Intercity-Mobile-065E13005)(1015405)(10.66.18.135)
+Rahcom (RAD-1-ESF-Intercity-Mobile-586N13203)(6528279)(10.66.36.135)
+Rahcom (RAD-1-ESF-Intercity-Mobile-656E13204)(6562462)(10.66.36.7)
+Rahcom (RAD-1-ESF-Intercity-Mobile-903N13004)(6161239)(10.66.24.199)
+Rahcom (RTR-1-ESF-Intercity-ESF0052-007E13025)(6186534)(10.66.16.193)
+Rahcom (RTR-1-ESF-Intercity-Mobile-062D13029)(6114855)(10.66.0.193)
+Rahcom (RTR-1-ESF-Intercity-Mobile-062S13002)(6264350)(10.66.27.1)
+Rahcom (RTR-1-ESF-Intercity-Mobile-065E13005)(1015405)(10.66.18.129)
+Rahcom (RTR-1-ESF-Intercity-Mobile-065P63087)(1014437)(10.66.32.65)
+Rahcom (RTR-1-ESF-Intercity-Mobile-065W13000)(1013123)(10.66.18.193)
+Rahcom (RTR-1-ESF-Intercity-Mobile-586N13203)(6528279)(10.66.36.129)
+Rahcom (RTR-1-ESF-Intercity-Mobile-656E13204)(6562462)(10.66.36.1)
+Rahcom (RTR-1-ESF-Intercity-Mobile-903N13004)(6161239)(10.66.24.193)
+Rahcom (RTR-2-ESF-Intercity-Mobile-071D13004)(6114740)(10.66.14.2)
+Rahcom (WL-1-ESF-Intercity-ESF0008-009E13001)(6420455)(172.23.67.203)
+Rahcom (WL-1-ESF-Intercity-ESF0052-007E13025)(6186534)(172.23.67.195)
+Rahcom (WL-1-ESF-Intercity-ESF0052-007W13025)(6186535)(172.23.67.187)
+WLP2P-Isfahan-Isfahan-Rahcom-ESF0052-007E13025
+WLP2P-Isfahan-Isfahan-Rahcom-ESF0052-007W13025
+WLP2P-Isfahan-Shahinshahr-Rahcom-ESF0008-009E13001
+
+
