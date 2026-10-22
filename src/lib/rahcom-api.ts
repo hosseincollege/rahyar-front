@@ -47,7 +47,7 @@ export const rahcomApi = {
   updateSystem: (id: string, data: Partial<RahcomSystem>) => afterSystemsMutation(apiClient.put<RahcomSystem>(`/rahcom/systems/${id}`, data)),
   deleteSystem: (id: string) => afterSystemsMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/systems/${id}`)),
   deleteSystems: (input: { province?: string; ids?: string[] }) => afterSystemsMutation(apiClient.deleteWithBody<{ deleted: number }, { ids: string[] }>(`/rahcom/systems${input.province ? `?province=${encodeURIComponent(input.province)}` : ''}`, { ids: input.ids ?? [] })),
-  activities: (date: string) => apiClient.get<RahcomActivity[]>(`/rahcom/activities?date=${encodeURIComponent(date)}`),
+  activities: (date: string, range?: { from: string; to: string }) => apiClient.get<RahcomActivity[]>(`/rahcom/activities?${range ? `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}` : `date=${encodeURIComponent(date)}`}`),
   addActivity: (data: { date: string; activityType: RahcomActivity['activityType']; quantity: number; description: string; systemId?: string; accompaniedBy?: string; handedOverTo?: string }) => afterActivityMutation(apiClient.post<RahcomActivity>('/rahcom/activities', data)),
   systemActivities: (systemId: string) => apiClient.get<RahcomActivity[]>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities`),
   addSystemActivity: (systemId: string, data: { date: string; description: string; accompaniedBy: string; handedOverTo: string }) => afterActivityMutation(apiClient.post<RahcomActivity>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities`, data)),

@@ -8,10 +8,33 @@ import { RahcomSystemHistory } from '@/components/rahcom/rahcom-system-history';
 import { iranProvinces, rahcomApi, type RahcomActivity, type RahcomSystem } from '@/lib/rahcom-api';
 
 function today() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tehran' }); }
+type Period = 'day' | 'week' | 'month' | 'year';
+function dateKey(date: Date) { return date.toISOString().slice(0, 10); }
+function getRange(anchor: string, period: Period) {
+  const [year, month, day] = anchor.split('-').map(Number);
+  const current = new Date(Date.UTC(year, month - 1, day));
+  const start = new Date(current);
+  const end = new Date(current);
+  if (period === 'week') {
+    start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 1) % 7));
+    end.setUTCDate(start.getUTCDate() + 6);
+  } else if (period === 'month') {
+    start.setUTCDate(1);
+    end.setUTCMonth(start.getUTCMonth() + 1, 0);
+  } else if (period === 'year') {
+    start.setUTCMonth(0, 1);
+    end.setUTCMonth(11, 31);
+  }
+  return { from: dateKey(start), to: dateKey(end) };
+}
+function persianDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR-u-ca-persian' : locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`));
+}
 export function RahcomActions({ canManage = false }: { canManage?: boolean }) {
   const { locale } = usePreferences();
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const [date, setDate] = useState(today());
+  const [period, setPeriod] = useState<Period>('day');
   const [items, setItems] = useState<RahcomActivity[]>([]);
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [systemId, setSystemId] = useState('');
@@ -26,9 +49,9 @@ export function RahcomActions({ canManage = false }: { canManage?: boolean }) {
   const [error, setError] = useState('');
   const load = useCallback(async () => {
     setLoading(true); setError('');
-    try { setItems(await rahcomApi.activities(date)); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load actions.'); }
+    try { setItems(await rahcomApi.activities(date, getRange(date, period))); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load actions.'); }
     finally { setLoading(false); }
-  }, [date]);
+  }, [date, period]);
   useEffect(() => { const frame = window.requestAnimationFrame(() => { void load(); }); return () => window.cancelAnimationFrame(frame); }, [load]);
   useEffect(() => { void rahcomApi.systems().then(setSystems).catch(() => setSystems([])); }, []);
   async function add() {
@@ -41,7 +64,10 @@ async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm')
   const labels = { EMAIL_SENT: t('rahcomEmailSent'), SYSTEM_VISIT: t('rahcomSystemVisit'), OTHER: t('rahcomOther') };
   return <section className="space-y-4" dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'}>
     <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t('rahcomActions')}</h2><label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomVisitDate')}<input aria-label={t('rahcomVisitDate')} type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t('rahcomActions')}</h2><label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomVisitDate')}<input aria-label={t('rahcomVisitDate')} type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /><span className="text-xs text-foreground">{persianDate(date, locale)}</span></label></div>
+      <div role="tablist" aria-label={t('rahcomActions')} className="mb-4 flex flex-wrap gap-2">
+        {([['day', 'روز'], ['week', 'هفته'], ['month', 'ماه'], ['year', 'سال']] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={period === value} onClick={() => setPeriod(value)} className={`min-h-10 rounded-lg border px-4 text-sm font-medium ${period === value ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground hover:bg-accent'}`}>{label}</button>)}
+      </div>
       {canManage && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomSystemOptional')}<select value={systemId} onChange={(e) => { setSystemId(e.target.value); setType(e.target.value ? 'SYSTEM_VISIT' : 'EMAIL_SENT'); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="">{t('rahcomSystemOptional')}</option>{systems.map(item => <option key={item.id} value={item.id}>{item.systemName} · {iranProvinces.find(([id]) => id === item.province)?.[1] ?? item.province}</option>)}</select></label>
         <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomActions')}<select value={type} disabled={Boolean(systemId)} onChange={(e) => setType(e.target.value as typeof type)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:opacity-60">{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
@@ -61,7 +87,7 @@ async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm')
         return <article key={item.id} className="space-y-3 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{labels[item.activityType]}</strong><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{item.quantity}</span><time dir="ltr" className="font-mono text-xs text-muted-foreground">{item.activityDate.slice(0, 10)}</time></div>
+              <div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{labels[item.activityType]}</strong><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{item.quantity}</span><time className="text-xs text-muted-foreground">{persianDate(item.activityDate, locale)}</time></div>
               {systemName && <p className="mt-2 text-sm font-medium text-foreground">{systemName} <span dir="ltr" className="font-mono text-xs text-muted-foreground">{item.system?.systemCode ?? item.systemCodeSnapshot}</span></p>}
               {item.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{item.description}</p>}
               {(item.performedBy || item.accompaniedBy || item.handedOverTo) && <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">{item.performedBy && <span>{t('rahcomPerformedBy')}: {item.performedBy}</span>}{item.accompaniedBy && <span>{t('rahcomAccompaniedBy')}: {item.accompaniedBy}</span>}{item.handedOverTo && <span>{t('rahcomHandedOverTo')}: {item.handedOverTo}</span>}</div>}

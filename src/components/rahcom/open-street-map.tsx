@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker } from 'leaflet';
 import type { Feature, Polygon } from 'geojson';
 import { ExternalLink, X } from 'lucide-react';
@@ -51,8 +52,8 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
   const codeRow = `<div class="rahcom-popup-row"><span>${escapeHtml(labels.code)}</span><b dir="ltr">${escapeHtml(system.systemCode)}</b>${copyButton(system.systemCode, labels.copyCode)}</div>`;
   const coordinates = `<div class="rahcom-popup-data">${codeRow}<div class="rahcom-popup-copy-row"><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'aria-label="' + escapeHtml(labels.copyCoordinates) + '" data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
   const actions = editing && canManage
-    ? `<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save">${escapeHtml(labels.save)}</button><button type="button" data-popup-action="cancel">${escapeHtml(labels.cancel)}</button></div>`
-    : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit">${escapeHtml(labels.edit)}</button>` : ''}<button type="button" data-popup-action="route">${escapeHtml(labels.route)}</button><button type="button" data-popup-action="history">${escapeHtml(labels.history)}</button>${canManage ? `<button type="button" data-popup-action="delete" class="danger">${escapeHtml(labels.remove)}</button>` : ''}</div>`;
+    ? `<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save">${escapeHtml(labels.save)}</button><button type="button" data-popup-action="cancel">${escapeHtml(labels.cancel)}</button><button type="button" data-popup-action="delete" class="danger">${escapeHtml(labels.remove)}</button></div>`
+    : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit">${escapeHtml(labels.edit)}</button>` : ''}<button type="button" data-popup-action="route">${escapeHtml(labels.route)}</button><button type="button" data-popup-action="history">${escapeHtml(labels.history)}</button></div>`;
   return `<div class="rahcom-system-popup" dir="rtl"><strong class="rahcom-popup-title">${escapeHtml(system.systemName)}</strong>${coordinates}<div data-popup-status role="status" class="rahcom-popup-status">${escapeHtml(status)}</div>${actions}</div>`;
 }
 
@@ -429,12 +430,15 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
           </div>
         </section>
       </div> : null}
-      {historySystem ? <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistorySystem(null); }}>
-        <section role="dialog" aria-modal="true" aria-label={t('rahcomHistory')} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-2xl sm:p-6">
-          <div className="mb-4 flex justify-end"><button type="button" onClick={() => setHistorySystem(null)} aria-label={t('rahcomCloseHistory')} className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-accent"><X size={18}/></button></div>
-          <RahcomSystemHistory system={historySystem} />
+      {historySystem && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/75 p-3 backdrop-blur-[2px] sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistorySystem(null); }}>
+        <section role="dialog" aria-modal="true" aria-label={t('rahcomHistory')} className="flex max-h-[min(90vh,52rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background text-foreground shadow-2xl">
+          <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-3 sm:px-6">
+            <div className="min-w-0"><h2 className="font-bold">{t('rahcomHistory')}</h2><p className="mt-1 truncate text-sm text-muted-foreground">{historySystem.systemName} · {historySystem.systemCode}</p></div>
+            <button type="button" onClick={() => setHistorySystem(null)} aria-label={t('rahcomCloseHistory')} className="shrink-0 rounded-lg border border-border bg-background p-2 text-muted-foreground hover:bg-accent"><X size={18}/></button>
+          </div>
+          <div className="min-h-0 overflow-y-auto p-4 sm:p-6"><RahcomSystemHistory system={historySystem} /></div>
         </section>
-      </div> : null}
+      </div>, document.body) : null}
     </div>
   );
 }
