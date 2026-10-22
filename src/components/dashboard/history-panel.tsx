@@ -26,7 +26,7 @@ export function HistoryPanel() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- load synchronizes this panel with its API.
   useEffect(() => { void load(); }, [load]);
   const visible = view === 'created' ? items.filter((item) => item.action === 'CREATE') : items;
-  const date = (value: string) => new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  const date = (value: string) => new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(value));
   const actionLabel = (action: string) => t(action === 'CREATE' ? 'dashboardActivityCreate' : action === 'UPDATE' ? 'dashboardActivityUpdate' : action === 'DELETE' ? 'dashboardActivityDelete' : 'dashboardActivityOther');
 
   return <section dir={getLocaleDirection(locale)} className="space-y-5">

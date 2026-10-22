@@ -17,6 +17,7 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { uiMessage } from '@/lib/ui-messages';
 import { HeaderProvinceSelector } from './header-province-selector';
 import { HeaderAccountSwitcher } from './header-account-switcher';
+import { rahcomApi, type RahcomSystem } from '@/lib/rahcom-api';
 
 interface TopHeaderProps {
   isMobileMenuOpen?: boolean;
@@ -64,6 +65,8 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
   const router = useRouter();
   const pathname = usePathname();
   const [systemsSearch, setSystemsSearch] = useState('');
+  const [systemMatches, setSystemMatches] = useState<RahcomSystem[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [organizationBranding, setOrganizationBranding] =
     useState<OrganizationBranding | null>(null);
   const { theme, setTheme } = useTheme();
@@ -84,8 +87,30 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
 
   const updateSystemsSearch = (value: string) => {
     setSystemsSearch(value);
+    setSearchOpen(true);
     window.sessionStorage.setItem('rahyar-rahcom-systems-search', value);
     window.dispatchEvent(new CustomEvent('rahyar:systems-search', { detail: { query: value } }));
+  };
+
+  useEffect(() => {
+    const query = systemsSearch.trim().toLocaleLowerCase();
+    if (query.length < 2) { setSystemMatches([]); return; }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void rahcomApi.systems().then((systems) => {
+        if (active) setSystemMatches(systems.filter((system) => `${system.systemCode} ${system.systemName}`.toLocaleLowerCase().includes(query)).slice(0, 5));
+      }).catch(() => { if (active) setSystemMatches([]); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [systemsSearch]);
+
+  const openSystemAction = (system: RahcomSystem, destination: 'map' | 'systems' | 'actions') => {
+    window.localStorage.setItem(`rahyar-selected-province:${user?.id || 'current'}`, system.province);
+    window.sessionStorage.setItem('rahyar-rahcom-focus-system', system.id);
+    if (destination === 'systems') window.sessionStorage.setItem('rahyar-rahcom-systems-search', system.systemCode);
+    setSearchOpen(false);
+    router.push(destination === 'systems' ? '/rahcom/systems' : `/rahcom/${destination}`);
+    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { province: system.province } }));
   };
 
   useEffect(() => {
@@ -248,17 +273,6 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
 
         {/* کپسول حساب کاربری در سوی مقابل کنترل‌ها */}
         <div className="pointer-events-none order-2 flex shrink-0 items-center gap-1.5">
-        {pathname === '/rahcom/systems' && <label className="pointer-events-auto relative block min-w-0 max-sm:absolute max-sm:top-[calc(100%+0.5rem)] max-sm:end-3 max-sm:z-20 max-sm:w-[calc(100vw-1.5rem)]">
-          <Search size={16} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            value={systemsSearch}
-            onChange={(event) => updateSystemsSearch(event.target.value)}
-            aria-label={message('rahcomSearchSystems')}
-            placeholder={message('rahcomSearchSystems')}
-            className="h-9 w-40 rounded-xl border border-[var(--border)] bg-[var(--surface)] pe-9 ps-3 text-xs text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] max-sm:w-full md:w-56 md:text-sm"
-          />
-        </label>}
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="rtl">
         <div ref={accountMenuRef} dir={direction} className="pointer-events-none relative shrink-0">
           <button
@@ -327,6 +341,23 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
         <HeaderAccountSwitcher userId={user?.id} />
         <HeaderProvinceSelector userId={user?.id} />
         </div>
+      </div>
+
+      <div className="pointer-events-auto absolute end-5 top-1/2 z-20 hidden -translate-y-1/2 md:block">
+        <label className="relative block w-56 lg:w-72">
+          <Search size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input type="search" value={systemsSearch} onFocus={() => setSearchOpen(true)} onChange={(event) => updateSystemsSearch(event.target.value)} aria-label={message('rahcomSearchSystems')} placeholder={message('rahcomSearchSystems')} className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pe-9 ps-3 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)]" />
+        </label>
+        {searchOpen && systemsSearch.trim().length >= 2 && <div className="absolute end-0 top-full mt-2 w-80 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl">
+          {systemMatches.length === 0 ? <p className="p-3 text-sm text-muted-foreground">{message('rahcomNoSystemsFound')}</p> : systemMatches.map((system) => <div key={system.id} className="border-b border-[var(--border)] p-3 last:border-0">
+            <p className="truncate text-sm font-semibold text-[var(--foreground)]">{system.systemName}</p><p dir="ltr" className="mt-0.5 text-start font-mono text-xs text-muted-foreground">{system.systemCode}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => openSystemAction(system, 'map')} className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-accent">{message('rahcomSearchOnMap')}</button>
+              <button type="button" onClick={() => openSystemAction(system, 'systems')} className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-accent">{message('rahcomSearchOpenSystem')}</button>
+              <button type="button" onClick={() => openSystemAction(system, 'actions')} className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-accent">{message('rahcomSearchActions')}</button>
+            </div>
+          </div>)}
+        </div>}
       </div>
 
       {/* نام شرکت در چپ، لوگوی دقیقاً وسط و رهیار در راست؛ کل نشان به داشبورد می‌رود */}

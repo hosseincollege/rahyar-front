@@ -195,7 +195,7 @@ export function NotificationsPanel() {
                   </span>
                   {body && <span className="mt-1 block whitespace-pre-line text-sm leading-6 text-muted-foreground">{body}</span>}
                   <time className="mt-2 block text-xs text-muted-foreground" dateTime={item.createdAt}>
-                    {new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(createdAt)}
+                    {new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(createdAt)}
                   </time>
                 </span>
               </>

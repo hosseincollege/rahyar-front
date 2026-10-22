@@ -55,7 +55,7 @@ export default function SiteVisitsPage() {
     if (minutes) return `${minutes} ${t('siteVisitsMinutes')} ${rest} ${t('siteVisitsSeconds')}`;
     return `${rest} ${t('siteVisitsSeconds')}`;
   };
-  const date = (value: string | null) => value ? new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
+  const date = (value: string | null) => value ? new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(value)) : '—';
   const rangeLabels: Array<[SiteVisitsRange, UiMessage]> = [['7d', 'siteVisitsRange7d'], ['30d', 'siteVisitsRange30d'], ['90d', 'siteVisitsRange90d'], ['all', 'siteVisitsRangeAll']];
   const stats: Array<[UiMessage, number, typeof Users]> = summary ? [
     ['siteVisitsOnline', summary.onlineVisitors, Users], ['siteVisitsUniqueIps', summary.uniqueIps, Eye], ['siteVisitsSessions', summary.sessions, Activity], ['siteVisitsPageViews', summary.pageViews, Clock3],

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker } from 'leaflet';
-import type { Feature, Polygon } from 'geojson';
-import { ExternalLink, X } from 'lucide-react';
+import type { Feature, MultiPolygon, Polygon } from 'geojson';
+import { ExternalLink, LocateFixed, Minus, Plus, X } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
@@ -12,17 +12,45 @@ import 'leaflet/dist/leaflet.css';
 import { formatRahcomCoordinates, rahcomApi, type RahcomSystem } from '@/lib/rahcom-api';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomSystemHistory } from '@/components/rahcom/rahcom-system-history';
+import { canonicalRahcomAxis, rahcomAxisColor, rahcomAxisCountiesFor } from '@/lib/rahcom-axes';
 
 type Point = { lat: number; lng: number };
+type CountyFeature = Feature<Polygon | MultiPolygon, { county: string }>;
 
-export type RahcomMapControls = {
-  locateMe: () => void;
-  zoomIn: () => void;
-  zoomOut: () => void;
-};
+function pointInRing(longitude: number, latitude: number, ring: number[][]) {
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
+    const [xi, yi] = ring[index];
+    const [xj, yj] = ring[previous];
+    const crosses = (yi > latitude) !== (yj > latitude) && longitude < ((xj - xi) * (latitude - yi)) / (yj - yi) + xi;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInCounty(longitude: number, latitude: number, county: CountyFeature) {
+  const polygons = county.geometry.type === 'Polygon' ? [county.geometry.coordinates] : county.geometry.coordinates;
+  return polygons.some((polygon) => pointInRing(longitude, latitude, polygon[0] as number[][])
+    && !polygon.slice(1).some((hole) => pointInRing(longitude, latitude, hole as number[][])));
+}
+
+function getAxisCountyZones(counties: CountyFeature[], systems: RahcomSystem[], selectedAxis = '') {
+  return counties.flatMap((county) => {
+    const names = rahcomAxisCountiesFor(selectedAxis);
+    if (selectedAxis && !names.includes(county.properties.county)) return [];
+    const axes = new Map<string, number>();
+    for (const system of systems) {
+      if (!pointInCounty(system.longitude, system.latitude, county)) continue;
+      const axis = canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province);
+      if (axis) axes.set(axis, (axes.get(axis) ?? 0) + 1);
+    }
+    const axis = selectedAxis || [...axes.entries()].sort((left, right) => right[1] - left[1])[0]?.[0];
+    return axis ? [{ county, axis }] : [];
+  });
+}
 
 type PopupLabels = {
-  code: string; copyCode: string; copyCoordinates: string; copied: string;
+  code: string; axis: string; copyCode: string; copyCoordinates: string; copied: string;
   electricityBillId: string; simIp: string; radarIp: string; cameraIp: string; pcIp: string; routerIp: string; laptopIp: string;
   edit: string; save: string; cancel: string; remove: string; route: string; history: string;
   dragHint: string; deleteConfirm: string; updateFailed: string; deleteFailed: string;
@@ -50,7 +78,8 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
     [labels.cameraIp, system.cameraIp], [labels.pcIp, system.pcIp], [labels.routerIp, system.routerIp], [labels.laptopIp, system.laptopIp],
   ] as const).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => row(label, value));
   const codeRow = `<div class="rahcom-popup-row"><span>${escapeHtml(labels.code)}</span><b dir="ltr">${escapeHtml(system.systemCode)}</b>${copyButton(system.systemCode, labels.copyCode)}</div>`;
-  const coordinates = `<div class="rahcom-popup-data">${codeRow}<div class="rahcom-popup-copy-row"><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'aria-label="' + escapeHtml(labels.copyCoordinates) + '" data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
+  const axis = canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province);
+  const coordinates = `<div class="rahcom-popup-data">${codeRow}${axis ? row(labels.axis, axis) : ''}<div class="rahcom-popup-copy-row"><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'aria-label="' + escapeHtml(labels.copyCoordinates) + '" data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
   const actions = editing && canManage
     ? `<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save">${escapeHtml(labels.save)}</button><button type="button" data-popup-action="cancel">${escapeHtml(labels.cancel)}</button><button type="button" data-popup-action="delete" class="danger">${escapeHtml(labels.remove)}</button></div>`
     : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit">${escapeHtml(labels.edit)}</button>` : ''}<button type="button" data-popup-action="route">${escapeHtml(labels.route)}</button><button type="button" data-popup-action="history">${escapeHtml(labels.history)}</button></div>`;
@@ -63,12 +92,15 @@ function getStoredProvince() {
   return window.localStorage.getItem(`rahyar-selected-province:${userId || 'current'}`) || 'isfahan';
 }
 
-export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCountChange, onSystemsErrorChange, onControlsReady, onLocationStatusChange }: {
+export function OpenStreetMap({ focusProvince, showAxisZones, canManage = false, axisFilter, onAxisFilterChange, onAxisOptionsChange, onSystemsCountChange, onSystemsErrorChange, onLocationStatusChange }: {
   focusProvince: boolean;
+  showAxisZones: boolean;
   canManage?: boolean;
+  axisFilter: string;
+  onAxisFilterChange: (axis: string) => void;
+  onAxisOptionsChange?: (axes: string[]) => void;
   onSystemsCountChange?: (count: number) => void;
   onSystemsErrorChange?: (error: string) => void;
-  onControlsReady?: (controls: RahcomMapControls | null) => void;
   onLocationStatusChange?: (status: { locating: boolean; error: boolean }) => void;
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
@@ -76,7 +108,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
   const currentMarker = useRef<CircleMarker | null>(null);
   const systemsLayer = useRef<LayerGroup | null>(null);
   const fittedProvince = useRef<string | null>(null);
-  const fittedSystemsProvince = useRef<string | null>(null);
+  const fittedSystemsView = useRef('');
   const [mapReady, setMapReady] = useState(false);
   const [location, setLocation] = useState<Point | null>(null);
   const [locating, setLocating] = useState(false);
@@ -87,12 +119,15 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
   const [routeSystem, setRouteSystem] = useState<RahcomSystem | null>(null);
   const [historySystem, setHistorySystem] = useState<RahcomSystem | null>(null);
   const [systemsError, setSystemsError] = useState('');
-  const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
+  const [countyBoundaries, setCountyBoundaries] = useState<CountyFeature[]>([]);
   const { resolvedTheme } = useTheme();
   const { locale } = usePreferences();
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
+  const axisOptions = useMemo(() => [...new Set(systems.map((system) => canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province)).filter(Boolean))].sort((a, b) => a.localeCompare(b, locale)), [locale, systems]);
+  const visibleSystems = useMemo(() => systems.filter((system) => !axisFilter || canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province) === axisFilter), [axisFilter, systems]);
+  const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
-    code: t('rahcomSystemCode'),
+    code: t('rahcomSystemCode'), axis: t('rahcomAxis'),
     copyCode: t('rahcomCopyCode'), copyCoordinates: t('rahcomCopyCoordinates'), copied: t('rahcomCopied'),
     electricityBillId: t('rahcomElectricityBillId'), simIp: t('rahcomSimIp'), radarIp: t('rahcomRadarIp'), cameraIp: t('rahcomCameraIp'), pcIp: t('rahcomPcIp'), routerIp: t('rahcomRouterIp'), laptopIp: t('rahcomLaptopIp'), edit: t('rahcomEditCoordinates'),
     save: t('rahcomSaveCoordinates'), cancel: t('rahcomCancel'), remove: t('rahcomDelete'),
@@ -108,6 +143,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
       if (cancelled || !mapElement.current) return;
       map = leaflet.map(mapElement.current, { zoomControl: false }).setView([32.2, 52.2], 7);
       map.createPane('rahcomProvinceShade').style.zIndex = '350';
+      map.createPane('rahcomAxisZones').style.zIndex = '375';
       map.createPane('rahcomProvinceBoundary').style.zIndex = '430';
       systemsLayer.current = leaflet.layerGroup().addTo(map);
       leaflet.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -145,6 +181,43 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
       .catch(() => { if (active) setProvinceBoundary(null); });
     return () => { active = false; };
   }, [mapReady, province]);
+
+  useEffect(() => {
+    if (!mapReady || province !== 'isfahan') { setCountyBoundaries([]); return; }
+    let active = true;
+    void fetch('/data/isfahan-counties.geojson')
+      .then((response) => {
+        if (!response.ok) throw new Error('مرز شهرستان‌ها بارگذاری نشد.');
+        return response.json() as Promise<{ features: CountyFeature[] }>;
+      })
+      .then((collection) => { if (active) setCountyBoundaries(collection.features); })
+      .catch(() => { if (active) setCountyBoundaries([]); });
+    return () => { active = false; };
+  }, [mapReady, province]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || !showAxisZones || province !== 'isfahan' || countyBoundaries.length === 0 || systems.length === 0) return;
+    let cancelled = false;
+    let zonesLayer: LayerGroup | null = null;
+    void import('leaflet').then(({ layerGroup, geoJSON }) => {
+      if (cancelled || mapRef.current !== map) return;
+      const layer = layerGroup().addTo(map);
+      zonesLayer = layer;
+      for (const zone of getAxisCountyZones(countyBoundaries, systems, axisFilter)) {
+        const color = rahcomAxisColor(zone.axis, axisOptions);
+        geoJSON(zone.county, {
+          pane: 'rahcomAxisZones',
+          style: { color, weight: axisFilter ? 2.5 : 1.3, opacity: 0.9, fillColor: color, fillOpacity: axisFilter ? 0.19 : 0.11 },
+          onEachFeature: (_feature, countyLayer) => countyLayer.bindTooltip(`${zone.axis} · ${zone.county.properties.county}`, { sticky: true, direction: 'center', opacity: 0.92 }),
+        }).addTo(layer);
+      }
+    });
+    return () => {
+      cancelled = true;
+      zonesLayer?.remove();
+    };
+  }, [mapReady, showAxisZones, province, countyBoundaries, systems, axisOptions, axisFilter]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -231,20 +304,23 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
     return () => { active = false; };
   }, [province, systemsRevision]);
 
-  useEffect(() => { onSystemsCountChange?.(systems.length); }, [onSystemsCountChange, systems.length]);
+  useEffect(() => { onAxisOptionsChange?.(axisOptions); }, [axisOptions, onAxisOptionsChange]);
+  useEffect(() => { onSystemsCountChange?.(visibleSystems.length); }, [onSystemsCountChange, visibleSystems.length]);
   useEffect(() => { onSystemsErrorChange?.(systemsError); }, [onSystemsErrorChange, systemsError]);
 
   useEffect(() => {
     if (!mapReady || !systemsLayer.current) return;
     let cancelled = false;
-    void import('leaflet').then(({ divIcon, latLngBounds, marker: leafletMarker }) => {
+    void import('leaflet').then(({ divIcon, geoJSON, latLngBounds, marker: leafletMarker }) => {
       if (cancelled || !systemsLayer.current) return;
       const layer = systemsLayer.current; layer.clearLayers();
-      const systemIcon = divIcon({
-        className: '', iconSize: [18, 18], iconAnchor: [9, 9],
-        html: '<span style="display:block;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:#7c3aed;box-shadow:0 1px 5px #1118"></span>',
-      });
-      const markers: Marker[] = systems.map((system) => {
+      const markers: Marker[] = visibleSystems.map((system) => {
+        const systemAxis = canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province);
+        const markerColor = systemAxis ? rahcomAxisColor(systemAxis, axisOptions) : '#64748b';
+        const systemIcon = divIcon({
+          className: '', iconSize: [18, 18], iconAnchor: [9, 9],
+          html: `<span style="display:block;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:${markerColor};box-shadow:0 1px 5px #1118"></span>`,
+        });
         const marker = leafletMarker([system.latitude, system.longitude], { icon: systemIcon, draggable: false })
           .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: 250, maxWidth: 340 })
           .addTo(layer);
@@ -336,14 +412,35 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
         });
         return marker;
       });
-      if (markers.length && fittedSystemsProvince.current !== province && (!(province === 'isfahan' && provinceBoundary) || !focusProvince)) {
-        const bounds = latLngBounds(markers.map((marker) => marker.getLatLng()));
-        mapRef.current?.fitBounds(bounds, { padding: [36, 36], maxZoom: 12 });
-        fittedSystemsProvince.current = province;
+      let focusedSystem = false;
+      const focusSystemId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
+      if (focusSystemId) {
+        const focusIndex = visibleSystems.findIndex((system) => system.id === focusSystemId);
+        if (focusIndex >= 0) {
+          const marker = markers[focusIndex];
+          mapRef.current?.setView(marker.getLatLng(), 15, { animate: false });
+          marker.openPopup();
+          focusedSystem = true;
+        }
+        window.sessionStorage.removeItem('rahyar-rahcom-focus-system');
+      }
+      const viewKey = `${province}:${axisFilter}`;
+      const provinceAlreadyFocused = province === 'isfahan' && provinceBoundary && focusProvince;
+      if (!focusedSystem && markers.length && fittedSystemsView.current !== viewKey && (Boolean(axisFilter) || !provinceAlreadyFocused)) {
+        const countyZones = axisFilter ? getAxisCountyZones(countyBoundaries, visibleSystems, axisFilter) : [];
+        const bounds = latLngBounds([]);
+        for (const zone of countyZones) bounds.extend(geoJSON(zone.county).getBounds());
+        if (bounds.isValid()) mapRef.current?.fitBounds(bounds, { padding: [36, 36], maxZoom: 10 });
+        else {
+          const markerBounds = latLngBounds(markers.map((marker) => marker.getLatLng()));
+          if (markers.length === 1) mapRef.current?.setView(markers[0].getLatLng(), 12, { animate: false });
+          else mapRef.current?.fitBounds(markerBounds, { padding: [36, 36], maxZoom: 12 });
+        }
+        fittedSystemsView.current = viewKey;
       }
     });
     return () => { cancelled = true; };
-  }, [mapReady, systems, t, popupLabels, province, provinceBoundary, focusProvince, canManage]);
+  }, [mapReady, visibleSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, axisFilter, axisOptions, countyBoundaries]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -388,12 +485,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
   const zoomOut = useCallback(() => mapRef.current?.zoomOut(), []);
 
   useEffect(() => {
-    if (!mapReady) return;
-    onControlsReady?.({ locateMe, zoomIn, zoomOut });
-    return () => onControlsReady?.(null);
-  }, [locateMe, mapReady, onControlsReady, zoomIn, zoomOut]);
-
-  useEffect(() => {
     onLocationStatusChange?.({ locating, error: locationError });
   }, [locating, locationError, onLocationStatusChange]);
 
@@ -414,6 +505,11 @@ export function OpenStreetMap({ focusProvince, canManage = false, onSystemsCount
   return (
     <div className={`rahcom-osm-map relative h-full w-full overflow-hidden ${resolvedTheme === 'dark' ? 'rahcom-osm-map-dark' : ''}`}>
       <div ref={mapElement} className="absolute inset-0 z-0" />
+      <div className="absolute start-3 top-3 z-[500] flex items-center gap-2 rounded-xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur">
+        <button type="button" onClick={zoomIn} aria-label={t('rahcomZoomIn')} title={t('rahcomZoomIn')} className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground"><Plus size={17} /></button>
+        <button type="button" onClick={zoomOut} aria-label={t('rahcomZoomOut')} title={t('rahcomZoomOut')} className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground"><Minus size={17} /></button>
+        <button type="button" onClick={locateMe} disabled={locating} aria-label={t('rahcomLocateMe')} title={t('rahcomLocateMe')} className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground disabled:opacity-50">{locating ? <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <LocateFixed size={17} />}</button>
+      </div>
       {routeSystem ? <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setRouteSystem(null); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="rahcom-map-route-title" className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
           <div className="flex items-start justify-between gap-3">

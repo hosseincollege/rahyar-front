@@ -44,6 +44,7 @@ const navigation: NavigationItem[] = [
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
       { titleKey: 'rahcomSystemsList', href: '/rahcom/systems' },
       { titleKey: 'rahcomDailyTraffic', href: '/rahcom/daily-traffic' },
+      { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
     ],
   },
   {

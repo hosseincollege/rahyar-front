@@ -53,7 +53,17 @@ export function RahcomActions({ canManage = false }: { canManage?: boolean }) {
     finally { setLoading(false); }
   }, [date, period]);
   useEffect(() => { const frame = window.requestAnimationFrame(() => { void load(); }); return () => window.cancelAnimationFrame(frame); }, [load]);
-  useEffect(() => { void rahcomApi.systems().then(setSystems).catch(() => setSystems([])); }, []);
+  useEffect(() => {
+    void rahcomApi.systems().then((result) => {
+      setSystems(result);
+      const focusId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
+      if (focusId && result.some((system) => system.id === focusId)) {
+        setSystemId(focusId);
+        setType('SYSTEM_VISIT');
+        window.sessionStorage.removeItem('rahyar-rahcom-focus-system');
+      }
+    }).catch(() => setSystems([]));
+  }, []);
   async function add() {
     setSaving(true); setError('');
     try { await rahcomApi.addActivity({ date, activityType: systemId ? 'SYSTEM_VISIT' : type, quantity: systemId ? 1 : quantity, description, ...(systemId ? { systemId, accompaniedBy, handedOverTo } : {}) }); setDescription(''); setQuantity(1); setAccompaniedBy(''); setHandedOverTo(''); await load(); }

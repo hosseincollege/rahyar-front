@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Circle, Database, LoaderCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Database, LoaderCircle, RefreshCw } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { developmentApi, type TestDataAccountCredential, type TestDataModuleKey, type TestDataModuleStatus } from '@/lib/api/development/development-api';
 import { ApiError } from '@/lib/api-client';
@@ -27,6 +27,9 @@ export default function TestDataPage() {
   const [failedKeys, setFailedKeys] = useState<TestDataModuleKey[]>([]);
   const [applyErrors, setApplyErrors] = useState<Partial<Record<TestDataModuleKey, string>>>({});
   const [createdAccounts, setCreatedAccounts] = useState<TestDataAccountCredential[]>([]);
+  const [canRefreshTestData, setCanRefreshTestData] = useState(false);
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const visibleStatuses = modules.map(({ key }) => statuses.find((item) => item.moduleKey === key));
   const appliedCount = visibleStatuses.filter((item) => item?.applied).length;
@@ -42,6 +45,7 @@ export default function TestDataPage() {
     try {
       const result = await developmentApi.getTestDataStatus();
       setStatuses(result.modules);
+      setCanRefreshTestData(result.canRefreshTestData);
     } catch (error) {
       setDenied(error instanceof ApiError && error.status === 403);
       setLoadFailed(!(error instanceof ApiError && error.status === 403));
@@ -99,6 +103,20 @@ export default function TestDataPage() {
     setCreatedAccounts(generatedAccounts);
   };
 
+  const refreshTestData = async () => {
+    setRefreshBusy(true);
+    setRefreshError('');
+    try {
+      const result = await developmentApi.refreshTestData();
+      setStatuses(result.modules);
+      setCreatedAccounts(result.accounts ?? []);
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : t('testDataRefreshFailed'));
+    } finally {
+      setRefreshBusy(false);
+    }
+  };
+
   const countLabel = (count: number) => t('testDataRecordCount').replace('{count}', new Intl.NumberFormat(locale).format(count));
 
   return (
@@ -110,6 +128,19 @@ export default function TestDataPage() {
           <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('testDataDescription')}</p>
         </div>
       </header>
+
+      {canRefreshTestData && !loading && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-semibold text-foreground">{t('testDataRefreshTitle')}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('testDataRefreshDescription')}</p>
+            {refreshError && <p role="alert" className="mt-2 text-sm text-destructive">{refreshError}</p>}
+          </div>
+          <button type="button" onClick={() => void refreshTestData()} disabled={refreshBusy || applyingAll || workingKey !== null} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
+            {refreshBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}{refreshBusy ? t('testDataRefreshWorking') : t('testDataRefreshButton')}
+          </button>
+        </section>
+      )}
 
       {denied ? (
         <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{t('developmentAccessDenied')}</p>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ClipboardList, Clock3, List, MapPinned, Waypoints } from 'lucide-react';
+import { ClipboardList, Clock3, List, MapPinned, Sun, Waypoints } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 
@@ -10,6 +10,7 @@ const sections = [
   { id: 'actions', href: '/rahcom/actions', title: 'rahcomActions', Icon: Clock3 },
   { id: 'systems', href: '/rahcom/systems', title: 'rahcomSystemsList', Icon: List },
   { id: 'daily-traffic', href: '/rahcom/daily-traffic', title: 'rahcomDailyTraffic', Icon: ClipboardList },
+  { id: 'solar-daily', href: '/rahcom/solar-daily', title: 'rahcomSolarDaily', Icon: Sun },
 ] as const;
 
 export default function RahcomPage() {

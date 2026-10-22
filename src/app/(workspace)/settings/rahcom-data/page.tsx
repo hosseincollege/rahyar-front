@@ -8,9 +8,9 @@ import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/components/rahcom/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/rahcom-api';
 
-type Editable = Pick<RahcomSystem, 'systemName' | 'systemCode' | 'latitude' | 'longitude' | 'details' | 'electricityBillId' | 'simIp' | 'radarIp' | 'cameraIp' | 'pcIp' | 'routerIp' | 'laptopIp'>;
+type Editable = Pick<RahcomSystem, 'systemName' | 'systemCode' | 'axis' | 'latitude' | 'longitude' | 'details' | 'electricityBillId' | 'simIp' | 'radarIp' | 'cameraIp' | 'pcIp' | 'routerIp' | 'laptopIp'>;
 const headerAliases: Record<string, keyof Editable> = {
-  name: 'systemName', systemname: 'systemName', 'نام سامانه': 'systemName', 'نام سیستم': 'systemName',
+  name: 'systemName', systemname: 'systemName', 'نام سامانه': 'systemName', 'نام سیستم': 'systemName', axis: 'axis', route: 'axis', 'محور': 'axis',
   code: 'systemCode', systemcode: 'systemCode', id: 'systemCode', 'کد سامانه': 'systemCode', 'شناسه سامانه': 'systemCode',
   lat: 'latitude', latitude: 'latitude', 'عرض جغرافیایی': 'latitude', 'عرض': 'latitude',
   lng: 'longitude', lon: 'longitude', longitude: 'longitude', 'طول جغرافیایی': 'longitude', 'طول': 'longitude',
@@ -35,8 +35,8 @@ const uploadHeaderAliases: Record<string, keyof Editable | 'province'> = {
   [normalizeHeader('\u0639\u0631\u0636 \u062c\u063a\u0631\u0627\u0641\u06cc\u0627\u06cc\u06cc')]: 'latitude',
   long: 'longitude', lng: 'longitude', lon: 'longitude', longitude: 'longitude', [normalizeHeader('\u0637\u0648\u0644')]: 'longitude',
   [normalizeHeader('\u0637\u0648\u0644 \u062c\u063a\u0631\u0627\u0641\u06cc\u0627\u06cc\u06cc')]: 'longitude',
-  details: 'details', description: 'details', axis: 'details', route: 'details',
-  [normalizeHeader('\u062a\u0648\u0636\u06cc\u062d\u0627\u062a')]: 'details', [normalizeHeader('\u0645\u062d\u0648\u0631')]: 'details',
+  details: 'details', description: 'details', axis: 'axis', route: 'axis',
+  [normalizeHeader('\u062a\u0648\u0636\u06cc\u062d\u0627\u062a')]: 'details', [normalizeHeader('\u0645\u062d\u0648\u0631')]: 'axis',
   electricitybillid: 'electricityBillId', billid: 'electricityBillId', [normalizeHeader('\u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636 \u0628\u0631\u0642')]: 'electricityBillId',
   simip: 'simIp', simcardip: 'simIp', [normalizeHeader('ip \u0633\u06cc\u0645\u200c\u06a9\u0627\u0631\u062a')]: 'simIp', [normalizeHeader('ip \u0633\u06cc\u0645 \u06a9\u0627\u0631\u062a')]: 'simIp',
   radarip: 'radarIp', [normalizeHeader('ip \u0631\u0627\u062f\u0627\u0631')]: 'radarIp', cameraip: 'cameraIp', [normalizeHeader('ip \u062f\u0648\u0631\u0628\u06cc\u0646')]: 'cameraIp',
@@ -108,7 +108,7 @@ export default function RahcomDataPage() {
           return [];
         }
         seenCodes.add(systemCode);
-        const optionalFields = ['electricityBillId', 'simIp', 'radarIp', 'cameraIp', 'pcIp', 'routerIp', 'laptopIp'] as const;
+        const optionalFields = ['axis', 'electricityBillId', 'simIp', 'radarIp', 'cameraIp', 'pcIp', 'routerIp', 'laptopIp'] as const;
         const optionalData = Object.fromEntries(optionalFields.filter(field => normalized[field] !== undefined).map(field => [field, String(normalized[field] ?? '').trim()]));
         return [{ systemName, systemCode, latitude, longitude, details: String(normalized.details ?? '').trim(), ...optionalData }];
       });
@@ -119,7 +119,7 @@ export default function RahcomDataPage() {
     } catch (e) { setMessage(e instanceof Error ? `\u062e\u0637\u0627 \u062f\u0631 \u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc: ${e.message}` : '\u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0641\u0627\u06cc\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.'); }
     finally { setBusy(false); }
   }
-  function beginEdit(item: RahcomSystem) { setEditing(item.id); setForm({ systemName: item.systemName, systemCode: item.systemCode, latitude: item.latitude, longitude: item.longitude, details: item.details ?? '', electricityBillId: item.electricityBillId ?? '', simIp: item.simIp ?? '', radarIp: item.radarIp ?? '', cameraIp: item.cameraIp ?? '', pcIp: item.pcIp ?? '', routerIp: item.routerIp ?? '', laptopIp: item.laptopIp ?? '' }); }
+  function beginEdit(item: RahcomSystem) { setEditing(item.id); setForm({ systemName: item.systemName, systemCode: item.systemCode, axis: item.axis ?? '', latitude: item.latitude, longitude: item.longitude, details: item.details ?? '', electricityBillId: item.electricityBillId ?? '', simIp: item.simIp ?? '', radarIp: item.radarIp ?? '', cameraIp: item.cameraIp ?? '', pcIp: item.pcIp ?? '', routerIp: item.routerIp ?? '', laptopIp: item.laptopIp ?? '' }); }
   async function save() { if (!editing || !form) return; setBusy(true); try { await rahcomApi.updateSystem(editing, form); setEditing(null); setForm(null); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : 'ذخیره انجام نشد.'); } finally { setBusy(false); } }
   async function remove(id: string) { if (!window.confirm(t('rahcomDelete') + '?')) return; setBusy(true); try { await rahcomApi.deleteSystem(id); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : 'حذف انجام نشد.'); } finally { setBusy(false); } }
   async function removeMany(input: { province?: string; ids?: string[] }) {
@@ -158,7 +158,7 @@ export default function RahcomDataPage() {
       {loading ? <p className="p-5 text-sm text-muted-foreground">…</p> : systems.length === 0 ? <p className="p-5 text-sm text-muted-foreground">داده‌ای ثبت نشده است.</p> : <div className="divide-y divide-border">{Object.entries(systemsByProvince).map(([provinceId, provinceSystems]) => {
         const provinceIds = provinceSystems.map(item => item.id);
         const allSelected = provinceIds.length > 0 && provinceIds.every(id => selectedIds.has(id));
-        return <details key={provinceId} open={provinceId === province || Object.keys(systemsByProvince).length === 1} className="group">
+        return <details key={provinceId} className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between bg-muted/30 p-4 font-semibold"><span>{iranProvinces.find(([id]) => id === provinceId)?.[1] ?? provinceId}</span><span className="text-xs text-muted-foreground">{provinceSystems.length} سامانه</span></summary>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/10 px-4 py-3">
             <label className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={allSelected} onChange={() => setSelectedIds(current => { const next = new Set(current); provinceIds.forEach(id => { if (allSelected) next.delete(id); else next.add(id); }); return next; })} />انتخاب همهٔ این استان</label>
@@ -168,6 +168,7 @@ export default function RahcomDataPage() {
             <input aria-label={`انتخاب ${item.systemName}`} type="checkbox" checked={selectedIds.has(item.id)} onChange={() => setSelectedIds(current => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} className="mt-1" />
             <button type="button" onClick={() => setHistorySystemId(current => current === item.id ? '' : item.id)} aria-label={t('rahcomHistory')} title={t('rahcomHistory')} className="mt-0.5 rounded-lg border border-border p-2 text-muted-foreground hover:bg-accent hover:text-primary"><History size={16}/></button>
             {historySystemId === item.id && <div className="w-full basis-full"><RahcomSystemHistory system={item}/></div>}
+            {editing === item.id && form ? <div className="w-full basis-full">{field('axis', t('rahcomAxis'))}</div> : item.axis && <span className="w-full basis-full rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary">{t('rahcomAxis')}: {item.axis}</span>}
             <div className="min-w-0 flex-1">{editing === item.id && form ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{field('systemName', t('rahcomSystemName'))}{field('systemCode', t('rahcomSystemCode'))}{field('latitude', t('rahcomLatitude'), 'number')}{field('longitude', t('rahcomLongitude'), 'number')}{field('electricityBillId', t('rahcomElectricityBillId'))}{field('simIp', t('rahcomSimIp'))}{field('radarIp', t('rahcomRadarIp'))}{field('cameraIp', t('rahcomCameraIp'))}{field('pcIp', t('rahcomPcIp'))}{field('routerIp', t('rahcomRouterIp'))}{field('laptopIp', t('rahcomLaptopIp'))}{field('details', t('rahcomDescription'))}<div className="flex items-end gap-2"><button onClick={() => void save()} disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm text-primary-foreground"><Save size={15}/>{t('rahcomSave')}</button><button onClick={() => { setEditing(null); setForm(null); }} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm"><X size={15}/></button></div></div> : <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="font-semibold">{item.systemName}</h2><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>{t('rahcomSystemCode')}:</span><code dir="ltr" className="text-foreground">{item.systemCode}</code><button type="button" onClick={() => void copyValue(`${item.id}:code`, item.systemCode)} aria-label={t('rahcomCopyCode')} title={t('rahcomCopyCode')} className="inline-flex items-center gap-1 rounded p-1 hover:bg-accent">{copiedKey === `${item.id}:code` ? <Check size={14}/> : <Copy size={14}/>}<span>{copiedKey === `${item.id}:code` ? t('rahcomCopied') : t('rahcomCopyCode')}</span></button><span dir="ltr" className="font-mono text-foreground">{formatRahcomCoordinates(item.latitude, item.longitude)}</span><button type="button" onClick={() => void copyValue(`${item.id}:coordinates`, formatRahcomCoordinates(item.latitude, item.longitude))} aria-label={t('rahcomCopyCoordinates')} title={t('rahcomCopyCoordinates')} className="inline-flex items-center gap-1 rounded p-1 hover:bg-accent">{copiedKey === `${item.id}:coordinates` ? <Check size={14}/> : <Copy size={14}/>}<span>{copiedKey === `${item.id}:coordinates` ? t('rahcomCopied') : t('rahcomCopyCoordinates')}</span></button></div><div className="mt-2 flex flex-wrap gap-2">{([
               ['electricityBillId', 'rahcomElectricityBillId'], ['simIp', 'rahcomSimIp'], ['radarIp', 'rahcomRadarIp'], ['cameraIp', 'rahcomCameraIp'], ['pcIp', 'rahcomPcIp'], ['routerIp', 'rahcomRouterIp'], ['laptopIp', 'rahcomLaptopIp'],
             ] as const).map(([fieldKey, labelKey]) => item[fieldKey] ? <span key={fieldKey} className="rounded-lg border border-border bg-muted/30 px-2 py-1 text-xs"><span className="text-muted-foreground">{t(labelKey)}: </span><code dir="ltr" className="text-foreground">{item[fieldKey]}</code></span> : null)}{item.details ? <span className="text-xs text-muted-foreground">{item.details}</span> : null}</div></div><div className="flex gap-2"><button aria-label={t('rahcomEditSystem')} onClick={() => beginEdit(item)} className="rounded-lg border border-border p-2 text-muted-foreground hover:text-primary"><Pencil size={16}/></button><button aria-label={t('rahcomDelete')} onClick={() => void remove(item.id)} className="rounded-lg border border-border p-2 text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button></div></div>}</div>

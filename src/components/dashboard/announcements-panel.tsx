@@ -25,7 +25,7 @@ export function AnnouncementsPanel() {
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- load synchronizes this panel with its API.
   useEffect(() => { void load(); }, [load]);
-  const date = (value: string) => new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  const date = (value: string) => new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(value));
   const categoryLabel = (category: string) => t(({ general: 'announcementCategoryGeneral', operations: 'announcementCategoryOperations', finance: 'announcementCategoryFinance', hr: 'announcementCategoryHr', technical: 'announcementCategoryTechnical' } as const)[category as 'general' | 'operations' | 'finance' | 'hr' | 'technical'] ?? 'announcementCategoryGeneral');
   const markRead = async (item: Announcement) => {
     if (!item.notificationId || item.readAt) return;

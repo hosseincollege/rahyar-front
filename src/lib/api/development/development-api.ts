@@ -24,6 +24,8 @@ export type TestDataModuleStatus = {
   recordCounts: Record<string, number>;
   totalRecords: number;
 };
+export type TestDataStatusResponse = { modules: TestDataModuleStatus[]; canRefreshTestData: boolean };
+export type TestDataRefreshResult = { modules: TestDataModuleStatus[]; accounts: TestDataAccountCredential[]; removedTestActivities: number; removedLegacyTestSystems: number };
 export type TestDataAccountCredential = { name: string; username: string; email: string; password: string; province: string };
 export type TestDataApplyResult = TestDataModuleStatus & { accounts?: TestDataAccountCredential[] };
 
@@ -49,10 +51,13 @@ export const developmentApi = {
     return apiClient.post<AccessTokenResponse>('/development/impersonation/stop');
   },
   getTestDataStatus() {
-    return apiClient.get<{ modules: TestDataModuleStatus[] }>('/development/test-data/status');
+    return apiClient.get<TestDataStatusResponse>('/development/test-data/status');
   },
   applyTestData(moduleKey: TestDataModuleKey) {
     return apiClient.post<TestDataApplyResult>(`/development/test-data/${moduleKey}/apply`);
+  },
+  refreshTestData() {
+    return apiClient.post<TestDataRefreshResult>('/development/test-data/refresh');
   },
   getSiteVisits(range: SiteVisitsRange, page: number, search: string) {
     const params = new URLSearchParams({ range, page: String(page), search });

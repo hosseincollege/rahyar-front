@@ -16,7 +16,8 @@ async function afterActivityMutation<T>(request: Promise<T>): Promise<T> {
 }
 
 export type RahcomSystem = {
-  id: string; province: string; systemName: string; systemCode: string;
+  id: string; province: string; systemName: string; systemCode: string; axis: string | null;
+  incidentType: 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | null; incidentDetails: string | null;
   latitude: number; longitude: number; details: string | null;
   electricityBillId: string | null; simIp: string | null; radarIp: string | null;
   cameraIp: string | null; pcIp: string | null; routerIp: string | null; laptopIp: string | null;
@@ -27,6 +28,10 @@ export type RahcomActivity = {
   systemNameSnapshot: string | null; systemCodeSnapshot: string | null; provinceSnapshot: string | null;
   accompaniedBy: string | null; handedOverTo: string | null; performedBy: string | null;
   system?: Pick<RahcomSystem, 'id' | 'systemName' | 'systemCode' | 'province'> | null;
+};
+export type RahcomSolarSnapshot = {
+  id: string; capturedAt: string; createdAt: string; downText: string;
+  unreachableText: string; equipmentColumns: string[];
 };
 /** Coordinates copied for search or navigation: latitude first, ASCII comma, longitude. */
 export function formatRahcomCoordinates(latitude: number, longitude: number) {
@@ -43,6 +48,8 @@ export const iranProvinces = [
 ] as const;
 export const rahcomApi = {
   systems: (province?: string) => apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems'),
+  solarSnapshots: () => apiClient.get<RahcomSolarSnapshot[]>('/rahcom/solar-snapshots'),
+  createSolarSnapshot: (data: { downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data),
   importSystems: (province: string, systems: Array<Record<string, unknown>>) => afterSystemsMutation(apiClient.post<{ imported: number }>('/rahcom/systems/import', { province, systems })),
   updateSystem: (id: string, data: Partial<RahcomSystem>) => afterSystemsMutation(apiClient.put<RahcomSystem>(`/rahcom/systems/${id}`, data)),
   deleteSystem: (id: string) => afterSystemsMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/systems/${id}`)),

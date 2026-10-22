@@ -36,7 +36,7 @@ export function DashboardLiveSections() {
       try { await notificationsApi.markRead(item.notificationId); notifyNotificationsChanged(); await load(); } catch { /* Dashboard remains readable if marking read fails. */ }
     }
   };
-  const localDate = (value: string) => new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  const localDate = (value: string) => new Intl.DateTimeFormat(getCalendarLocale(locale), { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(value));
   const categoryKey = (value: string) => ({ general: 'announcementCategoryGeneral', operations: 'announcementCategoryOperations', finance: 'announcementCategoryFinance', hr: 'announcementCategoryHr', technical: 'announcementCategoryTechnical' } as const)[value as 'general' | 'operations' | 'finance' | 'hr' | 'technical'] ?? 'announcementCategoryGeneral';
 
   return <div dir={getLocaleDirection(locale)} className="space-y-4">
