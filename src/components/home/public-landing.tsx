@@ -68,7 +68,6 @@ export function PublicLanding() {
           <div className="overflow-hidden rounded-2xl border border-border/80 bg-card/70 shadow-lg shadow-black/5 backdrop-blur-sm sm:rounded-3xl">
             <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5 sm:px-7">
               <h2 id="visitor-stats-title" className="text-base font-extrabold text-slate-900 dark:text-white sm:text-lg">آمار بازدیدکنندگان</h2>
-              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
             </div>
             <div className="grid grid-cols-2 divide-x divide-x-reverse divide-y divide-border/70 sm:grid-cols-4 sm:divide-y-0">
               {metrics.map(({ label, value, icon: Icon, tone, tile }) => (
