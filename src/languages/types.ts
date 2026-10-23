@@ -679,6 +679,8 @@ export type UiMessage =
   | "developmentShowSwitcherInHeaderDescription"
   | "loginDemoTitle"
   | "loginDemoCredentials"
+  | "loginDemoUsernameLabel"
+  | "loginDemoPasswordLabel"
   | "loginFillDemo"
   | "sidebarRahkam"
   | "rahcomMap"

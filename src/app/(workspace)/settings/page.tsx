@@ -10,7 +10,7 @@ import type { Metadata } from 'next';
 import { SettingsHomeContent } from './settings-home-content';
 
 export const metadata: Metadata = {
-  title: 'تنظیمات سیستم | ERP Pro',
+  title: 'تنظیمات سیستم | رهیار',
   description: 'مدیریت اطلاعات شرکت، ساختار سازمانی، کاربران و دسترسی‌ها',
 };
 

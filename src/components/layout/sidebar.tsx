@@ -403,7 +403,7 @@ export function Sidebar({
           bg-[var(--surface)]
           py-3
           transition-all duration-300
-          ${isMainCollapsed ? 'w-14 items-center px-2' : 'w-38 px-1.5'}
+          ${isMainCollapsed ? 'w-14 items-center px-2' : 'w-42 px-1.5'}
         `}
       >
         <div className="flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain no-scrollbar">

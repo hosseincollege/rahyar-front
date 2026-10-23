@@ -138,7 +138,7 @@ export default function WorkspaceLayout({
 
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
             در حال اعتبارسنجی نشست کاربری و آماده‌سازی محیط کاری
-            ERP Pro...
+            Rahyar...
           </p>
 
           <div className="mt-6 flex justify-center">

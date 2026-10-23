@@ -7,13 +7,14 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LogIn,
   Monitor,
   Moon,
   ShieldAlert,
   Sparkles,
-  ShieldCheck,
+  Workflow,
   Sun,
   UserPlus,
   X,
@@ -21,6 +22,7 @@ import {
 import { useTheme } from '@/components/theme-provider';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { API_BASE_URL } from '@/lib/api-environment';
+import { applyPublicAppearance, fetchPublicBranding, resolvePublicLogoUrl, type PublicBranding } from '@/lib/public-branding';
 import { uiMessage } from '@/lib/ui-messages';
 import type { UiMessage } from '@/languages/types';
 
@@ -57,11 +59,28 @@ async function fetchSetupStatus(): Promise<SetupStatusResponse> {
 
 export function PublicHeader() {
   const [hasUsers, setHasUsers] = useState<boolean | null>(null);
+  const [branding, setBranding] = useState<PublicBranding | null>(null);
   const [showDisabledNotice, setShowDisabledNotice] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { locale } = usePreferences();
   const direction = getLocaleDirection(locale);
   const message = (key: UiMessage) => uiMessage(locale, key);
+  const logoShadowClass = branding?.logoBackground === 'DARK'
+    ? 'drop-shadow-[0_0_5px_rgba(0,0,0,0.9)]'
+    : branding?.logoBackground === 'LIGHT'
+      ? 'drop-shadow-[0_0_5px_rgba(255,255,255,0.95)]'
+      : 'drop-shadow-none';
+
+  useEffect(() => {
+    let active = true;
+    void fetchPublicBranding().then((value) => { if (active) setBranding(value); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!branding) return;
+    return applyPublicAppearance(branding.settings, resolvedTheme === 'dark');
+  }, [branding, resolvedTheme]);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -109,7 +128,7 @@ export function PublicHeader() {
               href="/login"
               aria-label={message('publicHeaderLogin')}
               title={message('publicHeaderLogin')}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-[var(--surface-hover)]"
             >
               <LogIn size={18} />
             </Link>
@@ -119,7 +138,7 @@ export function PublicHeader() {
                 href="/register"
                 aria-label={message('publicHeaderRegister')}
                 title={message('publicHeaderRegister')}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-[var(--surface-hover)]"
               >
                 <UserPlus size={18} />
               </Link>
@@ -130,7 +149,7 @@ export function PublicHeader() {
                 aria-label={message('publicHeaderRegister')}
                 title={message('publicHeaderRegister')}
                 disabled={hasUsers === null}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-[var(--surface-hover)] disabled:cursor-wait disabled:opacity-60"
               >
                 <UserPlus size={18} />
               </button>
@@ -141,7 +160,7 @@ export function PublicHeader() {
               onClick={cycleTheme}
               aria-label={message('changeTheme')}
               title={themeTitle}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-[var(--surface-hover)]"
             >
               <ThemeIcon size={18} />
             </button>
@@ -150,17 +169,16 @@ export function PublicHeader() {
         {/* نشان سامانه در مرکز دقیق هدر */}
         <Link
           href="/"
-          className="group absolute left-1/2 flex -translate-x-1/2 items-center gap-2.5 rounded-xl"
+          dir="ltr"
+          className="group absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl"
           aria-label={message('publicHeaderHome')}
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-primary transition-opacity group-hover:opacity-85 sm:h-12 sm:w-12">
-            <ShieldCheck size={24} />
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl ${logoShadowClass}`}>
+            {branding?.logoUrl ? <Image src={resolvePublicLogoUrl(branding.logoUrl) || ''} alt={message('organizationLogo')} width={32} height={32} unoptimized className="h-full w-full object-contain" onError={() => setBranding((current) => current ? { ...current, logoUrl: null } : current)} /> : <Workflow size={23} className="text-primary" />}
           </div>
 
-          <div className="hidden text-start sm:block">
-            <div className="text-base font-black tracking-tight text-foreground sm:text-lg">ERP Pro</div>
-            <div className="hidden text-[11px] text-muted-foreground sm:block">سامانه یکپارچه سازمانی</div>
-          </div>
+          <span className="absolute right-[calc(100%+0.0625rem)] top-1/2 hidden w-max max-w-[min(24vw,15rem)] -translate-y-1/2 truncate text-left text-sm font-black tracking-tight text-[var(--foreground)] sm:block">{branding?.name || 'Rahyar'}</span>
+          <span dir="rtl" className="absolute left-[calc(100%+0.0625rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">Rahyar</span>
         </Link>
       </header>
 
@@ -197,7 +215,7 @@ export function PublicHeader() {
                   ثبت‌نام مستقیم غیرفعال است
                 </h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  مدیریت دسترسی‌های سامانه ERP Pro
+                  مدیریت دسترسی‌های سامانه Rahyar
                 </p>
               </div>
             </div>

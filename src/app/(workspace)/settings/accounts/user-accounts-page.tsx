@@ -181,7 +181,7 @@ export function UserAccountsPage() {
     const password = data.password?.trim() ? data.password.trim() : undefined;
     const { firstName, lastName } = getNameParts(name);
 
-    if (!editingUserId && (!password || password.length < 8)) {
+    if (!editingUserId && !password) {
       setErrorMessage(uiMessage(locale, 'accountPasswordCreateHint'));
       return;
     }

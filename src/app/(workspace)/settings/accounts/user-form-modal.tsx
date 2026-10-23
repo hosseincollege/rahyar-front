@@ -165,7 +165,6 @@ export function UserFormModal({
                 value={formData.password ?? ''}
                 onChange={(e) => setFormData((cur) => ({ ...cur, password: e.target.value }))}
                 required={!editingUserId}
-                minLength={8}
                 autoComplete="new-password"
                 placeholder={uiMessage(locale, editingUserId ? 'accountPasswordChangePlaceholder' : 'accountPasswordCreatePlaceholder')}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 pe-10 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"

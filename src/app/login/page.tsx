@@ -73,12 +73,15 @@ export default function LoginPage() {
             ورود به سیستم
           </h1>
 
-          <div className="mb-5 rounded-xl border border-blue-500/20 bg-blue-500/10 p-3 text-sm">
+          <div className="mb-5 rounded-xl border border-primary/20 bg-primary/10 p-3 text-sm">
             <p className="font-semibold">{uiMessage(locale, 'loginDemoTitle')}</p>
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{uiMessage(locale, 'loginDemoCredentials')}</p>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <span dir="ltr" className="font-mono text-xs">demo / demo</span>
-              <button type="button" onClick={handleFillDemo} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <span><span className="text-muted-foreground">{uiMessage(locale, 'loginDemoUsernameLabel')}: </span><b dir="ltr" className="font-mono">demo</b></span>
+                <span><span className="text-muted-foreground">{uiMessage(locale, 'loginDemoPasswordLabel')}: </span><b dir="ltr" className="font-mono">demo</b></span>
+              </div>
+              <button type="button" onClick={handleFillDemo} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">
                 {uiMessage(locale, 'loginFillDemo')}
               </button>
             </div>
@@ -92,29 +95,35 @@ export default function LoginPage() {
             ) : null}
 
             <div>
-              <label className="mb-1 block text-sm text-[var(--foreground)]">
+              <label htmlFor="login-identifier" className="mb-1 block text-sm text-[var(--foreground)]">
                 ایمیل یا نام کاربری
               </label>
               <input
+                id="login-identifier"
                 type="text"
                 required
                 value={formData.email}
+                dir="ltr"
+                name="username"
                 autoComplete="username"
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 text-[var(--foreground)] outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 text-left text-[var(--foreground)] outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary"
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm text-[var(--foreground)]">
+              <label htmlFor="login-password" className="mb-1 block text-sm text-[var(--foreground)]">
                 رمز عبور
               </label>
               <input
+                id="login-password"
                 type="password"
                 required
                 value={formData.password}
+                dir="ltr"
+                name="password"
                 autoComplete="current-password"
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 text-[var(--foreground)] outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 text-left text-[var(--foreground)] outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary"
                 onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
               />
             </div>
@@ -122,7 +131,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-blue-600 py-2.5 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? 'در حال ورود...' : 'ورود'}
             </button>
