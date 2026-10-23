@@ -1,10 +1,9 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type DevelopmentAccount, type ImpersonationContext } from '@/lib/api/development/development-api';
+import { developmentApi, type DevelopmentAccount, type ImpersonationContext } from '@/app/(workspace)/development/development-api';
 import { ApiError, setAccessToken } from '@/lib/api-client';
-import { refreshCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { uiMessage } from '@/lib/ui-messages';
 
 export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: string; embedded?: boolean }) {
@@ -59,7 +58,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
     };
   }, [open]);
 
-  if (!userId) return null;
+  if (!userId || denied) return null;
 
   const switchAccount = async (accountId: string) => {
     if (switching) return;
@@ -67,7 +66,6 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
     try {
       const response = await developmentApi.switchAccount(accountId);
       setAccessToken(response.access_token);
-      await refreshCurrentOrganizationId().catch(() => null);
       window.location.assign('/dashboard');
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) { setDenied(true); setOpen(false); }
@@ -81,8 +79,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
     try {
       const response = await developmentApi.stopImpersonation();
       setAccessToken(response.access_token);
-      await refreshCurrentOrganizationId().catch(() => null);
-      window.location.assign('/development/account-switching');
+      window.location.assign('/dashboard');
     } catch {
       setReturnFailed(true);
       setReturning(false);
@@ -102,9 +99,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
             </button>
           )}
           {impersonation?.isImpersonating && selectableAccounts.length > 0 && <div className="my-1 border-t border-border" />}
-          {denied ? (
-            <p role="status" className="px-2 py-1 text-sm text-muted-foreground">{t('developmentAccessDenied')}</p>
-          ) : loading ? (
+          {loading ? (
             <p className="text-sm text-muted-foreground">{t('developmentAccountListLoading')}</p>
           ) : failed ? (
             <div role="alert" className="space-y-2">
@@ -132,4 +127,3 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
     </div>
   );
 }
-

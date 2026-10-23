@@ -1,20 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Circle, Database, LoaderCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Circle, Database, LoaderCircle } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type TestDataAccountCredential, type TestDataModuleKey, type TestDataModuleStatus } from '@/lib/api/development/development-api';
+import { developmentApi, type TestDataModuleKey, type TestDataModuleStatus } from '@/app/(workspace)/development/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
+import { isReducedEdition } from '@/lib/product-edition';
+import { readModuleVisibility, type OptionalModuleId } from '@/lib/module-visibility';
 
 const modules: Array<{
   key: TestDataModuleKey;
   title: Parameters<typeof uiMessage>[1];
   countLabels: Record<string, Parameters<typeof uiMessage>[1]>;
 }> = [
-  { key: 'rahcom', title: 'sidebarRahkam', countLabels: { systems: 'rahcomSystemsList', activities: 'rahcomActions' } },
-  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'accountBranches', departments: 'testDataDepartments', teams: 'testDataTeams', accounts: 'testDataAccounts', preferences: 'testDataPreferences' } },
+  { key: 'accounting', title: 'sidebarAccounting', countLabels: { accounts: 'accountingChartOfAccounts', invoices: 'accountingInvoices', vouchers: 'sidebarAccountingEntries' } },
+  { key: 'commerce', title: 'sidebarCommercial', countLabels: { accounts: 'sidebarCustomers', contacts: 'testDataContacts', leads: 'testDataLeads', opportunities: 'sidebarSalesOpportunities', warehouses: 'testDataWarehouses', products: 'sidebarInventory', balances: 'testDataStockBalances', movements: 'testDataMovements' } },
+  { key: 'human-resources', title: 'sidebarHumanResources', countLabels: { employees: 'sidebarEmployeeRecords', leaveRequests: 'sidebarLeaveRequests', attendanceRecords: 'sidebarAttendance', payrollRecords: 'sidebarPayroll' } },
+  { key: 'statistics', title: 'sidebarStatistics', countLabels: { invoices: 'accountingInvoices', leads: 'testDataLeads', opportunities: 'sidebarSalesOpportunities', employees: 'sidebarEmployeeRecords', leaveRequests: 'sidebarLeaveRequests', products: 'sidebarInventory', movements: 'testDataMovements', tickets: 'sidebarAllTickets' } },
+  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'sidebarOrganizationStructure', departments: 'sidebarOrganizationStructure', announcements: 'sidebarAnnouncements' } },
+  { key: 'rahcom', title: 'sidebarRahkam', countLabels: {} },
+  { key: 'support', title: 'sidebarSupport', countLabels: { projects: 'sidebarProjectManagement', tickets: 'sidebarAllTickets' } },
 ];
+const optionalKeys: OptionalModuleId[] = ['accounting', 'commerce', 'human-resources', 'support', 'statistics'];
 
 export default function TestDataPage() {
   const { locale } = usePreferences();
@@ -25,13 +33,17 @@ export default function TestDataPage() {
   const [workingKey, setWorkingKey] = useState<TestDataModuleKey | null>(null);
   const [applyingAll, setApplyingAll] = useState(false);
   const [failedKeys, setFailedKeys] = useState<TestDataModuleKey[]>([]);
-  const [applyErrors, setApplyErrors] = useState<Partial<Record<TestDataModuleKey, string>>>({});
-  const [createdAccounts, setCreatedAccounts] = useState<TestDataAccountCredential[]>([]);
-  const [canRefreshTestData, setCanRefreshTestData] = useState(false);
-  const [refreshBusy, setRefreshBusy] = useState(false);
-  const [refreshError, setRefreshError] = useState('');
+  const [visibility, setVisibility] = useState(() => readModuleVisibility(isReducedEdition));
+  useEffect(() => {
+    const refresh = () => setVisibility(readModuleVisibility(isReducedEdition));
+    refresh();
+    window.addEventListener('erp-module-visibility-change', refresh);
+    window.addEventListener('storage', refresh);
+    return () => { window.removeEventListener('erp-module-visibility-change', refresh); window.removeEventListener('storage', refresh); };
+  }, []);
+  const visibleModules = modules.filter(({ key }) => !optionalKeys.includes(key as OptionalModuleId) || visibility[key as OptionalModuleId]);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
-  const visibleStatuses = modules.map(({ key }) => statuses.find((item) => item.moduleKey === key));
+  const visibleStatuses = visibleModules.map(({ key }) => statuses.find((item) => item.moduleKey === key));
   const appliedCount = visibleStatuses.filter((item) => item?.applied).length;
 
   const updateModuleStatus = (result: TestDataModuleStatus) => {
@@ -45,7 +57,6 @@ export default function TestDataPage() {
     try {
       const result = await developmentApi.getTestDataStatus();
       setStatuses(result.modules);
-      setCanRefreshTestData(result.canRefreshTestData);
     } catch (error) {
       setDenied(error instanceof ApiError && error.status === 403);
       setLoadFailed(!(error instanceof ApiError && error.status === 403));
@@ -57,20 +68,16 @@ export default function TestDataPage() {
   useEffect(() => { void loadStatuses(); }, [loadStatuses]);
 
   const applyModule = async (moduleKey: TestDataModuleKey) => {
+    if (!visibleModules.some((module) => module.key === moduleKey)) return;
     setWorkingKey(moduleKey);
-    if (moduleKey === 'settings') setCreatedAccounts([]);
     setFailedKeys((current) => current.filter((key) => key !== moduleKey));
-    setApplyErrors((current) => { const next = { ...current }; delete next[moduleKey]; return next; });
     try {
       const result = await developmentApi.applyTestData(moduleKey);
       updateModuleStatus(result);
-      if (result.accounts) setCreatedAccounts(result.accounts);
+      if (moduleKey === 'settings') window.dispatchEvent(new Event('organization-branding-changed'));
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) setDenied(true);
-      else {
-        setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
-        setApplyErrors((current) => ({ ...current, [moduleKey]: error instanceof Error ? error.message : '' }));
-      }
+      else setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
     } finally {
       setWorkingKey(null);
     }
@@ -79,42 +86,23 @@ export default function TestDataPage() {
   const applyAllModules = async () => {
     setApplyingAll(true);
     setFailedKeys([]);
-    setApplyErrors({});
-    setCreatedAccounts([]);
-    let generatedAccounts: TestDataAccountCredential[] = [];
-    const order: TestDataModuleKey[] = ['settings', 'rahcom'];
-    for (const moduleKey of order) {
+    const order: TestDataModuleKey[] = ['settings', 'rahcom', 'human-resources', 'accounting', 'commerce', 'support', 'statistics'];
+    for (const moduleKey of order.filter((key) => visibleModules.some((module) => module.key === key))) {
       setWorkingKey(moduleKey);
       try {
         const result = await developmentApi.applyTestData(moduleKey);
         updateModuleStatus(result);
-        if (result.accounts) generatedAccounts = result.accounts;
+        if (moduleKey === 'settings') window.dispatchEvent(new Event('organization-branding-changed'));
       } catch (error) {
         if (error instanceof ApiError && error.status === 403) {
           setDenied(true);
           break;
         }
         setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
-        setApplyErrors((current) => ({ ...current, [moduleKey]: error instanceof Error ? error.message : '' }));
       }
     }
     setWorkingKey(null);
     setApplyingAll(false);
-    setCreatedAccounts(generatedAccounts);
-  };
-
-  const refreshTestData = async () => {
-    setRefreshBusy(true);
-    setRefreshError('');
-    try {
-      const result = await developmentApi.refreshTestData();
-      setStatuses(result.modules);
-      setCreatedAccounts(result.accounts ?? []);
-    } catch (error) {
-      setRefreshError(error instanceof Error ? error.message : t('testDataRefreshFailed'));
-    } finally {
-      setRefreshBusy(false);
-    }
   };
 
   const countLabel = (count: number) => t('testDataRecordCount').replace('{count}', new Intl.NumberFormat(locale).format(count));
@@ -129,19 +117,6 @@ export default function TestDataPage() {
         </div>
       </header>
 
-      {canRefreshTestData && !loading && (
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
-          <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-foreground">{t('testDataRefreshTitle')}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">{t('testDataRefreshDescription')}</p>
-            {refreshError && <p role="alert" className="mt-2 text-sm text-destructive">{refreshError}</p>}
-          </div>
-          <button type="button" onClick={() => void refreshTestData()} disabled={refreshBusy || applyingAll || workingKey !== null} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
-            {refreshBusy ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}{refreshBusy ? t('testDataRefreshWorking') : t('testDataRefreshButton')}
-          </button>
-        </section>
-      )}
-
       {denied ? (
         <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{t('developmentAccessDenied')}</p>
       ) : loadFailed ? (
@@ -154,7 +129,7 @@ export default function TestDataPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
             <span className="text-sm font-semibold text-foreground">{t('testDataProgress')}</span>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm tabular-nums text-muted-foreground">{new Intl.NumberFormat(locale).format(appliedCount)} / {modules.length}</span>
+              <span className="text-sm tabular-nums text-muted-foreground">{new Intl.NumberFormat(locale).format(appliedCount)} / {visibleModules.length}</span>
               <button type="button" onClick={() => void applyAllModules()} disabled={loading || applyingAll || workingKey !== null || denied} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
                 {applyingAll && <LoaderCircle size={16} className="animate-spin" />}
                 {applyingAll ? t('testDataApplying') : t('testDataApplyAll')}
@@ -165,7 +140,7 @@ export default function TestDataPage() {
             <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('testDataLoading')}</p>
           ) : (
             <div className="space-y-3">
-              {modules.map(({ key, title, countLabels }, index) => {
+              {visibleModules.map(({ key, title, countLabels }, index) => {
                 const status = visibleStatuses[index];
                 const applied = Boolean(status?.applied);
                 const busy = workingKey === key;
@@ -186,7 +161,8 @@ export default function TestDataPage() {
                             })}
                           </ul>
                         )}
-                        {failedKeys.includes(key) && <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-300">{t('testDataApplyFailed')}{applyErrors[key] ? <span dir="auto"> · {applyErrors[key]}</span> : null}</p>}
+                        {key === 'statistics' && <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('testDataStatisticsNote')}</p>}
+                        {failedKeys.includes(key) && <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-300">{t('testDataApplyFailed')}</p>}
                       </div>
                     </div>
                     <button type="button" onClick={() => void applyModule(key)} disabled={loading || busy || workingKey !== null || applyingAll || denied} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
@@ -197,20 +173,6 @@ export default function TestDataPage() {
                 );
               })}
             </div>
-          )}
-          {createdAccounts.length > 0 && (
-            <section className="space-y-3 rounded-2xl border border-emerald-500/20 bg-card p-4 shadow-sm sm:p-5" dir={getLocaleDirection(locale)}>
-              <div>
-                <h2 className="font-semibold text-foreground">{t('testDataAccountsTitle')}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{t('testDataOneTimeCredentialNote')}</p>
-              </div>
-              <div className="max-h-[28rem] overflow-auto rounded-xl border border-border">
-                <table className="w-full min-w-[42rem] text-right text-sm">
-                  <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="p-3">{t('testDataProvince')}</th><th className="p-3">{t('testDataName')}</th><th className="p-3">{t('testDataUsername')}</th><th className="p-3">{t('testDataEmail')}</th><th className="p-3">{t('testDataPassword')}</th></tr></thead>
-                  <tbody>{createdAccounts.map((account) => <tr key={account.username} className="border-t border-border"><td className="p-3">{account.province}</td><td className="p-3">{account.name}</td><td className="p-3 font-mono" dir="ltr">{account.username}</td><td className="p-3 font-mono" dir="ltr">{account.email}</td><td className="p-3 font-mono" dir="ltr">{account.password}</td></tr>)}</tbody>
-                </table>
-              </div>
-            </section>
           )}
         </>
       )}

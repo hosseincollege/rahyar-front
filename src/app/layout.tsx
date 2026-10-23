@@ -1,6 +1,6 @@
-﻿/**
+/**
  * @file frontend/src/app/layout.tsx
- * @description فایل اصلی لایوت ریشه رهیار
+ * @description فایل اصلی لایوت ریشه ERP Pro
  */
 
 import type { Metadata, Viewport } from "next";
@@ -19,10 +19,10 @@ const vazirmatn = Vazirmatn({
 
 export const metadata: Metadata = {
   title: {
-    default: "رهیار",
-    template: "%s | رهیار",
+    default: "ERP Pro",
+    template: "%s | ERP Pro",
   },
-  description: "پلتفرم مدیریت سازمانی رهیار",
+  description: "پلتفرم یکپارچه ERP و CRM",
 };
 
 export const viewport: Viewport = {
@@ -50,4 +50,3 @@ export default function RootLayout({
     </html>
   );
 }
-

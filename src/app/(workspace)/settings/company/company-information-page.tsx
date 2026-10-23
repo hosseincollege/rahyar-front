@@ -32,7 +32,7 @@ import {
   resolveOrganizationLogoUrl,
   settingsApi,
   type CompanySettings,
-} from '@/lib/api/settings/settings-api';
+} from '@/app/(workspace)/settings/settings-api';
 
 import {
   companyImportSample,

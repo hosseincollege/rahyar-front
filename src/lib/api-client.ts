@@ -4,6 +4,8 @@
  */
 
 import { levelFromStatus, useStatusStore } from './status-store';
+import { API_BASE_URL } from './api-environment';
+export { API_BASE_URL } from './api-environment';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -44,13 +46,8 @@ export class ApiError extends Error {
  */
 export { ApiError as ApiClientError };
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') ||
-  (process.env.NODE_ENV === 'production'
-    ? 'https://rahyar-back-piuy.vercel.app'
-    : 'http://localhost:3016');
-
 export const ACCESS_TOKEN_KEY = 'access_token';
+let authRedirectStarted = false;
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
@@ -63,6 +60,7 @@ export function getAccessToken(): string | null {
 
 export function setAccessToken(token: string): void {
   if (!isBrowser()) return;
+  authRedirectStarted = false;
   window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
 }
 
@@ -178,8 +176,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
     if (response.status === 401) {
       clearAccessToken();
       // هدایت خودکار کاربر به صفحه لاگین هنگام نامعتبر بودن یا انقضای توکن
-      if (isBrowser() && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+      if (
+        isBrowser() &&
+        !authRedirectStarted &&
+        !window.location.pathname.startsWith('/login')
+      ) {
+        authRedirectStarted = true;
+        window.location.replace('/login');
       }
     }
 
@@ -314,17 +317,14 @@ export const apiClient = {
     return unwrapData<TResponse>(response);
   },
 
-  async deleteWithBody<TResponse, TBody>(
+  async deleteWithBody<TResponse, TBody = unknown>(
     path: string,
     body: TBody,
     init?: RequestInit,
   ): Promise<TResponse> {
-    const response = await request<TResponse | ApiSuccessResponse<TResponse>>(
-      path,
-      'DELETE',
-      body,
-      init,
-    );
+    const response = await request<
+      TResponse | ApiSuccessResponse<TResponse>
+    >(path, 'DELETE', body, init);
     return unwrapData<TResponse>(response);
   },
 };

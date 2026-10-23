@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePreferences, type BrightnessPreferences, type ContrastLevel, type ContrastPreferences } from '@/components/preferences-provider';
+import { localeOptions, usePreferences, type BrightnessPreferences, type ContrastLevel, type ContrastPreferences, type Locale } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { useTheme } from '@/components/theme-provider';
 import type { OrganizationAppearance, SaveOrganizationAppearance } from '@/lib/api/shared/preferences-api';
@@ -67,6 +67,7 @@ function toSaveAppearance(appearance: OrganizationAppearance): SaveOrganizationA
 export function GeneralSettingsContent() {
   const {
     locale,
+    savedLocale,
     contrastPreferences,
     brightnessPreferences,
     organizationAppearance,
@@ -74,10 +75,12 @@ export function GeneralSettingsContent() {
     previewContrastPreferences,
     previewBrightnessPreferences,
     previewOrganizationAppearance,
+    previewLocale,
     savePreferences,
     saveOrganizationAppearance,
   } = usePreferences();
   const { resolvedTheme } = useTheme();
+  const [draftLocale, setDraftLocale] = useState<Locale>(savedLocale);
   const [draftContrast, setDraftContrast] = useState<ContrastPreferences>(contrastPreferences);
   const [draftBrightness, setDraftBrightness] = useState<BrightnessPreferences>(brightnessPreferences);
   const [draftAppearance, setDraftAppearance] = useState<SaveOrganizationAppearance>(
@@ -87,6 +90,8 @@ export function GeneralSettingsContent() {
   const [isSaving, setIsSaving] = useState(false);
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
 
+  useEffect(() => setDraftLocale(savedLocale), [savedLocale]);
+  useEffect(() => () => previewLocale(null), [previewLocale]);
   useEffect(() => setDraftContrast(contrastPreferences), [contrastPreferences]);
   useEffect(() => setDraftBrightness(brightnessPreferences), [brightnessPreferences]);
   useEffect(() => setDraftAppearance(toSaveAppearance(organizationAppearance)), [organizationAppearance]);
@@ -114,7 +119,7 @@ export function GeneralSettingsContent() {
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={localeOptions.find((option) => option.id === locale)?.direction}>
       <header>
         <h1 className="text-2xl font-black text-foreground">{message('settingsTitle')}</h1>
         <p className="mt-2 text-sm leading-7 text-muted-foreground">{message('settingsDescription')}</p>
@@ -302,7 +307,21 @@ export function GeneralSettingsContent() {
 
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <h2 className="text-base font-bold text-foreground">{message('languageTitle')}</h2>
-        <p className="mt-2 text-sm font-semibold text-foreground">فارسی</p>
+        <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('languageDescription')}</p>
+        <p className="mt-2 text-xs leading-6 text-muted-foreground">{message('languageHelp')}</p>
+        <label htmlFor="display-language" className="mb-1.5 mt-4 block text-xs font-semibold text-muted-foreground">{message('languageLabel')}</label>
+        <select
+          id="display-language"
+          value={draftLocale}
+          onChange={(event) => {
+            const nextLocale = event.target.value as Locale;
+            setDraftLocale(nextLocale);
+            previewLocale(nextLocale);
+          }}
+          className="w-full max-w-sm rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+        >
+          {localeOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
       </section>
 
       <div className="flex justify-end">
@@ -313,10 +332,11 @@ export function GeneralSettingsContent() {
             setIsSaving(true);
             setSaveError(false);
             try {
-              await savePreferences({ locale: 'fa', contrastPreferences: draftContrast, brightnessPreferences: draftBrightness });
+              await savePreferences({ locale: draftLocale, contrastPreferences: draftContrast, brightnessPreferences: draftBrightness });
               if (canEditOrganizationAppearance) await saveOrganizationAppearance(draftAppearance);
               previewContrastPreferences(null);
               previewOrganizationAppearance(null);
+              previewLocale(null);
             } catch {
               setSaveError(true);
             } finally {

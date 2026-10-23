@@ -1,6 +1,6 @@
 // صفحه مدیریت ساختار سازمانی.
 // Frontend - Next.js
-// مدیریت یکپارچه ساختار سازمانی: شعب، واحدها، خروجی و درون‌ریزی JSON.
+// مدیریت یکپارچه ساختار سازمانی: شعب، دپارتمان‌ها، خروجی و درون‌ریزی JSON.
 
 'use client';
 
@@ -13,6 +13,8 @@ import {
   type FormEvent,
 } from 'react';
 import Link from 'next/link';
+import { usePreferences } from '@/components/preferences-provider';
+import { uiMessage } from '@/lib/ui-messages';
 import {
   Building,
   Building2,
@@ -35,8 +37,9 @@ import {
   settingsApi,
   type BranchItem,
   type DepartmentItem,
-} from '@/lib/api/settings/settings-api';
-import { getCurrentOrganizationId, refreshCurrentOrganizationId } from '@/lib/api/shared/auth-api';
+} from '@/app/(workspace)/settings/settings-api';
+import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
+import { DepartmentOverviewPanel } from './department-overview-panel';
 import {
   organizationStructureImportSample,
   organizationStructureToApiPayload,
@@ -79,11 +82,13 @@ const INITIAL_DEPARTMENT_FORM: DepartmentFormState = {
 };
 
 export function OrganizationStructurePage() {
+  const { locale } = usePreferences();
   const [branches, setBranches] = useState<BranchItem[]>([]);
   const [departments, setDepartments] = useState<
     DepartmentWithDisplayFields[]
   >([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -146,15 +151,7 @@ export function OrganizationStructurePage() {
   }, []);
 
   const loadOrganizationStructure = useCallback(async () => {
-    setIsLoading(true);
-    let organizationId: string | null;
-    try {
-      organizationId = await refreshCurrentOrganizationId();
-    } catch (error) {
-      setIsLoading(false);
-      showToast('error', error instanceof Error ? error.message : 'دریافت اطلاعات سازمان ناموفق بود.');
-      return;
-    }
+    const organizationId = getCurrentOrganizationId();
 
     if (!organizationId) {
       setBranches([]);
@@ -163,7 +160,7 @@ export function OrganizationStructurePage() {
 
       showToast(
         'error',
-        'این حساب به سازمان فعالی متصل نیست. عضویت سازمانی کاربر را بررسی کنید.',
+        'شناسه سازمان در نشست کاربر یافت نشد. لطفاً مجدداً وارد شوید.',
       );
 
       return;
@@ -196,6 +193,11 @@ export function OrganizationStructurePage() {
         const branchId = decodeURIComponent(window.location.hash.slice('#branch-'.length));
         if (branchesResult.some((branch) => branch.id === branchId)) {
           setSelectedBranchId(branchId);
+        }
+      } else if (window.location.hash.startsWith('#department-')) {
+        const departmentId = decodeURIComponent(window.location.hash.slice('#department-'.length));
+        if (departmentsResult.some((department) => department.id === departmentId)) {
+          setSelectedDepartmentId(departmentId);
         }
       }
     } catch (error) {
@@ -343,14 +345,14 @@ export function OrganizationStructurePage() {
       setBranchForm({ ...INITIAL_BRANCH_FORM });
       setBranchFormError('');
 
-      showToast('success', 'استان جدید با موفقیت افزوده شد.');
+      showToast('success', 'شعبه جدید با موفقیت افزوده شد.');
     } catch (error) {
       console.error('Failed to create branch:', error);
 
       setBranchFormError(
         error instanceof Error
           ? error.message
-          : 'ذخیره استان با خطا مواجه شد.',
+          : 'ذخیره شعبه با خطا مواجه شد.',
       );
     } finally {
       setIsSavingBranch(false);
@@ -363,7 +365,7 @@ export function OrganizationStructurePage() {
     }
 
     const confirmed = window.confirm(
-      `آیا از حذف استان «${branch.name}» اطمینان دارید؟`,
+      `آیا از حذف شعبه «${branch.name}» اطمینان دارید؟`,
     );
 
     if (!confirmed) {
@@ -378,7 +380,7 @@ export function OrganizationStructurePage() {
       setBranches((current) => current.filter((item) => item.id !== branch.id));
       setSelectedBranchId((current) => current === branch.id ? null : current);
 
-      showToast('success', 'استان با موفقیت حذف شد.');
+      showToast('success', 'شعبه با موفقیت حذف شد.');
 
       await loadOrganizationStructure();
     } catch (error) {
@@ -388,7 +390,7 @@ export function OrganizationStructurePage() {
         'error',
         error instanceof Error
           ? error.message
-          : 'حذف استان با خطا مواجه شد.',
+          : 'حذف شعبه با خطا مواجه شد.',
       );
     } finally {
       setDeletingBranchId(null);
@@ -399,15 +401,11 @@ export function OrganizationStructurePage() {
     const errors: Partial<Record<keyof DepartmentFormState, string>> = {};
 
     if (!departmentForm.name.trim()) {
-      errors.name = 'نام واحد الزامی است.';
+      errors.name = 'نام دپارتمان الزامی است.';
     }
 
     if (!departmentForm.code.trim()) {
-      errors.code = 'کد واحد الزامی است.';
-    }
-
-    if (!departmentForm.branchId) {
-      errors.branchId = 'استان واحد را انتخاب کنید.';
+      errors.code = 'کد دپارتمان الزامی است.';
     }
 
     setDepartmentFormErrors(errors);
@@ -449,7 +447,7 @@ export function OrganizationStructurePage() {
       setDepartmentForm({ ...INITIAL_DEPARTMENT_FORM });
       setDepartmentFormErrors({});
 
-      showToast('success', 'واحد جدید با موفقیت افزوده شد.');
+      showToast('success', 'دپارتمان جدید با موفقیت افزوده شد.');
 
       await loadOrganizationStructure();
     } catch (error) {
@@ -459,7 +457,7 @@ export function OrganizationStructurePage() {
         'error',
         error instanceof Error
           ? error.message
-          : 'ثبت واحد با خطا مواجه شد. کد واحد نباید تکراری باشد.',
+          : 'ثبت دپارتمان با خطا مواجه شد. کد دپارتمان نباید تکراری باشد.',
       );
     } finally {
       setIsSavingDepartment(false);
@@ -472,7 +470,7 @@ export function OrganizationStructurePage() {
     }
 
     const confirmed = window.confirm(
-      `آیا از حذف واحد «${department.name}» اطمینان دارید؟`,
+      `آیا از حذف دپارتمان «${department.name}» اطمینان دارید؟`,
     );
 
     if (!confirmed) {
@@ -483,11 +481,15 @@ export function OrganizationStructurePage() {
 
     try {
       await settingsApi.deleteDepartment(department.id);
+      setSelectedDepartmentId((current) =>
+        current === department.id ? null : current,
+      );
+
       setDepartments((current) =>
         current.filter((item) => item.id !== department.id),
       );
 
-      showToast('success', 'واحد با موفقیت حذف شد.');
+      showToast('success', 'دپارتمان با موفقیت حذف شد.');
     } catch (error) {
       console.error('Failed to delete department:', error);
 
@@ -495,7 +497,7 @@ export function OrganizationStructurePage() {
         'error',
         error instanceof Error
           ? error.message
-          : 'حذف واحد با خطا مواجه شد.',
+          : 'حذف دپارتمان با خطا مواجه شد.',
       );
     } finally {
       setDeletingDepartmentId(null);
@@ -662,7 +664,7 @@ export function OrganizationStructurePage() {
           </div>
 
           <p className="mt-1 text-xs text-muted-foreground">
-            مدیریت استان‌ها و واحدهای هر استان
+            {uiMessage(locale, 'organizationStructureManagementDescription')}
           </p>
         </div>
 
@@ -742,7 +744,7 @@ export function OrganizationStructurePage() {
           <div className="flex items-center gap-2">
             <Building size={18} className="text-blue-600" />
             <h3 className="text-sm font-bold text-[var(--foreground)]">
-              استان‌ها
+              {uiMessage(locale, 'accountBranches')}
             </h3>
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
               {branches.length}
@@ -756,7 +758,7 @@ export function OrganizationStructurePage() {
               className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
             >
               <Plus size={14} />
-              افزودن استان
+              افزودن شعبه
             </button>
           )}
         </div>
@@ -767,7 +769,7 @@ export function OrganizationStructurePage() {
           </div>
         ) : branches.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-muted-foreground">
-            هنوز استانی ثبت نشده است.
+            هنوز شعبه‌ای ثبت نشده است.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -841,7 +843,7 @@ export function OrganizationStructurePage() {
                       type="button"
                       disabled={Boolean(deletingBranchId) || isSavingBranch}
                       onClick={() => void handleDeleteBranch(branch)}
-                      aria-label={`حذف استان ${branch.name}`}
+                      aria-label={`حذف شعبه ${branch.name}`}
                       className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/30"
                     >
                       {isDeleting ? (
@@ -864,14 +866,14 @@ export function OrganizationStructurePage() {
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-emerald-600" />
             <h3 className="text-sm font-bold text-[var(--foreground)]">
-              واحدها
+              {uiMessage(locale, 'accountDepartments')}
             </h3>
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
               {visibleDepartments.length}
             </span>
             {selectedBranch && (
               <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                استان: {selectedBranch.name}
+                شعبه: {selectedBranch.name}
               </span>
             )}
           </div>
@@ -893,7 +895,7 @@ export function OrganizationStructurePage() {
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
               >
                 <Plus size={14} />
-                افزودن واحد
+                افزودن دپارتمان
               </button>
             )}
           </div>
@@ -910,12 +912,12 @@ export function OrganizationStructurePage() {
 
               <p className="mt-4 text-base font-medium text-gray-900 dark:text-gray-100">
                 {selectedBranch
-                  ? `برای ${selectedBranch.name} واحدی ثبت نشده است`
-                  : 'هیچ واحدی تعریف نشده است'}
+                  ? `برای ${selectedBranch.name} دپارتمانی ثبت نشده است`
+                  : 'هیچ دپارتمانی تعریف نشده است'}
               </p>
 
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                جهت ایجاد ساختار سازمانی، اولین واحد را اضافه کنید.
+                جهت ایجاد ساختار سازمانی، اولین دپارتمان را اضافه کنید.
               </p>
             </div>
           ) : (
@@ -923,9 +925,10 @@ export function OrganizationStructurePage() {
               <table className="w-full text-right text-sm">
                 <thead className="border-b border-gray-200 bg-gray-50/50 text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
                   <tr>
-                    <th className="px-6 py-4">نام واحد</th>
+                    <th className="px-6 py-4">نام دپارتمان</th>
                     <th className="px-6 py-4">کد</th>
-                    <th className="px-6 py-4">استان</th>
+                    <th className="px-6 py-4">شعبه</th>
+                    <th className="px-6 py-4">اعضا و تیم‌ها</th>
                     {canEditStructure && (
                       <th className="px-6 py-4 text-left">عملیات</th>
                     )}
@@ -944,6 +947,7 @@ export function OrganizationStructurePage() {
                           <Layers className="h-4 w-4 text-emerald-500" />
                           <Link
                             href={`/settings/organization#department-${encodeURIComponent(department.id)}`}
+                            onClick={() => setSelectedDepartmentId(department.id)}
                             className="font-semibold text-emerald-700 underline-offset-4 hover:underline dark:text-emerald-300"
                           >
                             {department.name}
@@ -968,6 +972,16 @@ export function OrganizationStructurePage() {
                             عمومی (کل سازمان)
                           </span>
                         )}
+                      </td>
+
+                      <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDepartmentId(department.id)}
+                          className="rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted"
+                        >
+                          مشاهده جزئیات
+                        </button>
                       </td>
 
                       {canEditStructure && (
@@ -996,6 +1010,15 @@ export function OrganizationStructurePage() {
         </div>
       </div>
 
+      {selectedDepartmentId && (
+        <DepartmentOverviewPanel
+          key={selectedDepartmentId}
+          departmentId={selectedDepartmentId}
+          canEdit={canEditStructure}
+          onClose={() => setSelectedDepartmentId(null)}
+        />
+      )}
+
       {/* Branch Modal */}
       {isBranchModalOpen && (
         <div
@@ -1011,11 +1034,11 @@ export function OrganizationStructurePage() {
                   id="branch-modal-title"
                   className="text-base font-bold text-[var(--foreground)]"
                 >
-                  مشخصات استان جدید
+                  مشخصات شعبه جدید
                 </h3>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  اطلاعات استان یا دفتر سازمان را وارد کنید.
+                  اطلاعات شعبه یا دفتر سازمان را وارد کنید.
                 </p>
               </div>
 
@@ -1034,7 +1057,7 @@ export function OrganizationStructurePage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label htmlFor="branch-name" className="text-xs font-medium">
-                    نام استان *
+                    نام شعبه *
                   </label>
 
                   <input
@@ -1049,13 +1072,13 @@ export function OrganizationStructurePage() {
                       }))
                     }
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="مثلاً استان مرکزی"
+                    placeholder="مثلاً شعبه مرکزی"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label htmlFor="branch-code" className="text-xs font-medium">
-                    کد استان *
+                    کد شعبه *
                   </label>
 
                   <input
@@ -1112,7 +1135,7 @@ export function OrganizationStructurePage() {
                       }))
                     }
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="نشانی استان"
+                    placeholder="نشانی شعبه"
                   />
                 </div>
               </div>
@@ -1145,7 +1168,7 @@ export function OrganizationStructurePage() {
                     }
                     className="h-4 w-4 accent-blue-600"
                   />
-                  استان فعال است
+                  شعبه فعال است
                 </label>
               </div>
 
@@ -1170,7 +1193,7 @@ export function OrganizationStructurePage() {
                   disabled={isSavingBranch}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {isSavingBranch ? 'در حال ذخیره...' : 'ثبت استان'}
+                  {isSavingBranch ? 'در حال ذخیره...' : 'ثبت شعبه'}
                 </button>
               </div>
             </form>
@@ -1193,11 +1216,11 @@ export function OrganizationStructurePage() {
                   id="department-modal-title"
                   className="text-base font-bold text-[var(--foreground)]"
                 >
-                  افزودن واحد جدید
+                  افزودن دپارتمان جدید
                 </h3>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  مشخصات واحد یا واحد سازمانی را تکمیل کنید.
+                  مشخصات واحد یا دپارتمان سازمانی را تکمیل کنید.
                 </p>
               </div>
 
@@ -1218,7 +1241,7 @@ export function OrganizationStructurePage() {
                   htmlFor="department-name"
                   className="text-xs font-medium"
                 >
-                  نام واحد *
+                  نام دپارتمان *
                 </label>
 
                 <input
@@ -1246,7 +1269,7 @@ export function OrganizationStructurePage() {
                   htmlFor="department-code"
                   className="text-xs font-medium"
                 >
-                  کد واحد *
+                  کد دپارتمان *
                 </label>
 
                 <input
@@ -1274,13 +1297,12 @@ export function OrganizationStructurePage() {
                   htmlFor="department-branch"
                   className="text-xs font-medium"
                 >
-                  استان مربوطه
+                  شعبه مربوطه
                 </label>
 
                 <select
                   id="department-branch"
                   value={departmentForm.branchId}
-                  required
                   onChange={(event) =>
                     setDepartmentForm((current) => ({
                       ...current,
@@ -1289,6 +1311,8 @@ export function OrganizationStructurePage() {
                   }
                   className="mt-1 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                 >
+                  <option value="">همه شعب / مستقل از شعبه</option>
+
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.name}
@@ -1313,7 +1337,7 @@ export function OrganizationStructurePage() {
                   disabled={isSavingDepartment}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {isSavingDepartment ? 'در حال ثبت...' : 'ثبت واحد'}
+                  {isSavingDepartment ? 'در حال ثبت...' : 'ثبت دپارتمان'}
                 </button>
               </div>
             </form>
@@ -1340,8 +1364,8 @@ export function OrganizationStructurePage() {
                 </h3>
 
                 <p className="mt-1 text-xs leading-6 text-muted-foreground">
-                  فایل JSON شامل شعب و واحدها را انتخاب کنید. موارد تکراری
-                  براساس نام استان و کد واحد ثبت نمی‌شوند.
+                  فایل JSON شامل شعب و دپارتمان‌ها را انتخاب کنید. موارد تکراری
+                  براساس نام شعبه و کد دپارتمان ثبت نمی‌شوند.
                 </p>
               </div>
 

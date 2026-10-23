@@ -11,7 +11,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import type { Locale } from '@/lib/ui-messages';
+import { getLocaleDirection, supportedLocales, type Locale } from '@/languages';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import {
   preferencesApi,
@@ -21,8 +21,12 @@ import {
 } from '@/lib/api/shared/preferences-api';
 import { getAccessToken } from '@/lib/api-client';
 
-export type { Locale } from '@/lib/ui-messages';
-export function getLocaleDirection(_locale: Locale): 'rtl' { return 'rtl'; }
+export {
+  getLocaleDirection,
+  localeOptions,
+  supportedLocales,
+} from '@/languages';
+export type { Locale } from '@/languages';
 
 export type ContrastLevel = 'soft' | 'balanced' | 'strong';
 export type ContrastPreferences = { light: ContrastLevel; dark: ContrastLevel };
@@ -32,6 +36,8 @@ export type WorkspaceMode = 'form' | 'command' | 'ai';
 
 type PreferencesContextValue = {
   locale: Locale;
+  savedLocale: Locale;
+  previewLocale: (locale: Locale | null) => void;
   workspaceMode: WorkspaceMode;
   saveWorkspaceMode: (mode: WorkspaceMode) => Promise<void>;
   contrastPreferences: ContrastPreferences;
@@ -50,6 +56,7 @@ type PreferencesContextValue = {
   saveOrganizationAppearance: (appearance: SaveOrganizationAppearance) => Promise<void>;
 };
 
+const LOCALE_KEY = 'erp-locale';
 const CONTRAST_KEY = 'erp-shell-contrast-v2';
 const BRIGHTNESS_KEY = 'erp-shell-brightness';
 const LEGACY_BRIGHTNESS_KEY = 'erp-shell-contrast';
@@ -75,6 +82,10 @@ function subscribePreferences(callback: () => void) {
     window.removeEventListener('erp-preferences-changed', callback);
     window.removeEventListener('storage', callback);
   };
+}
+
+function isLocale(value: string | null): value is Locale {
+  return supportedLocales.some((locale) => locale === value);
 }
 
 function isContrastLevel(value: unknown): value is ContrastLevel {
@@ -139,9 +150,12 @@ function parseOrganizationAppearance(value: string): OrganizationAppearance {
       accentDarkColor: isHexColor(parsed.accentDarkColor ?? null)
         ? parsed.accentDarkColor!
         : DEFAULT_ORGANIZATION_APPEARANCE.accentDarkColor,
-      backgroundStyle: 'GRAY',
-      timezone: 'Asia/Tehran',
-      calendar: 'persian',
+      backgroundStyle: parsed.backgroundStyle === 'THEME' || parsed.backgroundStyle === 'GRAY'
+        ? parsed.backgroundStyle
+        : 'GRAY',
+      calendar: parsed.calendar === 'islamic' || parsed.calendar === 'gregorian'
+        ? parsed.calendar
+        : 'persian',
     };
   } catch {
     return { ...DEFAULT_ORGANIZATION_APPEARANCE };
@@ -173,11 +187,11 @@ export function getOrganizationAccentStyle(
   >;
 }
 
-function applyLocale() {
+function applyLocale(locale: Locale) {
   const root = document.documentElement;
-  root.lang = 'fa';
-  root.dir = 'rtl';
-  root.dataset.locale = 'fa';
+  root.lang = locale;
+  root.dir = getLocaleDirection(locale);
+  root.dataset.locale = locale;
 }
 
 function applyOrganizationDisplay(appearance: OrganizationAppearance) {
@@ -187,7 +201,16 @@ function applyOrganizationDisplay(appearance: OrganizationAppearance) {
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('form');
-  const locale: Locale = 'fa';
+  const savedLocale = useSyncExternalStore<Locale>(
+    subscribePreferences,
+    () => {
+      const saved = window.localStorage.getItem(LOCALE_KEY);
+      return isLocale(saved) ? saved : 'fa';
+    },
+    (): Locale => 'fa',
+  );
+  const [localePreview, setLocalePreview] = useState<Locale | null>(null);
+  const locale = localePreview ?? savedLocale;
   const contrastSnapshot = useSyncExternalStore(
     subscribePreferences,
     readContrastSnapshot,
@@ -220,17 +243,18 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [appearancePreview, setAppearancePreview] = useState<SaveOrganizationAppearance | null>(null);
 
   useEffect(() => {
-    applyLocale();
+    applyLocale(locale);
     applyOrganizationDisplay(appearancePreview
       ? { ...organizationAppearance, ...appearancePreview }
       : organizationAppearance);
-  }, [organizationAppearance, appearancePreview]);
+  }, [locale, organizationAppearance, appearancePreview]);
 
   const loadUserPreferences = useCallback(async () => {
     if (!getAccessToken()) return;
     try {
       const saved = await preferencesApi.get();
       setWorkspaceMode(saved.workspaceMode.toLowerCase() as WorkspaceMode);
+      window.localStorage.setItem(LOCALE_KEY, saved.locale);
       window.localStorage.setItem(CONTRAST_KEY, JSON.stringify({
         light: saved.lightContrast,
         dark: saved.darkContrast,
@@ -246,9 +270,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     try {
       const sharedAppearance = await preferencesApi.getOrganizationAppearance();
       const key = `${ORGANIZATION_APPEARANCE_KEY}:${getCurrentOrganizationId() ?? 'none'}`;
-      const fixedAppearance = { ...sharedAppearance, backgroundStyle: 'GRAY' as const, timezone: 'Asia/Tehran', calendar: 'persian' as const };
-      window.localStorage.setItem(key, JSON.stringify(fixedAppearance));
-      applyOrganizationDisplay(fixedAppearance);
+      window.localStorage.setItem(key, JSON.stringify(sharedAppearance));
+      applyOrganizationDisplay(sharedAppearance);
       window.dispatchEvent(new Event('erp-preferences-changed'));
     } catch (error) {
       console.error('Could not load organization appearance:', error);
@@ -257,11 +280,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const resetPreferences = () => {
+      window.localStorage.removeItem(LOCALE_KEY);
       setWorkspaceMode('form');
       window.localStorage.removeItem(CONTRAST_KEY);
       window.localStorage.removeItem(BRIGHTNESS_KEY);
       window.localStorage.removeItem(LEGACY_BRIGHTNESS_KEY);
       setAppearancePreview(null);
+      setLocalePreview(null);
       window.dispatchEvent(new Event('erp-preferences-changed'));
     };
     const handleAuthStorageChange = (event: StorageEvent) => {
@@ -292,8 +317,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setAppearancePreview(appearance);
   }, []);
 
+  const previewLocale = useCallback((nextLocale: Locale | null) => {
+    setLocalePreview(nextLocale);
+  }, []);
+
   const savePreferences = useCallback(async (preferences: SaveUserPreferences) => {
-    const saved = await preferencesApi.save({ ...preferences, locale: 'fa' });
+    const saved = await preferencesApi.save(preferences);
+    window.localStorage.setItem(LOCALE_KEY, saved.locale);
     window.localStorage.setItem(CONTRAST_KEY, JSON.stringify({
       light: saved.lightContrast,
       dark: saved.darkContrast,
@@ -317,7 +347,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }, [workspaceMode]);
 
   const saveOrganizationAppearance = useCallback(async (appearance: SaveOrganizationAppearance) => {
-    const saved = await preferencesApi.saveOrganizationAppearance({ ...appearance, backgroundStyle: 'GRAY', timezone: 'Asia/Tehran', calendar: 'persian' });
+    const saved = await preferencesApi.saveOrganizationAppearance(appearance);
     const key = `${ORGANIZATION_APPEARANCE_KEY}:${getCurrentOrganizationId() ?? 'none'}`;
     window.localStorage.setItem(key, JSON.stringify(saved));
     setAppearancePreview(null);
@@ -328,6 +358,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       locale,
+      savedLocale,
+      previewLocale,
       workspaceMode,
       saveWorkspaceMode,
       contrastPreferences,
@@ -347,6 +379,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }),
     [
       locale,
+      savedLocale,
+      previewLocale,
       workspaceMode,
       saveWorkspaceMode,
       contrastPreferences,

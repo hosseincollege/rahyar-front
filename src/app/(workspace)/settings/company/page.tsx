@@ -1,8 +1,6 @@
-import type { Metadata } from 'next';
-import { GeneralAppearanceSettings } from './general-appearance-settings';
-
-export const metadata: Metadata = { title: 'تنظیمات عمومی | رهیار' };
+import { CompanyInformationPage } from './company-information-page';
+import { SettingsOrganizationTabs } from '@/app/(workspace)/settings/components/settings-organization-tabs';
 
 export default function CompanySettingsPage() {
-  return <GeneralAppearanceSettings />;
+  return <div className="w-full space-y-5"><SettingsOrganizationTabs /><CompanyInformationPage /></div>;
 }

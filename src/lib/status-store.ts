@@ -34,7 +34,7 @@ export const useStatusStore = create<StatusState>((set) => ({
         {
           ...entry,
           id: crypto.randomUUID(),
-          time: new Intl.DateTimeFormat("fa-IR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date()),
+          time: new Date().toLocaleTimeString("fa-IR"),
         },
         ...s.logs,
       ].slice(0, 100);

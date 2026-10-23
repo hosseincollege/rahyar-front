@@ -29,7 +29,7 @@ import type {
   LeaveRequestStatus,
   UpdateEmployeePayload,
   UpdateLeaveRequestStatusPayload,
-} from "@/types/human-resources";
+} from "@/lib/api/hr/types";
 
 /**
  * سازگاری با پاسخ‌های احتمالی backend:

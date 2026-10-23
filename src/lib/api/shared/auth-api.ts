@@ -20,6 +20,7 @@ export interface AuthUser {
   username?: string;
   firstName?: string;
   lastName?: string;
+  avatarUrl?: string | null;
   phone?: string;
   organizationId?: string | null;
 }
@@ -29,6 +30,7 @@ export interface MyProfile {
   username: string;
   firstName: string;
   lastName: string;
+  avatarUrl?: string | null;
   email: string | null;
   phone: string | null;
   organizationId?: string | null;
@@ -92,7 +94,6 @@ export interface LoginPayload {
   password: string;
 }
 
-
 export interface RegisterPayload {
   username: string;
   email?: string;
@@ -107,6 +108,7 @@ export interface AuthResponseUser {
   username: string;
   firstName: string;
   lastName: string;
+  avatarUrl?: string | null;
   email?: string | null;
   phone?: string | null;
   role?: string;
@@ -154,6 +156,7 @@ function normalizeUser(
     username: responseUser?.username ?? fallback.username,
     firstName,
     lastName,
+    avatarUrl: responseUser?.avatarUrl ?? fallback.avatarUrl ?? null,
     phone: responseUser?.phone ?? fallback.phone,
     organizationId: responseUser?.organizationId ?? fallback.organizationId ?? null,
   };
@@ -197,7 +200,6 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
   return response;
 }
 
-
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const response = await apiClient.post<AuthResponse, RegisterPayload>('/auth/register', {
     username: payload.username,
@@ -239,26 +241,6 @@ export async function getMyProfile(): Promise<MyProfile> {
   return response.user;
 }
 
-export async function refreshCurrentOrganizationId(): Promise<string | null> {
-  const profile = await getMyProfile();
-  const cached = getCurrentUser();
-  const sameUser = cached?.id === profile.id;
-  const refreshedUser: AuthUser = {
-    ...(sameUser ? cached : {}),
-    id: profile.id,
-    username: profile.username,
-    firstName: profile.firstName,
-    lastName: profile.lastName,
-    name: [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || profile.username,
-    email: profile.email ?? undefined,
-    phone: profile.phone ?? undefined,
-    organizationId: profile.organizationId ?? null,
-  };
-  saveUser(refreshedUser);
-  if (isBrowser()) window.dispatchEvent(new Event('auth:user-updated'));
-  return refreshedUser.organizationId ?? null;
-}
-
 export async function updateMyProfile(data: UpdateMyProfile): Promise<MyProfile> {
   const response = await apiClient.patch<{ user: MyProfile }, UpdateMyProfile>('/auth/me', data);
   const cached = getCurrentUser();
@@ -269,6 +251,7 @@ export async function updateMyProfile(data: UpdateMyProfile): Promise<MyProfile>
       username: response.user.username,
       firstName: response.user.firstName,
       lastName: response.user.lastName,
+      avatarUrl: response.user.avatarUrl ?? cached.avatarUrl ?? null,
       name: getUserDisplayName(response.user),
       email: response.user.email ?? undefined,
       phone: response.user.phone ?? undefined,

@@ -21,7 +21,7 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { uiMessage } from '@/lib/ui-messages';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi, type RoleItem, type UserItem } from '@/lib/api/settings/settings-api';
+import { settingsApi, type UserItem } from '@/app/(workspace)/settings/settings-api';
 
 import { UserFormModal, type UserFormData } from './user-form-modal';
 import { parseUsersToItems, usersImportSample } from './users-json';
@@ -31,10 +31,10 @@ const emptyFormData: UserFormData = {
   username: '',
   password: '',
   email: '',
+  nationalId: '',
+  isSystemUser: false,
   role: 'USER',
   department: '',
-  branchId: '',
-  departmentId: '',
   isActive: true,
 };
 
@@ -65,11 +65,6 @@ export function UserAccountsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [canManage, setCanManage] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [currentBranchId, setCurrentBranchId] = useState<string | null>(null);
-  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; branchId?: string }>>([]);
-  const [availableRoles, setAvailableRoles] = useState<RoleItem[]>([]);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
@@ -104,30 +99,14 @@ export function UserAccountsPage() {
         return;
       }
 
-      const [response, access, provinceOptions, teamOptions] = await Promise.all([
+      const [response, access] = await Promise.all([
         settingsApi.getUsers(organizationId),
         settingsApi.getOrganizationAccess(organizationId),
-        settingsApi.getBranches(organizationId),
-        settingsApi.getDepartments(organizationId),
       ]);
-      if (!(access.canViewUsers ?? access.canView)) {
+      if (!access.canView) {
         throw new Error('مجوز مشاهده کاربران این سازمان را ندارید.');
       }
-      setCanManage(access.canManageUsers ?? access.canEdit);
-      setIsAdmin(access.isAdmin ?? access.canEdit);
-      if (access.isAdmin) {
-        try {
-          setAvailableRoles(await settingsApi.getRoles(organizationId));
-        } catch (rolesError) {
-          console.error('Failed to load assignable roles:', rolesError);
-          setAvailableRoles([]);
-        }
-      } else {
-        setAvailableRoles([]);
-      }
-      setCurrentBranchId(access.branchId ?? null);
-      setBranches(provinceOptions.map(({ id, name }) => ({ id, name })));
-      setTeams(teamOptions.map(({ id, name, branchId }) => ({ id, name, branchId })));
+      setCanManage(access.canEdit);
       setUsers(response ?? []);
       const requestedUserId = window.location.hash.startsWith('#user-')
         ? decodeURIComponent(window.location.hash.slice('#user-'.length))
@@ -171,7 +150,7 @@ export function UserAccountsPage() {
     setErrorMessage(null);
     setSuccessMessage(null);
     setEditingUserId(null);
-    setFormData({ ...emptyFormData, branchId: isAdmin ? '' : currentBranchId ?? '' });
+    setFormData(emptyFormData);
     setIsUserModalOpen(true);
   };
 
@@ -184,10 +163,10 @@ export function UserAccountsPage() {
       username: user.username ?? '',
       password: '',
       email: user.email ?? '',
-      role: user.roleKey ?? user.role ?? 'USER',
+      nationalId: user.nationalId ?? '',
+      isSystemUser: Boolean(user.isSystemUser),
+      role: user.role ?? user.roleKey ?? 'USER',
       department: user.department ?? '',
-      branchId: user.branchId ?? '',
-      departmentId: user.departmentId ?? '',
       isActive: user.isActive ?? user.status === 'ACTIVE',
     });
     setIsUserModalOpen(true);
@@ -197,10 +176,15 @@ export function UserAccountsPage() {
     const name = data.name.trim();
     const email = data.email.trim().toLowerCase();
     const username = data.username.trim() || email.split('@')[0];
-    const role = isAdmin ? data.role.trim() || 'USER' : 'USER';
+    const role = data.role.trim() || 'USER';
     const department = data.department.trim();
     const password = data.password?.trim() ? data.password.trim() : undefined;
     const { firstName, lastName } = getNameParts(name);
+
+    if (!editingUserId && (!password || password.length < 8)) {
+      setErrorMessage(uiMessage(locale, 'accountPasswordCreateHint'));
+      return;
+    }
 
     if (!name || !email) {
       setErrorMessage('نام و ایمیل کاربر الزامی است.');
@@ -237,12 +221,10 @@ export function UserAccountsPage() {
             firstName,
             lastName,
             email,
+            nationalId: data.nationalId.trim() || null,
             role,
             roleKey: role,
-            roles: isAdmin && role !== (user.roleKey ?? user.role ?? 'USER') ? [role] : user.roles,
             department: department || undefined,
-            branchId: data.branchId,
-            departmentId: data.departmentId || null,
             isActive: data.isActive,
             status: data.isActive ? 'ACTIVE' : 'DISABLED',
             ...(password ? { password } : {}),
@@ -257,6 +239,7 @@ export function UserAccountsPage() {
           firstName,
           lastName,
           email,
+          nationalId: data.nationalId.trim() || null,
           phone: null,
           status: data.isActive ? 'ACTIVE' : 'DISABLED',
           isSystemUser: false,
@@ -264,18 +247,12 @@ export function UserAccountsPage() {
           roleKey: role,
           roles: [],
           department: department || undefined,
-          branchId: data.branchId,
-          departmentId: data.departmentId || null,
           isActive: data.isActive,
         };
         updatedUsers = [newUser, ...users];
       }
 
-      const userToSave = updatedUsers.find((candidate) => candidate.id === editingUserId)
-        ?? updatedUsers.find((candidate) => candidate.username === username);
-      if (!userToSave) throw new Error('کاربر برای ذخیره پیدا نشد.');
-      const usersToSave = [userToSave];
-      const savedUsers = await settingsApi.saveUsers(usersToSave, organizationId);
+      const savedUsers = await settingsApi.saveUsers(updatedUsers, organizationId);
       setUsers(savedUsers ?? updatedUsers);
       setSuccessMessage(
         editingUserId ? 'اطلاعات کاربر با موفقیت به‌روزرسانی شد.' : 'کاربر جدید با موفقیت ایجاد شد.',
@@ -340,14 +317,13 @@ export function UserAccountsPage() {
           lastName: item.lastName || lastName,
           email: email || null,
           phone: item.phone ?? null,
+          nationalId: item.nationalId,
           status: isActive ? 'ACTIVE' : 'DISABLED',
           isSystemUser: Boolean(item.isSystemUser),
           role,
           roleKey: item.roleKey || role,
           roles: Array.isArray(item.roles) ? item.roles : [],
           department: item.department || 'عمومی',
-          branchId: item.branchId ?? '',
-          departmentId: item.departmentId ?? '',
           isActive,
         };
       });
@@ -363,8 +339,7 @@ export function UserAccountsPage() {
       });
 
       const updatedUsers = [...sanitizedImportedUsers, ...remainingUsers];
-      const usersToSave = isAdmin ? updatedUsers : sanitizedImportedUsers;
-      const savedUsers = await settingsApi.saveUsers(usersToSave, organizationId);
+      const savedUsers = await settingsApi.saveUsers(updatedUsers, organizationId);
 
       setUsers(savedUsers ?? updatedUsers);
       setSuccessMessage(`${sanitizedImportedUsers.length} کاربر با موفقیت درون‌ریزی و ذخیره شدند.`);
@@ -381,7 +356,7 @@ export function UserAccountsPage() {
       return;
     }
 
-    if (!window.confirm(`آیا از حذف عضویت «${user.name || user.username}» از این سازمان مطمئن هستید؟`)) {
+    if (!window.confirm(`آیا از حذف کاربر «${user.name || user.username}» مطمئن هستید؟`)) {
       return;
     }
 
@@ -395,10 +370,10 @@ export function UserAccountsPage() {
         return;
       }
 
-      if (!user.id) throw new Error('شناسهٔ کاربر برای حذف در دسترس نیست.');
-      const savedUsers = await settingsApi.saveUsers([], organizationId, [user.id]);
-      setUsers(savedUsers ?? users.filter((item) => item.id !== user.id));
-      setSuccessMessage('عضویت کاربر از این سازمان حذف شد.');
+      const updatedUsers = users.filter((item) => item.id !== user.id);
+      const savedUsers = await settingsApi.saveUsers(updatedUsers, organizationId);
+      setUsers(savedUsers ?? updatedUsers);
+      setSuccessMessage('کاربر با موفقیت حذف شد.');
     } catch (error) {
       setErrorMessage(getErrorMessage(error, 'حذف کاربر با خطا مواجه شد.'));
     } finally {
@@ -464,7 +439,7 @@ export function UserAccountsPage() {
             </button>
           )}
 
-          {isAdmin && <button
+          <button
             type="button"
             onClick={handleDownloadSampleDirect}
             disabled={isSaving}
@@ -473,9 +448,9 @@ export function UserAccountsPage() {
           >
             <Download className="size-4" />
             دانلود فایل نمونه
-          </button>}
+          </button>
 
-          {isAdmin && (
+          {canManage && (
             <button
                 type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -569,7 +544,7 @@ export function UserAccountsPage() {
                       </td>
                       {canManage && <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
-                          {canManage && (isAdmin || user.branchId === currentBranchId) && <button
+                          {canManage && <button
                             type="button"
                             onClick={() => openEditUserModal(user)}
                             disabled={isSaving}
@@ -578,7 +553,7 @@ export function UserAccountsPage() {
                           >
                             <Pencil className="size-4" />
                           </button>}
-                          {canManage && (isAdmin || user.branchId === currentBranchId) && <button
+                          {canManage && <button
                             type="button"
                             onClick={() => void handleDeleteUser(user)}
                             disabled={isSaving || user.isSystemUser}
@@ -619,10 +594,6 @@ export function UserAccountsPage() {
         isSaving={isSaving}
         editingUserId={editingUserId}
         initialData={formData}
-        branches={branches}
-        teams={teams}
-        roles={availableRoles.map(({ key, name }) => ({ key, name }))}
-        isAdmin={isAdmin}
         onClose={() => setIsUserModalOpen(false)}
         onSave={handleSaveUser}
       />

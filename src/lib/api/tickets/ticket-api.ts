@@ -10,7 +10,7 @@ import type {
   TicketDetails,
   TicketPriority,
   TicketStatus,
-} from '@/types/ticket';
+} from '@/lib/api/tickets/types';
 
 type ApiEnvelope<T> = {
   success?: boolean;

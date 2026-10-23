@@ -44,7 +44,7 @@ export function addLog(level: LogLevel, message: string): void {
       id: ++seq,
       level,
       message,
-      time: new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date()),
+      time: new Date().toLocaleTimeString('fa-IR'),
     },
   ];
 

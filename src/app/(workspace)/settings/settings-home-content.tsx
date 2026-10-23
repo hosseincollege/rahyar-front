@@ -3,15 +3,24 @@
 import Link from 'next/link';
 import { Activity, ArrowLeft, Database, FileCode2, Lock, ShieldCheck, Users } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
-import { getLocaleDirection } from '@/components/preferences-provider';
+import { getLocaleDirection } from '@/languages';
+import { uiMessage } from '@/lib/ui-messages';
 
 export function SettingsHomeContent() {
   const { locale } = usePreferences();
-  const cards = [
-        { title: 'تنظیمات عمومی', status: 'لوگو و رنگ پوسته', detail: 'مدیریت نمایش سامانه', href: '/settings/company', icon: Database, color: 'bg-emerald-500/10 text-emerald-500' },
+  const en = locale === 'en';
+  const cards = en
+    ? [
+        { title: 'Organization', status: 'Company details', detail: 'Edit basic and financial information', href: '/settings/company', icon: Database, color: 'bg-emerald-500/10 text-emerald-500' },
+        { title: 'Organization structure', status: 'Branches and departments', detail: 'Manage organizational units', href: '/settings/organization', icon: Activity, color: 'bg-blue-500/10 text-blue-500' },
+        { title: 'Data import and export', status: 'Import and export', detail: 'Transfer settings with JSON files', href: '/settings/organization', icon: FileCode2, color: 'bg-amber-500/10 text-amber-500' },
+        { title: 'Access management', status: 'Users and roles', detail: 'Manage accounts and permissions', href: '/settings/accounts', icon: Lock, color: 'bg-violet-500/10 text-violet-500' },
+      ]
+    : [
+        { title: 'اطلاعات سازمان', status: 'مشخصات شرکت', detail: 'ویرایش اطلاعات پایه و مالی', href: '/settings/company', icon: Database, color: 'bg-emerald-500/10 text-emerald-500' },
         { title: 'ساختار سازمانی', status: 'شعب و دپارتمان‌ها', detail: 'مدیریت اجزای سازمان', href: '/settings/organization', icon: Activity, color: 'bg-blue-500/10 text-blue-500' },
         { title: 'ورود و خروج اطلاعات', status: 'درون‌ریزی و برون‌بری', detail: 'انتقال تنظیمات با فایل JSON', href: '/settings/organization', icon: FileCode2, color: 'bg-amber-500/10 text-amber-500' },
-        { title: 'حساب‌های کاربری', status: 'کاربران و نقش‌ها', detail: 'مدیریت حساب‌ها و مجوزها', href: '/settings/accounts', icon: Lock, color: 'bg-violet-500/10 text-violet-500' },
+        { title: 'مدیریت دسترسی', status: 'کاربران و نقش‌ها', detail: 'مدیریت حساب‌ها و مجوزها', href: '/settings/accounts', icon: Lock, color: 'bg-violet-500/10 text-violet-500' },
       ];
 
   return (
@@ -36,28 +45,31 @@ export function SettingsHomeContent() {
           <div className="flex items-start gap-3.5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Activity size={20} /></div>
             <div>
-              <h2 className="text-sm font-bold text-foreground">{"پیکربندی و مدیریت ماژولار"}</h2>
+              <h2 className="text-sm font-bold text-foreground">{en ? 'Modular configuration and management' : 'پیکربندی و مدیریت ماژولار'}</h2>
               <p className="mt-1.5 text-xs leading-6 text-muted-foreground">
-                {"برای مدیریت مشخصات شرکت، شعب، دپارتمان‌ها، کاربران و نقش‌ها از بخش‌های تنظیمات استفاده کنید. تغییرات پس از ثبت هر فرم در سامانه ذخیره می‌شوند؛ این صفحه وضعیت زندهٔ سرویس‌ها را نمایش نمی‌دهد."}
+                {en
+                  ? 'Manage company details, branches, departments, users, and roles from the settings sections. Changes are saved when each form is submitted; this page does not show live service status.'
+                  : 'برای مدیریت مشخصات شرکت، شعب، دپارتمان‌ها، کاربران و نقش‌ها از بخش‌های تنظیمات استفاده کنید. تغییرات پس از ثبت هر فرم در سامانه ذخیره می‌شوند؛ این صفحه وضعیت زندهٔ سرویس‌ها را نمایش نمی‌دهد.'}
               </p>
             </div>
           </div>
         </div>
         <div className="flex flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div>
-            <h3 className="text-xs font-bold text-foreground">{"دسترسی سریع"}</h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">{"مدیریت کاربران، نقش‌ها و ساختار پایه"}</p>
+            <h3 className="text-xs font-bold text-foreground">{en ? 'Quick access' : 'دسترسی سریع'}</h3>
+            <p className="mt-1 text-[11px] text-muted-foreground">{en ? 'Manage users, roles, and core structure' : 'مدیریت کاربران، نقش‌ها و ساختار پایه'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/settings/company" className="inline-flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-primary"><span>{"تنظیمات عمومی"}</span><ArrowLeft size={13} /></Link>
-            <Link href="/settings/accounts" className="inline-flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-primary"><span className="flex items-center gap-1.5"><Users size={14} />{"حساب‌های کاربری"}</span><ArrowLeft size={13} /></Link>
+            <Link href="/settings/general" className="inline-flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-primary"><span>{en ? 'General settings' : 'تنظیمات عمومی'}</span><ArrowLeft size={13} /></Link>
+            <Link href="/settings/modules" className="inline-flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-primary"><span>{uiMessage(locale, 'settingsDisplayManagement')}</span><ArrowLeft size={13} /></Link>
+            <Link href="/settings/roles" className="inline-flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-primary"><span className="flex items-center gap-1.5"><Users size={14} />{en ? 'Users and permissions' : 'کاربران و دسترسی‌ها'}</span><ArrowLeft size={13} /></Link>
           </div>
         </div>
       </section>
 
       <footer className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
-        <p className="leading-5 text-amber-200/90"><strong className="font-bold text-amber-400">{"توجه امنیتی:"}</strong>{' '}{"تغییر در ساختار سازمان، تعریف شعب و مجوزهای نقش‌ها مستقیماً بر سطح دسترسی کاربران و گردش اسناد در سایر ماژول‌ها تأثیرگذار خواهد بود."}</p>
+        <p className="leading-5 text-amber-200/90"><strong className="font-bold text-amber-400">{en ? 'Security note:' : 'توجه امنیتی:'}</strong>{' '}{en ? 'Changes to organization structure, branches, and role permissions affect user access and document workflows in other modules.' : 'تغییر در ساختار سازمان، تعریف شعب و مجوزهای نقش‌ها مستقیماً بر سطح دسترسی کاربران و گردش اسناد در سایر ماژول‌ها تأثیرگذار خواهد بود.'}</p>
       </footer>
     </div>
   );

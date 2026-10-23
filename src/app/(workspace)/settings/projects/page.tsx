@@ -8,7 +8,8 @@ import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { projectsApi, type ProjectDraft, type ProjectImportRecord, type ProjectItem, type ProjectStatus } from '@/lib/api/shared/projects-api';
 import { parseProjectsImportData, PROJECTS_IMPORT_SAMPLE, projectsToExportData } from './projects-json';
-import type { UiMessage } from '@/lib/ui-messages';
+import type { UiMessage } from '@/languages/types';
+import { SettingsOrganizationTabs } from '@/app/(workspace)/settings/components/settings-organization-tabs';
 
 const EMPTY_FORM: ProjectDraft = { code: '', name: '', description: '', status: 'ACTIVE' };
 
@@ -140,6 +141,7 @@ export default function ProjectsSettingsPage() {
 
   return (
     <main dir={direction} className="w-full space-y-5">
+      <SettingsOrganizationTabs />
       <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderKanban size={21}/></span>

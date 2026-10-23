@@ -8,7 +8,7 @@ import type {
   InventoryProduct,
   InventorySummary,
   InventoryWarehouse,
-} from '@/types/inventory';
+} from '@/lib/api/commercial/inventory-types';
 
 export const inventoryApi = {
   createProduct: async (input: { sku: string; name: string; unit: string; description?: string }): Promise<InventoryProduct> => {

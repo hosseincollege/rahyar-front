@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file frontend/src/app/(workspace)/layout.tsx
  * @description اجازه دسترسی مشاهده‌ای به کاربر مهمان و محافظت از مسیرهای workspace در ERP Pro.
  * @project ERP Pro
@@ -12,6 +12,8 @@ import { usePathname, useRouter } from 'next/navigation'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { getCurrentUser, isUserAuthenticated } from '@/lib/api/shared/auth-api'
+import { isReducedEdition } from '@/lib/product-edition'
+import { OPTIONAL_MODULE_IDS, readModuleVisibility } from '@/lib/module-visibility'
 
 type WorkspaceLayoutProps = {
   children: React.ReactNode
@@ -75,6 +77,14 @@ export default function WorkspaceLayout({
         return
       }
 
+      const modulePath = OPTIONAL_MODULE_IDS.find((id) => pathname === `/${id}` || pathname.startsWith(`/${id}/`));
+      if (modulePath && !readModuleVisibility(isReducedEdition)[modulePath]) {
+        setIsCheckingAuth(true)
+        setIsAllowed(false)
+        router.replace('/dashboard')
+        return
+      }
+
       setIsGuestMode(hasGuestSession && !hasOfficialSession)
       setIsAllowed(true)
       setIsCheckingAuth(false)
@@ -119,7 +129,7 @@ export default function WorkspaceLayout({
       <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            رهیار
+            ERP
           </div>
 
           <h2 className="text-xl font-semibold">
@@ -128,7 +138,7 @@ export default function WorkspaceLayout({
 
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
             در حال اعتبارسنجی نشست کاربری و آماده‌سازی محیط کاری
-            رهیار...
+            ERP Pro...
           </p>
 
           <div className="mt-6 flex justify-center">
@@ -158,4 +168,3 @@ export default function WorkspaceLayout({
     </div>
   )
 }
-

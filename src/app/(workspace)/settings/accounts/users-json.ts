@@ -1,7 +1,7 @@
 // File: frontend/src/app/(workspace)/settings/users/users-json.ts
 // Frontend - منطق JSON حساب‌های کاربری: نمونه، اعتبارسنجی و تبدیل داده‌ها
 
-import type { UserItem, UserRoleItem } from '@/lib/api/settings/settings-api';
+import type { UserItem, UserRoleItem } from '@/app/(workspace)/settings/settings-api';
 
 /**
  * ساختار هر کاربر در فایل JSON ورودی و خروجی.
@@ -12,6 +12,7 @@ export interface UserImportData {
   username?: string;
   password?: string;
   email: string;
+  nationalId?: string;
   role: string;
   department?: string;
   isActive?: boolean;
@@ -122,6 +123,7 @@ function parseUser(
   const username = normalizeOptionalString(record.username);
   const password = normalizeOptionalString(record.password);
   const email = normalizeEmail(record.email);
+  const nationalId = normalizeOptionalString(record.nationalId ?? record.nationalCode);
   const role = normalizeRequiredString(record.role);
   const department = normalizeOptionalString(record.department);
 
@@ -158,6 +160,7 @@ function parseUser(
     username,
     password,
     email,
+    nationalId,
     role,
     department,
     isActive:

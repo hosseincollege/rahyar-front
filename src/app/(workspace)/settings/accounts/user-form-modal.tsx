@@ -4,16 +4,18 @@
 
 import { Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { uiMessage } from '@/lib/ui-messages';
 
 export type UserFormData = {
   name: string;
   username: string;
   password?: string;
   email: string;
+  nationalId: string;
+  isSystemUser: boolean;
   role: string;
   department: string;
-  branchId: string;
-  departmentId: string;
   isActive: boolean;
 };
 
@@ -24,10 +26,6 @@ interface UserFormModalProps {
   initialData: UserFormData;
   onClose: () => void;
   onSave: (formData: UserFormData) => Promise<void>;
-  branches: Array<{ id: string; name: string }>;
-  teams: Array<{ id: string; name: string; branchId?: string }>;
-  roles: Array<{ key: string; name: string }>;
-  isAdmin: boolean;
 }
 
 export function UserFormModal({
@@ -37,11 +35,8 @@ export function UserFormModal({
   initialData,
   onClose,
   onSave,
-  branches,
-  teams,
-  roles,
-  isAdmin,
 }: UserFormModalProps) {
+  const { locale } = usePreferences();
   const [formData, setFormData] = useState<UserFormData>(initialData);
   const [showPassword, setShowPassword] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -74,7 +69,7 @@ export function UserFormModal({
         aria-modal="true"
         tabIndex={-1}
         className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-2xl outline-none"
-        dir="rtl"
+        dir={getLocaleDirection(locale)}
       >
         <div className="mb-5 flex items-center justify-between border-b pb-4">
           <div>
@@ -144,6 +139,21 @@ export function UserFormModal({
           </div>
 
           <div>
+            <label htmlFor="modal-user-national-id" className="mb-1.5 block text-sm font-medium">
+              {uiMessage(locale, 'accountNationalId')}
+            </label>
+            <input
+              id="modal-user-national-id"
+              dir="ltr"
+              inputMode="numeric"
+              autoComplete="off"
+              value={formData.nationalId}
+              onChange={(e) => setFormData((cur) => ({ ...cur, nationalId: e.target.value }))}
+              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <div>
             <label htmlFor="modal-user-password" className="mb-1.5 block text-sm font-medium">
               رمز عبور {editingUserId && <span className="text-xs text-muted-foreground font-normal">(در صورت تمایل به تغییر وارد کنید)</span>}
             </label>
@@ -154,21 +164,22 @@ export function UserFormModal({
                 dir="ltr"
                 value={formData.password ?? ''}
                 onChange={(e) => setFormData((cur) => ({ ...cur, password: e.target.value }))}
-                placeholder={editingUserId ? 'رمز عبور جدید (اختیاری)' : 'رمز عبور دلخواه (اختیاری: پیش‌فرض سیستم)'}
-                className="w-full rounded-lg border bg-background px-3 py-2.5 pl-10 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                required={!editingUserId}
+                minLength={8}
+                autoComplete="new-password"
+                placeholder={uiMessage(locale, editingUserId ? 'accountPasswordChangePlaceholder' : 'accountPasswordCreatePlaceholder')}
+                className="w-full rounded-lg border bg-background px-3 py-2.5 pe-10 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {editingUserId
-                ? 'در صورتی که این فیلد خالی بماند، رمز عبور قبلی بدون تغییر حفظ می‌شود.'
-                : 'در صورت خالی ماندن، رمز عبور پیش‌فرض سازمان تنظیم خواهد شد.'}
+              {uiMessage(locale, editingUserId ? 'accountPasswordEditHint' : 'accountPasswordCreateHint')}
             </p>
           </div>
 
@@ -177,59 +188,38 @@ export function UserFormModal({
               <label htmlFor="modal-user-role" className="mb-1.5 block text-sm font-medium">
                 نقش
               </label>
-              <select
+              <input
                 id="modal-user-role"
                 value={formData.role}
                 onChange={(e) => setFormData((cur) => ({ ...cur, role: e.target.value }))}
-                disabled={!isAdmin}
+                placeholder="USER"
+                required
+                disabled={formData.isSystemUser}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="USER">کاربر</option>
-                {isAdmin && roles.filter(({ key }) => key !== 'USER').map((role) => (
-                  <option key={role.key} value={role.key}>{role.name}</option>
-                ))}
-                {isAdmin && roles.length === 0 && <option value="SUPER_ADMIN">ادمین</option>}
-                {formData.role && !['USER', ...roles.map(({ key }) => key), ...(roles.length === 0 ? ['SUPER_ADMIN'] : [])].includes(formData.role) && (
-                  <option value={formData.role}>{formData.role}</option>
-                )}
-              </select>
+              />
+              {formData.isSystemUser && <p className="mt-1 text-xs text-muted-foreground">{uiMessage(locale, 'accountOwnerRoleProtected')}</p>}
             </div>
 
             <div>
               <label htmlFor="modal-user-department" className="mb-1.5 block text-sm font-medium">
                 بخش سازمانی
               </label>
-              <select
+              <input
                 id="modal-user-department"
-                value={formData.branchId}
-              onChange={(e) => setFormData((cur) => ({ ...cur, branchId: e.target.value, departmentId: '' }))}
-                required
+                value={formData.department}
+                onChange={(e) => setFormData((cur) => ({ ...cur, department: e.target.value }))}
+                placeholder="اختیاری"
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">استان را انتخاب کنید</option>
-                {branches.filter((branch) => isAdmin || branch.id === formData.branchId).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-              </select>
+              />
             </div>
           </div>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium">تیم</span>
-            <select
-              value={formData.departmentId}
-              onChange={(e) => setFormData((cur) => ({ ...cur, departmentId: e.target.value }))}
-              disabled={!formData.branchId}
-              className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
-            >
-              <option value="">تیم را انتخاب کنید</option>
-              {teams.filter((team) => team.branchId === formData.branchId).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-            </select>
-          </label>
 
           <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
             <input
               type="checkbox"
               checked={formData.isActive}
               onChange={(e) => setFormData((cur) => ({ ...cur, isActive: e.target.checked }))}
+              disabled={formData.isSystemUser}
               className="size-4 rounded border"
             />
             <span>
@@ -239,6 +229,7 @@ export function UserFormModal({
               </span>
             </span>
           </label>
+          {formData.isSystemUser && <p className="-mt-3 text-xs text-muted-foreground">{uiMessage(locale, 'accountOwnerStatusProtected')}</p>}
 
           <div className="flex justify-end gap-2 border-t pt-5">
             <button

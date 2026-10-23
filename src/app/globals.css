@@ -738,49 +738,8 @@ svg {
     transition-duration: 0.01ms !important;
   }
 }
-/* Keep OpenStreetMap imagery legible in the application's dark theme. */
+
 .rahcom-osm-map-dark .leaflet-tile-pane {
-  filter: invert(0.88) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+  filter: invert(1) hue-rotate(180deg) brightness(1.08) contrast(1.08);
+  transition: filter 180ms ease-out;
 }
-
-.rahcom-osm-map-dark .leaflet-control-attribution {
-  background: rgb(15 23 42 / 88%);
-  color: #cbd5e1;
-}
-
-.rahcom-osm-map-dark .leaflet-control-attribution a {
-  color: #93c5fd;
-}
-
-.rahcom-osm-map .leaflet-popup-content-wrapper,
-.rahcom-osm-map .leaflet-popup-tip {
-  background: var(--card);
-  color: var(--card-foreground);
-}
-
-.rahcom-osm-map .leaflet-popup-content-wrapper {
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  box-shadow: var(--shadow-md);
-}
-
-.rahcom-osm-map .leaflet-popup-content {
-  margin: 12px;
-}
-
-.rahcom-system-popup { min-width: 260px; color: var(--card-foreground); font-family: inherit; }
-.rahcom-popup-title { display: block; overflow-wrap: anywhere; padding: 2px 2px 10px; font-size: 14px; font-weight: 700; }
-.rahcom-popup-data { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
-.rahcom-popup-row, .rahcom-popup-copy-row { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--border); padding: 5px 9px; font-size: 11px; }
-.rahcom-popup-row:last-child { border-bottom: 0; }
-.rahcom-popup-row span, .rahcom-popup-copy-row span { flex: 0 0 auto; color: var(--muted-foreground); }
-.rahcom-popup-row b, .rahcom-popup-copy-row b { min-width: 0; overflow: hidden; color: var(--foreground); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.rahcom-popup-copy-row { background: var(--primary-soft); }
-.rahcom-popup-copy { flex: 0 0 auto; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--primary); cursor: pointer; padding: 5px 8px; font: inherit; font-size: 10px; }
-.rahcom-popup-copy:hover { border-color: var(--primary); }
-.rahcom-popup-status { min-height: 16px; padding-top: 5px; color: var(--danger); font-size: 11px; }
-.rahcom-popup-hint { margin: 7px 0; color: var(--muted-foreground); font-size: 11px; }
-.rahcom-popup-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
-.rahcom-popup-actions button, .rahcom-system-popup [data-popup-action="save"], .rahcom-system-popup [data-popup-action="cancel"] { min-height: 34px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--foreground); cursor: pointer; padding: 5px 9px; font: inherit; font-size: 11px; }
-.rahcom-popup-actions [data-popup-action="route"], .rahcom-system-popup [data-popup-action="save"] { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); }
-.rahcom-popup-actions .danger { color: var(--danger); }

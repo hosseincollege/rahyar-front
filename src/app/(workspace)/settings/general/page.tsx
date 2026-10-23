@@ -1,11 +1,10 @@
-﻿import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+import { GeneralSettingsContent } from './general-settings-content';
 
 export const metadata: Metadata = {
-  title: 'تنظیمات عمومی | رهیار',
+  title: 'تنظیمات عمومی | ERP Pro',
 };
 
 export default function GeneralSettingsPage() {
-  redirect('/settings/company');
+  return <GeneralSettingsContent />;
 }
-

@@ -9,12 +9,30 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { getCurrentUser, logout, AuthUser } from '@/lib/api/shared/auth-api';
+import { getCurrentOrganizationId, getCurrentUser, logout, AuthUser } from '@/lib/api/shared/auth-api';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/lib/ui-messages';
+import type { UiMessage } from '@/languages/types';
+import { projectsApi, type SupportProjectItem } from '@/lib/api/shared/projects-api';
+import { notificationsApi } from '@/lib/api/shared/notifications-api';
+import { settingsApi, type OrganizationAccess } from '@/app/(workspace)/settings/settings-api';
+import { isReducedEdition } from '@/lib/product-edition';
+import { OPTIONAL_MODULE_IDS, readShellVisibility } from '@/lib/module-visibility';
 
-import { Code2, ExternalLink, LayoutDashboard, LogOut, Settings, User, Waypoints } from 'lucide-react';
+import {
+  BarChart3,
+  BriefcaseBusiness,
+  Calculator,
+  Code2,
+  ExternalLink,
+  LayoutDashboard,
+  MapPinned,
+  LogOut,
+  Settings,
+  Ticket,
+  User,
+  UsersRound,
+} from 'lucide-react';
 
 type NavigationSubItem = {
   titleKey?: UiMessage;
@@ -33,18 +51,79 @@ type NavigationItem = {
 
 // فهرست ماژول‌های اصلی سیستم
 const navigation: NavigationItem[] = [
-  { id: 'dashboard', titleKey: 'sidebarDashboard', icon: LayoutDashboard, href: '/dashboard', sub: [] },
+  {
+    id: 'dashboard',
+    titleKey: 'sidebarDashboard',
+    icon: LayoutDashboard,
+    href: '/dashboard',
+    sub: [
+      { titleKey: 'dashboardTools', href: '/dashboard/events' },
+      { titleKey: 'dashboardConversation', href: '/dashboard/conversations' },
+      { titleKey: 'dashboardAccount', href: '/dashboard/profile' },
+    ],
+  },
   {
     id: 'rahcom',
     titleKey: 'sidebarRahkam',
-    icon: Waypoints,
+    icon: MapPinned,
     href: '/rahcom',
     sub: [
       { titleKey: 'rahcomMap', href: '/rahcom/map' },
-      { titleKey: 'rahcomActions', href: '/rahcom/actions' },
       { titleKey: 'rahcomSystemsList', href: '/rahcom/systems' },
+      { titleKey: 'rahcomSystemData', href: '/rahcom/data' },
       { titleKey: 'rahcomDailyTraffic', href: '/rahcom/daily-traffic' },
       { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
+      { titleKey: 'rahcomActions', href: '/rahcom/actions' },
+      { titleKey: 'rahcomTickets', href: '/rahcom/tickets' },
+    ],
+  },
+  {
+    id: 'accounting',
+    titleKey: 'sidebarAccounting',
+    icon: Calculator,
+    href: '/accounting',
+    sub: [
+      { titleKey: 'accountingChartOfAccounts', href: '/accounting/accounts' },
+      { titleKey: 'accountingEntriesLedger', href: '/accounting/vouchers' },
+      { titleKey: 'accountingInvoices', href: '/accounting/invoices' },
+      { titleKey: 'accountingPurchaseInvoices', href: '/accounting/purchases' },
+      { titleKey: 'accountingReceiptsPayments', href: '/accounting/payments' },
+      { titleKey: 'sidebarLedger', href: '/accounting/ledger' },
+      { titleKey: 'sidebarFinancialReports', href: '/accounting/reports' },
+    ],
+  },
+  {
+    id: 'commerce',
+    titleKey: 'sidebarCommercial',
+    icon: UsersRound,
+    href: '/commerce',
+    sub: [
+      { titleKey: 'sidebarCustomers', href: '/commerce/customers' },
+      { titleKey: 'sidebarSales', href: '/commerce/sales' },
+      { titleKey: 'sidebarInventory', href: '/commerce/inventory' },
+      { titleKey: 'sidebarPurchases', href: '/commerce/purchasing' },
+    ],
+  },
+  {
+    id: 'human-resources',
+    titleKey: 'sidebarHumanResources',
+    icon: BriefcaseBusiness,
+    href: '/human-resources',
+    sub: [
+      { titleKey: 'sidebarEmployeeRecords', href: '/human-resources/employees' },
+      { titleKey: 'sidebarAttendance', href: '/human-resources/attendance' },
+      { titleKey: 'sidebarLeaveRequests', href: '/human-resources/leaves' },
+      { titleKey: 'sidebarPayroll', href: '/human-resources/payroll' },
+    ],
+  },
+  {
+    id: 'statistics',
+    titleKey: 'sidebarStatistics',
+    icon: BarChart3,
+    href: '/statistics',
+    sub: [
+      { titleKey: 'sidebarReports', href: '/statistics/reports' },
+      { titleKey: 'sidebarBusinessIntelligence', href: '/statistics/business-intelligence' },
     ],
   },
   {
@@ -53,12 +132,19 @@ const navigation: NavigationItem[] = [
     icon: Settings,
     href: '/settings',
     sub: [
+      { titleKey: 'sidebarGeneral', href: '/settings/general' },
+      { titleKey: 'settingsDisplayManagement', href: '/settings/modules' },
       { titleKey: 'sidebarAnnouncementManagement', href: '/settings/announcements' },
-      { titleKey: 'sidebarGeneral', href: '/settings/company' },
-      { titleKey: 'sidebarOrganizationStructure', href: '/settings/organization' },
-      { titleKey: 'settingsAccessWorkspace', href: '/settings/accounts', activeHrefs: ['/settings/accounts'] },
-      { titleKey: 'rahcomSystemData', href: '/settings/rahcom-data' },
+      { titleKey: 'settingsOrganizationWorkspace', href: '/settings/company', activeHrefs: ['/settings/company', '/settings/organization', '/settings/projects'] },
+      { titleKey: 'settingsAccessWorkspace', href: '/settings/roles', activeHrefs: ['/settings/roles', '/settings/accounts'] },
     ],
+  },
+  {
+    id: 'support',
+    titleKey: 'sidebarSupport',
+    icon: Ticket,
+    href: '/support',
+    sub: [],
   },
   {
     id: 'development',
@@ -68,14 +154,16 @@ const navigation: NavigationItem[] = [
     sub: [
       { titleKey: 'developmentSiteVisits', href: '/development/site-visits' },
       { titleKey: 'sidebarTestData', href: '/development/test-data' },
-      { titleKey: 'developmentAccountSwitching', href: '/development/account-switching' },
     ],
   },
 ];
 
 interface SidebarProps {
   isMainCollapsed?: boolean;
+  isLocked?: boolean;
   isProfileActive?: boolean;
+  navigateOnClick?: boolean;
+  onCloseSidebar?: () => void;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
   onSetProfileActive?: (active: boolean) => void;
@@ -83,7 +171,10 @@ interface SidebarProps {
 
 export function Sidebar({
   isMainCollapsed = true,
+  isLocked = false,
   isProfileActive = false,
+  navigateOnClick = false,
+  onCloseSidebar,
   isMobileOpen = false,
   onMobileClose,
   onSetProfileActive,
@@ -93,13 +184,39 @@ export function Sidebar({
   const message = (key: UiMessage) => uiMessage(locale, key);
   const router = useRouter();
   const sidebarRef = useRef<HTMLElement>(null);
+  const supportProjectsRequest = useRef(0);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [supportProjects, setSupportProjects] = useState<SupportProjectItem[]>([]);
+  const [organizationAccess, setOrganizationAccess] = useState<OrganizationAccess | null>(null);
+  const [moduleVisibility, setModuleVisibility] = useState(() => readShellVisibility(isReducedEdition));
+  const [dashboardUnreadCount, setDashboardUnreadCount] = useState(0);
 
-  const isProfileRoute = false;
-  const isHomeRoute = pathname === '/' || pathname === '/dashboard' || pathname.startsWith('/dashboard/') || pathname === '/rahcom' || pathname.startsWith('/rahcom/');
+  const isProfileRoute = pathname === '/dashboard/profile' || pathname.startsWith('/dashboard/profile/');
+  const isHomeRoute = pathname === '/' || pathname === '/dashboard' || pathname.startsWith('/dashboard/');
 
   useEffect(() => {
-    const refreshUser = () => setUser(getCurrentUser());
+    const refreshUser = () => {
+      const requestId = ++supportProjectsRequest.current;
+      const currentUser = getCurrentUser();
+      setUser(currentUser);
+      if (!currentUser) {
+        setSupportProjects([]);
+        setOrganizationAccess(null);
+        return;
+      }
+      const organizationId = getCurrentOrganizationId();
+      if (!organizationId) {
+        setOrganizationAccess(null);
+        setSupportProjects([]);
+        return;
+      }
+      settingsApi.getOrganizationAccess(organizationId)
+        .then((access) => { if (requestId === supportProjectsRequest.current) setOrganizationAccess(access); })
+        .catch(() => { if (requestId === supportProjectsRequest.current) setOrganizationAccess(null); });
+      projectsApi.getSupportProjects()
+        .then((items) => { if (requestId === supportProjectsRequest.current) setSupportProjects(items); })
+        .catch(() => { if (requestId === supportProjectsRequest.current) setSupportProjects([]); });
+    };
     refreshUser();
     window.addEventListener('auth:logout', refreshUser);
     window.addEventListener('auth:login', refreshUser);
@@ -113,6 +230,26 @@ export function Sidebar({
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    const refreshUnreadCount = () => {
+      void notificationsApi.getSummary().then((summary) => {
+        if (mounted) setDashboardUnreadCount(summary.unreadCount);
+      }).catch(() => {
+        if (mounted) setDashboardUnreadCount(0);
+      });
+    };
+    refreshUnreadCount();
+    window.addEventListener('notifications-updated', refreshUnreadCount);
+    window.addEventListener('auth:login', refreshUnreadCount);
+    window.addEventListener('auth:logout', refreshUnreadCount);
+    return () => {
+      mounted = false;
+      window.removeEventListener('notifications-updated', refreshUnreadCount);
+      window.removeEventListener('auth:login', refreshUnreadCount);
+      window.removeEventListener('auth:logout', refreshUnreadCount);
+    };
+  }, []);
 
   // یافتن ماژول مطابق با مسیر فعلی
   const getMatchedModuleId = () => {
@@ -125,6 +262,17 @@ export function Sidebar({
   };
 
   const [activeTab, setActiveTab] = useState<string | null>(getMatchedModuleId());
+
+  useEffect(() => {
+    const refresh = () => setModuleVisibility(readShellVisibility(isReducedEdition));
+    refresh();
+    window.addEventListener('storage', refresh);
+    window.addEventListener('erp-module-visibility-change', refresh);
+    return () => {
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener('erp-module-visibility-change', refresh);
+    };
+  }, []);
 
   // همگام‌سازی تب فعال هنگام تغییر مسیر (Navigation)
   useEffect(() => {
@@ -149,12 +297,19 @@ export function Sidebar({
         return;
       }
 
+      const sidebarControls = document.getElementById('sidebar-controls');
       const userProfileBtn = document.getElementById('user-profile-header-btn');
+      const navigateToggleBtn = document.getElementById('navigate-on-click-toggle-btn');
 
-      if (userProfileBtn && userProfileBtn.contains(target)) {
+      if (
+        (sidebarControls && sidebarControls.contains(target)) ||
+        (userProfileBtn && userProfileBtn.contains(target)) ||
+        (navigateToggleBtn && navigateToggleBtn.contains(target))
+      ) {
         return;
       }
 
+      // ریست وضعیت موقت تب به حالت متناظر با صفحه جاری
       if (isHomeRoute) {
         setActiveTab(getMatchedModuleId());
         onSetProfileActive?.(false);
@@ -168,6 +323,10 @@ export function Sidebar({
         }
       }
 
+      // بستن ستون‌ها در صورت عدم قفل بودن
+      if (!isMainCollapsed && !isLocked) {
+        onCloseSidebar?.();
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -176,10 +335,12 @@ export function Sidebar({
     };
   }, [
     isMainCollapsed,
+    isLocked,
     isProfileActive,
     isProfileRoute,
     isHomeRoute,
     pathname,
+    onCloseSidebar,
     onSetProfileActive,
   ]);
 
@@ -188,7 +349,7 @@ export function Sidebar({
     onSetProfileActive?.(false);
     setActiveTab(item.id);
 
-    if (item.href) {
+    if (item.href && navigateOnClick) {
       router.push(item.href);
     }
   };
@@ -198,13 +359,20 @@ export function Sidebar({
     router.push('/login');
   };
 
-  const localizedNavigation = navigation.map((item) => ({
+  const localizedNavigation = navigation
+    // Rahyar keeps the full ERP code, but its five premium modules are off by
+    // default. Keep every other shared module available in the reduced edition.
+    .filter((item) => moduleVisibility.navigationModules?.[item.id as keyof NonNullable<typeof moduleVisibility.navigationModules>] !== false)
+    .filter((item) => !OPTIONAL_MODULE_IDS.includes(item.id as (typeof OPTIONAL_MODULE_IDS)[number]) || moduleVisibility[item.id as (typeof OPTIONAL_MODULE_IDS)[number]])
+    .filter((item) => item.id !== 'rahcom' || Boolean(organizationAccess?.canViewRahcom))
+    .filter((item) => item.id !== 'accounting' || Boolean(organizationAccess?.canViewAccounting))
+    .filter((item) => item.id !== 'human-resources' || Boolean(organizationAccess?.canViewHumanResources))
+    .map((item) => ({
     ...item,
     title: message(item.titleKey),
-    sub: item.sub?.map((subItem) => ({
-      ...subItem,
-      title: subItem.titleKey ? message(subItem.titleKey) : subItem.title,
-    })),
+    sub: item.id === 'support'
+      ? supportProjects.map((project) => ({ title: project.name, href: `/support/projects/${encodeURIComponent(project.id)}`, activeHrefs: undefined }))
+      : item.sub?.filter((subItem) => moduleVisibility.navigationItems?.[subItem.href] !== false).map((subItem) => ({ ...subItem, title: subItem.titleKey ? message(subItem.titleKey) : subItem.title })),
   }));
   const activeGroup = localizedNavigation.find((item) => item.id === activeTab);
   const activePath = pathname;
@@ -282,13 +450,12 @@ export function Sidebar({
 
       {/* ستون دوم: اولویت رندر: پنل پروفایل | زیرمنوی ماژول فعال | پیشخوان خانه */}
       <div
-        className={`
+        className="
           flex min-h-0 w-50 shrink-0 flex-col
           border-e border-[var(--border)]
           bg-[var(--surface)]/95
           p-4 shadow-sm backdrop-blur
-          ${activeGroup ? '' : 'hidden'}
-        `}
+        "
       >
         {isProfileActive || (isProfileRoute && !activeTab) ? (
           /* حالت اول: پنل پروفایل کاربر */
@@ -379,6 +546,11 @@ export function Sidebar({
                     >
                       <span className="shrink-0 text-xs font-medium tabular-nums text-current" dir="ltr">{index + 1}</span>
                       <span className="truncate leading-none">{subItem.title}</span>
+                      {subItem.href === '/dashboard/events' && dashboardUnreadCount > 0 && (
+                        <span className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[var(--primary-foreground)]" dir="ltr">
+                          {dashboardUnreadCount > 99 ? '99+' : dashboardUnreadCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })

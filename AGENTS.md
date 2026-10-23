@@ -63,3 +63,21 @@ Whenever assigned a task:
 - Keep local source as the source of truth. Do not make dashboard-only or production-only changes that are absent from the repository.
 - Direct Vercel changes or deployments are reserved for an active production incident when they are necessary to restore service. Keep the corresponding source change in the repository so Git-based deployments do not undo the fix.
 - Do not commit, push, or deploy unless the user explicitly asks for that action.
+
+## ERP canonical source and reduced Rahyar edition
+
+- ERP is the canonical source for the shared application. Apply shared changes from ERP using DevHub's “Apply to Rahyar” workflow; do not create divergent implementations of shared shell or module features here.
+- Rahyar receives the full shared application code from ERP. Accounting, Commerce, Human Resources, Support, and Statistics remain in source but are hidden/disabled by default; keep the Rahyar edition switch responsible for the default visibility.
+- Preserve Rahyar-specific API base URLs, localhost ports, Vercel settings, environment variables, secrets, and data store. Never sync `.env*`, deployment settings, or database contents from ERP.
+- Preserve `src/lib/product-edition.ts` and `src/lib/api-environment.ts` as Rahyar-only files; the first sets the reduced-edition defaults for module visibility and the second keeps Rahyar's API destinations and ports.
+- Rahyar has its own database and migration history. Review any shared schema changes and provide Rahyar-targeted migrations before applying them; do not reuse ERP database connections.
+- Rahcom data import/management belongs to the Rahcom module in ERP. Keep Rahyar-specific runtime configuration separate. All other shared application modules are synchronized from ERP as well.
+- Sync operations must preserve destination edits in a backup and must not delete Rahyar files unless an explicit reviewed manifest requires it.
+- Keep the shared module navigation ordered Dashboard first and Rahcom second, followed by the remaining modules.
+- For each requested ERP behavior change, implement it in ERP first and apply its equivalent shared frontend change to Rahyar in the same task. Keep Rahyar's Dashboard, Rahcom, Settings, and Development visible by default; the five reduced-edition modules remain hidden unless enabled in module settings.
+- Keep local ports and API URLs, Vercel configuration, `.env*` files and secrets, databases and data, and deployment files specific to Rahyar. Never connect Rahyar to ERP runtime resources.
+- Treat every feature request made in the ERP workspace as authorization to implement the shared behavior in ERP first and apply the corresponding change to Rahyar in the same task; the user should not need to repeat the request for Rahyar.
+- Preserve Rahyar's reduced edition: Dashboard, Rahcom, Settings, and Development are visible by default; Accounting, Commerce, Human Resources, Support, and Statistics stay hidden unless explicitly enabled.
+- Keep the Development data creation experience named "Create Data" in every supported locale. Create persistent, useful records that work in normal workflows; avoid user-facing test, sample, or mock labels. Preserve stable internal identifiers and idempotent fixture behavior.
+- Seed Rahyar's organization identity as “رهیار” with the road/traffic camera Rahcom logo. Preserve administrator-customized company details and logos when reapplying seeded records.
+- Place global search in the authenticated top header between the assistant/action icons and centered company identity, and keep it out of the Tools tabs.

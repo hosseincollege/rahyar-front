@@ -1,6 +1,6 @@
 ﻿/**
  * @file src/components/layout/top-header.tsx
- * @project Rahyar - Front-end
+ * @project ERP Pro - Front-end
  */
 
 'use client';
@@ -8,65 +8,79 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { getCurrentOrganizationId, getCurrentUser, logout, type AuthUser } from '@/lib/api/shared/auth-api';
-import { resolveOrganizationLogoUrl, settingsApi, type OrganizationBranding } from '@/lib/api/settings/settings-api';
-import { LogOut, Menu, Monitor, Moon, Search, ShieldCheck, Sun, User, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  getCurrentOrganizationId,
+  getCurrentUser,
+  logout,
+  AuthUser,
+} from '@/lib/api/shared/auth-api';
+import {
+  resolveOrganizationLogoUrl,
+  settingsApi,
+  type OrganizationBranding,
+} from '@/app/(workspace)/settings/settings-api';
+
+import {
+  ArrowLeftRight,
+  Bot,
+  FilePlus2,
+  SquareTerminal,
+  ChevronLeft,
+  LogOut,
+  Lock,
+  Menu,
+  Monitor,
+  Moon,
+  Search,
+  Sun,
+  Unlock,
+  User,
+  X,
+} from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import { HeaderProvinceSelector } from './header-province-selector';
+import { readShellVisibility } from '@/lib/module-visibility';
+import { isReducedEdition } from '@/lib/product-edition';
+import { saveSearchHistory } from '@/lib/search-history';
 import { HeaderAccountSwitcher } from './header-account-switcher';
-import { rahcomApi, type RahcomSystem } from '@/lib/rahcom-api';
+import { HeaderProvinceSelector } from './header-province-selector';
+import type { MissionEntryMode } from './mission-quick-actions';
 
 interface TopHeaderProps {
+  isCollapsed?: boolean;
   isMobileMenuOpen?: boolean;
+  isSidebarLocked?: boolean;
+  navigateOnClick?: boolean;
+  onToggleSidebar?: () => void;
   onToggleMobileMenu?: () => void;
+  onToggleSidebarLock?: () => void;
+  onToggleNavigateOnClick?: () => void;
+  onSelectMissionMode?: (mode: MissionEntryMode) => void;
+  activeMissionMode?: MissionEntryMode;
 }
 
-function repairMojibake(value: string): string {
-  const specialCodePoints = [
-    0x20ac, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,
-    0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f,
-    0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,
-    0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x017e, 0x0178,
-  ];
-  const bytes: number[] = [];
-
-  for (const character of value) {
-    const codePoint = character.codePointAt(0)!;
-    if (codePoint <= 0x7f) {
-      bytes.push(codePoint);
-      continue;
-    }
-    if (codePoint >= 0x00a0 && codePoint <= 0x00ff) {
-      bytes.push(codePoint);
-      continue;
-    }
-    const specialIndex = specialCodePoints.indexOf(codePoint);
-    if (specialIndex < 0) return value;
-    bytes.push(0x80 + specialIndex);
-  }
-
-  try {
-    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(
-      Uint8Array.from(bytes),
-    );
-    return /[\u0600-\u06ff]/u.test(decoded) ? decoded : value;
-  } catch {
-    return value;
-  }
-}
-
-export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopHeaderProps) {
+export function TopHeader({
+  isCollapsed = true,
+  isMobileMenuOpen = false,
+  isSidebarLocked = false,
+  navigateOnClick = false,
+  onToggleSidebar,
+  onToggleMobileMenu,
+  onToggleSidebarLock,
+  onToggleNavigateOnClick,
+  onSelectMissionMode,
+  activeMissionMode = 'form',
+}: TopHeaderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const missionMenuRef = useRef<HTMLDivElement>(null);
+  const [isMissionMenuOpen, setIsMissionMenuOpen] = useState(false);
+  const [headerSearchQuery, setHeaderSearchQuery] = useState('');
+  const [shellVisibility, setShellVisibility] = useState(() => readShellVisibility(isReducedEdition));
   const router = useRouter();
-  const pathname = usePathname();
-  const [systemsSearch, setSystemsSearch] = useState('');
-  const [systemMatches, setSystemMatches] = useState<RahcomSystem[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [organizationBranding, setOrganizationBranding] =
     useState<OrganizationBranding | null>(null);
   const { theme, setTheme } = useTheme();
@@ -74,44 +88,16 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
   const direction = getLocaleDirection(locale);
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
+  const missionVisibilityKey = { form: 'missionForm', command: 'missionCommand', ai: 'missionAI' } as const;
+  const isMissionModeVisible = (mode: MissionEntryMode) => shellVisibility.headerControls?.[missionVisibilityKey[mode]] !== false;
 
   useEffect(() => {
-    if (pathname !== '/rahcom/systems') return;
-    const frame = window.requestAnimationFrame(() => {
-      const value = window.sessionStorage.getItem('rahyar-rahcom-systems-search') || '';
-      setSystemsSearch(value);
-      window.dispatchEvent(new CustomEvent('rahyar:systems-search', { detail: { query: value } }));
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [pathname]);
-
-  const updateSystemsSearch = (value: string) => {
-    setSystemsSearch(value);
-    setSearchOpen(true);
-    window.sessionStorage.setItem('rahyar-rahcom-systems-search', value);
-    window.dispatchEvent(new CustomEvent('rahyar:systems-search', { detail: { query: value } }));
-  };
-
-  useEffect(() => {
-    const query = systemsSearch.trim().toLocaleLowerCase();
-    if (query.length < 2) { setSystemMatches([]); return; }
-    let active = true;
-    const timer = window.setTimeout(() => {
-      void rahcomApi.systems().then((systems) => {
-        if (active) setSystemMatches(systems.filter((system) => `${system.systemCode} ${system.systemName}`.toLocaleLowerCase().includes(query)).slice(0, 5));
-      }).catch(() => { if (active) setSystemMatches([]); });
-    }, 250);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [systemsSearch]);
-
-  const openSystemAction = (system: RahcomSystem, destination: 'map' | 'systems' | 'actions') => {
-    window.localStorage.setItem(`rahyar-selected-province:${user?.id || 'current'}`, system.province);
-    window.sessionStorage.setItem('rahyar-rahcom-focus-system', system.id);
-    if (destination === 'systems') window.sessionStorage.setItem('rahyar-rahcom-systems-search', system.systemCode);
-    setSearchOpen(false);
-    router.push(destination === 'systems' ? '/rahcom/systems' : `/rahcom/${destination}`);
-    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { province: system.province } }));
-  };
+    const refresh = () => setShellVisibility(readShellVisibility(isReducedEdition));
+    refresh();
+    window.addEventListener('storage', refresh);
+    window.addEventListener('erp-module-visibility-change', refresh);
+    return () => { window.removeEventListener('storage', refresh); window.removeEventListener('erp-module-visibility-change', refresh); };
+  }, []);
 
   useEffect(() => {
     if (!isAccountMenuOpen) return;
@@ -131,11 +117,35 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
     };
   }, [isAccountMenuOpen]);
 
+  useEffect(() => {
+    if (!isMissionMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (missionMenuRef.current && !missionMenuRef.current.contains(event.target as Node)) {
+        setIsMissionMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMissionMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isMissionMenuOpen]);
 
   const handleSignOut = async () => {
     setIsAccountMenuOpen(false);
     await logout();
     router.push('/login');
+  };
+
+  const submitHeaderSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = headerSearchQuery.trim();
+    if (query) saveSearchHistory(query, isReducedEdition);
+    router.push(query ? `/dashboard/search?q=${encodeURIComponent(query)}` : '/dashboard/search');
   };
 
   /*
@@ -204,6 +214,48 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
     setTheme(nextTheme);
   };
 
+  const handleSidebarButtonClick = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // اگر سایدبار باز است و قفل است -> قفل را باز کن
+    if (!isCollapsed && isSidebarLocked) {
+      onToggleSidebarLock?.();
+      return;
+    }
+
+    // اگر سایدبار بسته است -> بازش کن
+    if (isCollapsed) {
+      onToggleSidebar?.();
+      return;
+    }
+
+    // اگر سایدبار باز است و هنوز قفل نیست -> قفلش کن
+    onToggleSidebarLock?.();
+  };
+
+  const handleSidebarButtonMouseDown = (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event.stopPropagation();
+  };
+
+  const sidebarButtonTitle = isCollapsed
+    ? message('openSidebar')
+    : isSidebarLocked
+      ? message('unlockSidebar')
+      : message('lockSidebar');
+
+  const sidebarButtonIcon = isCollapsed ? (
+    <ChevronLeft size={18} />
+  ) : isSidebarLocked ? (
+    <Lock size={18} />
+  ) : (
+    <Unlock size={18} />
+  );
+
   const themeIcon =
     theme === 'system' ? (
       <Monitor size={18} />
@@ -220,6 +272,9 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
       ? message('themeLight')
       : message('themeDark');
 
+  const navigateModeTitle = navigateOnClick
+    ? message('navigateOn')
+    : message('navigateOff');
   const logoShadow = organizationBranding?.logoBackground ?? 'NONE';
   const logoShadowClassName =
     logoShadow === 'DARK'
@@ -248,17 +303,67 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
         "
       >
         <div className="order-1 flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onClick={onToggleMobileMenu}
-          title={message(isMobileMenuOpen ? 'closeSidebar' : 'openSidebar')}
-          aria-label={message(isMobileMenuOpen ? 'closeSidebar' : 'openSidebar')}
-          aria-expanded={isMobileMenuOpen}
-          aria-controls="erp-mobile-navigation"
-          className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] md:hidden"
-        >
-          {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
+        {/* ۱. دکمه کنترل سایدبار (فلش باز/بستن/قفل) */}
+        {onToggleSidebar && (
+          <div id="sidebar-controls">
+            <button
+              type="button"
+              onClick={onToggleMobileMenu}
+              title={message(isMobileMenuOpen ? 'closeSidebar' : 'openSidebar')}
+              aria-label={message(isMobileMenuOpen ? 'closeSidebar' : 'openSidebar')}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="erp-mobile-navigation"
+              className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] md:hidden"
+            >
+              {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <button
+              id="sidebar-toggle-btn"
+              type="button"
+              onMouseDown={handleSidebarButtonMouseDown}
+              onClick={handleSidebarButtonClick}
+              title={sidebarButtonTitle}
+              aria-label={sidebarButtonTitle}
+              aria-pressed={!isCollapsed && isSidebarLocked}
+              className={`pointer-events-auto hidden md:flex
+                flex h-9 w-9 cursor-pointer
+                items-center justify-center
+                rounded-xl transition-all duration-200
+                ${
+                  !isCollapsed && isSidebarLocked
+                    ? 'border-2 border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm shadow-[var(--primary)]/20'
+                    : 'border border-[var(--border)] text-[var(--foreground)]'
+                }
+              `}
+            >
+              <span className="pointer-events-none flex items-center justify-center">
+                {sidebarButtonIcon}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* ۲. دکمه فلش دوطرفه (سوئیچ حالت ناوبری) */}
+        {onToggleNavigateOnClick && (
+          <button
+            id="navigate-on-click-toggle-btn"
+            type="button"
+            onClick={onToggleNavigateOnClick}
+            title={navigateModeTitle}
+            aria-label={navigateModeTitle}
+            aria-pressed={navigateOnClick}
+            className={`pointer-events-auto flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center
+              rounded-xl transition-all duration-200
+              ${
+                navigateOnClick
+                  ? 'border-2 border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm shadow-[var(--primary)]/20'
+                  : 'border border-[var(--border)] text-[var(--foreground)]'
+              }
+            `}
+          >
+            <ArrowLeftRight size={18} />
+          </button>
+        )}
 
         <button
           type="button"
@@ -269,11 +374,16 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
         >
           {themeIcon}
         </button>
+        <button type="button" onClick={() => router.push('/dashboard/search')} title={message('headerSearch')} aria-label={message('headerSearch')} className="pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] lg:hidden"><Search size={17} /></button>
         </div>
 
         {/* کپسول حساب کاربری در سوی مقابل کنترل‌ها */}
         <div className="pointer-events-none order-2 flex shrink-0 items-center gap-1.5">
-        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="rtl">
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="ltr">
+        {shellVisibility.headerControls?.accountSwitcher !== false && <div className="hidden md:block">
+          <HeaderAccountSwitcher userId={user?.id} />
+        </div>}
+        {shellVisibility.headerControls?.provinceSelector !== false && <HeaderProvinceSelector userId={user?.id} />}
         <div ref={accountMenuRef} dir={direction} className="pointer-events-none relative shrink-0">
           <button
             id="user-profile-header-btn"
@@ -284,7 +394,7 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
             aria-expanded={isAccountMenuOpen}
             className={`
               pointer-events-auto flex size-10 cursor-pointer select-none items-center justify-center
-              rounded-full border p-0 transition-all sm:h-auto sm:w-auto sm:justify-start
+              rounded-full border p-0 transition-all sm:h-10 sm:w-44 sm:justify-start
               sm:gap-2.5 sm:rounded-2xl sm:p-1.5 sm:pe-4 sm:ps-1.5
               ${isAccountMenuOpen ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)]'}
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40
@@ -294,37 +404,37 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
           <div
             className="
               pointer-events-none
-              flex h-7 w-7 items-center
-              justify-center rounded-full
+              flex h-7 w-7 shrink-0 items-center
+              justify-center overflow-hidden rounded-full
               font-black text-white shadow-inner text-xs
             "
             style={{ backgroundColor: 'var(--primary)' }}
           >
-            {user?.name ? (
-              user.name.charAt(0).toUpperCase()
+            {user?.avatarUrl ? (
+              <Image src={user.avatarUrl} alt="" width={28} height={28} unoptimized className="h-full w-full object-cover" />
+            ) : user?.lastName?.trim() ? (
+              user.lastName.trim().charAt(0).toLocaleUpperCase(locale)
+            ) : user?.name ? (
+              user.name.charAt(0).toLocaleUpperCase(locale)
             ) : (
               <User size={17} />
             )}
           </div>
 
           {/* نام و نقش */}
-          <div className="pointer-events-none hidden text-start sm:block">
-            <p className="text-xs font-bold leading-tight">
-              {user?.name || message('admin')}
-            </p>
-
-            <p
-              className="
-                text-[10px] font-medium leading-normal
-                text-primary
-              "
-            >
-              {user?.role || message('user')}
+          <div className="pointer-events-none hidden min-w-0 flex-1 text-start sm:block">
+            <p className="truncate whitespace-nowrap text-xs font-bold leading-tight" title={[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}>
+              {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}
             </p>
           </div>
           </button>
           {isAccountMenuOpen && (
-            <div role="menu" className={`pointer-events-auto absolute end-0 top-full z-[60] mt-2 min-w-48 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-lg md:top-1/2 md:mt-0 md:min-w-36 md:p-1 md:-translate-y-1/2 ${direction === 'rtl' ? 'md:right-full md:left-auto md:me-2' : 'md:left-full md:right-auto md:ms-2'}`}>
+            <div role="menu" className={`pointer-events-auto absolute end-0 top-full z-[60] mt-3 min-w-48 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-lg md:top-1/2 md:mt-0 md:min-w-36 md:p-1 md:-translate-y-1/2 ${direction === 'rtl' ? 'md:right-full md:left-auto md:me-3' : 'md:left-full md:right-auto md:ms-3'}`}>
+              <div className="md:hidden">
+                {shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded />}
+                {shellVisibility.headerControls?.provinceSelector !== false && <div className="px-2 py-1"><HeaderProvinceSelector userId={user?.id} /></div>}
+                <div className="my-1 border-t border-[var(--border)]" />
+              </div>
               <button
                 type="button"
                 role="menuitem"
@@ -337,30 +447,23 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
             </div>
           )}
         </div>
-        </div>
-        <HeaderAccountSwitcher userId={user?.id} />
-        <HeaderProvinceSelector userId={user?.id} />
-        </div>
-      </div>
-
-      <div className="pointer-events-auto absolute end-5 top-1/2 z-20 hidden -translate-y-1/2 md:block">
-        <label className="relative block w-56 lg:w-72">
-          <Search size={17} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input type="search" value={systemsSearch} onFocus={() => setSearchOpen(true)} onChange={(event) => updateSystemsSearch(event.target.value)} aria-label={message('rahcomSearchSystems')} placeholder={message('rahcomSearchSystems')} className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pe-9 ps-3 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)]" />
-        </label>
-        {searchOpen && systemsSearch.trim().length >= 2 && <div className="absolute end-0 top-full mt-2 w-80 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-xl">
-          {systemMatches.length === 0 ? <p className="p-3 text-sm text-muted-foreground">{message('rahcomNoSystemsFound')}</p> : systemMatches.map((system) => <div key={system.id} className="border-b border-[var(--border)] p-3 last:border-0">
-            <p className="truncate text-sm font-semibold text-[var(--foreground)]">{system.systemName}</p><p dir="ltr" className="mt-0.5 text-start font-mono text-xs text-muted-foreground">{system.systemCode}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <button type="button" onClick={() => openSystemAction(system, 'map')} className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-accent">{message('rahcomSearchOnMap')}</button>
-              <button type="button" onClick={() => openSystemAction(system, 'systems')} className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-accent">{message('rahcomSearchOpenSystem')}</button>
-              <button type="button" onClick={() => openSystemAction(system, 'actions')} className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--foreground)] hover:bg-accent">{message('rahcomSearchActions')}</button>
-            </div>
-          </div>)}
+        {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div ref={missionMenuRef} className="pointer-events-auto relative lg:hidden">
+          <button type="button" onClick={() => setIsMissionMenuOpen((open) => !open)} title={message('missionShortcutTitle')} aria-label={message('missionShortcutTitle')} aria-haspopup="menu" aria-expanded={isMissionMenuOpen} aria-pressed="true" className="flex size-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]">
+            {activeMissionMode === 'form' ? <FilePlus2 className="size-[17px] shrink-0"/> : activeMissionMode === 'command' ? <SquareTerminal className="size-[17px] shrink-0"/> : <Bot className="size-[17px] shrink-0"/>}
+          </button>
+          {isMissionMenuOpen && <div role="menu" dir={direction} className={`absolute ${direction === 'rtl' ? 'end-0' : 'start-0'} top-full z-[70] mt-2 w-max min-w-40 max-w-[calc(100vw-1rem)] rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-xl`}>
+            {([
+              ['form', FilePlus2, 'missionModeForm'],
+              ['command', SquareTerminal, 'missionModeCommand'],
+              ['ai', Bot, 'missionModeAI'],
+            ] as const).filter(([mode]) => isMissionModeVisible(mode)).map(([mode, Icon, label]) => <button key={mode} type="button" role="menuitemradio" aria-checked={activeMissionMode === mode} onClick={() => { setIsMissionMenuOpen(false); onSelectMissionMode?.(mode); }} className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-start text-sm font-medium ${activeMissionMode === mode ? 'bg-[var(--primary-soft)] text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}><Icon className="size-4 shrink-0"/>{message(label)}</button>)}
+          </div>}
         </div>}
+        </div>
+        </div>
       </div>
 
-      {/* نام شرکت در چپ، لوگوی دقیقاً وسط و رهیار در راست؛ کل نشان به داشبورد می‌رود */}
+      {/* نام شرکت در چپ، لوگوی دقیقاً وسط و ERP در راست؛ کل نشان به داشبورد می‌رود */}
       <div
         className="
           absolute left-1/2 top-1/2
@@ -369,7 +472,7 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
       >
         <Link
           href="/dashboard"
-          aria-label={message('sidebarDashboard')}
+          aria-label={message('dashboard')}
           dir="ltr"
           className="pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-xl"
         >
@@ -377,7 +480,7 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
             className="absolute right-[calc(100%+0.0625rem)] top-1/2 hidden w-max max-w-[min(24vw,15rem)] -translate-y-1/2 truncate text-left font-black tracking-tight text-[var(--foreground)] sm:block"
             style={{ fontSize: english ? '0.8rem' : '0.95rem' }}
           >
-            {repairMojibake(organizationBranding?.name || 'رهیار')}
+            {organizationBranding?.name || 'رهیار'}
           </span>
 
           <div
@@ -404,20 +507,44 @@ export function TopHeader({ isMobileMenuOpen = false, onToggleMobileMenu }: TopH
                 }
               />
             ) : (
-              <ShieldCheck size={23} className="text-primary" />
+              <Image
+                src="/rahyar-road.png?v=1"
+                alt={message('organizationLogo')}
+                width={40}
+                height={40}
+                unoptimized
+                className="h-10 w-10 object-contain"
+              />
             )}
           </div>
 
-          <span className="absolute left-[calc(100%+0.0625rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">
-            رهیار
+          <span dir="rtl" className="absolute left-[calc(100%+0.0625rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">
+            Rahyar
           </span>
         </Link>
       </div>
 
+      <div className="pointer-events-none absolute end-5 top-1/2 hidden -translate-y-1/2 flex-row-reverse items-center gap-1.5 lg:flex" aria-label={message('missionShortcutTitle')}>
+        {([
+          ['form', FilePlus2, 'missionModeForm'],
+          ['command', SquareTerminal, 'missionModeCommand'],
+          ['ai', Bot, 'missionModeAI'],
+        ] as const).filter(([mode]) => isMissionModeVisible(mode)).map(([mode, Icon, label]) => (
+          <button key={mode} type="button" onClick={() => onSelectMissionMode?.(mode)} title={message(label)} aria-label={message(label)} aria-pressed={activeMissionMode === mode} className={`pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${activeMissionMode === mode ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]'}`}>
+            <Icon size={17}/>
+          </button>
+        ))}
+        <form onSubmit={submitHeaderSearch} role="search" className="pointer-events-auto hidden xl:flex">
+          <label className="relative block">
+            <Search size={16} aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input type="search" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-9 w-48 rounded-xl border border-[var(--border)] bg-[var(--surface)] ps-9 pe-3 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] 2xl:w-56" />
+          </label>
+        </form>
+        <button type="button" onClick={() => router.push('/dashboard/search')} title={message('headerSearch')} aria-label={message('headerSearch')} className="pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] xl:hidden"><Search size={17} /></button>
+      </div>
 
 
     </header>
   );
 }
-
 

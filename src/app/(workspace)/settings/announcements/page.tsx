@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Archive, Megaphone, Pin, Send, Pencil, X } from 'lucide-react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, localeOptions, usePreferences, type Locale } from '@/components/preferences-provider';
 import { notificationsApi, type Announcement } from '@/lib/api/shared/notifications-api';
 import { uiMessage } from '@/lib/ui-messages';
 
@@ -14,6 +14,7 @@ export default function AnnouncementsSettingsPage() {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [body, setBody] = useState('');
+  const [contentLocale, setContentLocale] = useState(locale);
   const [isPinned, setIsPinned] = useState(false);
   const [branches, setBranches] = useState<Array<{id:string;name:string}>>([]);
   const [branchId, setBranchId] = useState('');
@@ -53,7 +54,7 @@ export default function AnnouncementsSettingsPage() {
     try {
       const draft = {
         title: title.trim(), summary: summary.trim(), body: body.trim(),
-        locale: 'fa', isPinned, branchId: branchId || null,
+        locale: contentLocale, isPinned, branchId: branchId || null,
         allowLikes, allowReactions, allowComments, allowMentions,
       };
       if (editingId) await notificationsApi.updateAnnouncement(editingId, draft);
@@ -68,7 +69,7 @@ export default function AnnouncementsSettingsPage() {
   };
 
   const resetForm = () => { setTitle(''); setSummary(''); setBody(''); setIsPinned(false); setBranchId(''); setAllowLikes(true); setAllowReactions(true); setAllowComments(true); setAllowMentions(true); setEditingId(null); };
-  const edit = (item: Announcement) => { setEditingId(item.id); setTitle(item.title); setSummary(item.summary ?? ''); setBody(item.body); setIsPinned(item.isPinned); setBranchId(item.branchId ?? ''); setAllowLikes(item.allowLikes); setAllowReactions(item.allowReactions); setAllowComments(item.allowComments); setAllowMentions(item.allowMentions); window.scrollTo({top:0,behavior:'smooth'}); };
+  const edit = (item: Announcement) => { setEditingId(item.id); setTitle(item.title); setSummary(item.summary ?? ''); setBody(item.body); setContentLocale(item.locale as Locale); setIsPinned(item.isPinned); setBranchId(item.branchId ?? ''); setAllowLikes(item.allowLikes); setAllowReactions(item.allowReactions); setAllowComments(item.allowComments); setAllowMentions(item.allowMentions); window.scrollTo({top:0,behavior:'smooth'}); };
 
   const archive = async (item: Announcement) => {
     if (!window.confirm(t('announcementArchiveConfirm'))) return;
@@ -87,7 +88,7 @@ export default function AnnouncementsSettingsPage() {
     {canManage ? <form onSubmit={publish} className="space-y-4 rounded-2xl border border-border bg-card p-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1.5 text-sm"><span>{t('announcementTitleLabel')}</span><input required maxLength={180} value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5" /></label>
-        <div className="space-y-1.5 text-sm"><span>{t('languageLabel')}</span><p className="rounded-xl border border-border bg-background px-3 py-2.5">فارسی</p></div>
+        <label className="space-y-1.5 text-sm"><span>{t('languageLabel')}</span><select value={contentLocale} onChange={(e) => setContentLocale(e.target.value as Locale)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5">{localeOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
       </div>
       <label className="block space-y-1.5 text-sm"><span>{t('announcementSummaryLabel')}</span><input maxLength={300} value={summary} onChange={(e) => setSummary(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5" /></label>
       <label className="block space-y-1.5 text-sm"><span>{t('announcementBodyLabel')}</span><textarea required rows={5} value={body} onChange={(e) => setBody(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2.5" /></label>

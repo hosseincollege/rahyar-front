@@ -1,4 +1,8 @@
-import { AuthenticatedHome } from '@/components/home/authenticated-home';
+import { AuthenticatedHome } from '@/app/(workspace)/dashboard/authenticated-home';
+
+export const metadata = {
+  title: 'داشبورد | سامانه یکپارچه',
+};
 
 export default function DashboardPage() {
   return <AuthenticatedHome />;

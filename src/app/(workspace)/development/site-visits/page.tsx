@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, RefreshCw, Search, Users } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/lib/api/development/development-api';
+import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/app/(workspace)/development/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/lib/ui-messages';
+import type { UiMessage } from '@/languages/types';
 
 const moduleLabels: Record<string, UiMessage> = {
   dashboard: 'sidebarDashboard', accounting: 'sidebarAccounting', commerce: 'sidebarCommercial',
@@ -55,7 +55,7 @@ export default function SiteVisitsPage() {
     if (minutes) return `${minutes} ${t('siteVisitsMinutes')} ${rest} ${t('siteVisitsSeconds')}`;
     return `${rest} ${t('siteVisitsSeconds')}`;
   };
-  const date = (value: string | null) => value ? new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(value)) : '—';
+  const date = (value: string | null) => value ? new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
   const rangeLabels: Array<[SiteVisitsRange, UiMessage]> = [['7d', 'siteVisitsRange7d'], ['30d', 'siteVisitsRange30d'], ['90d', 'siteVisitsRange90d'], ['all', 'siteVisitsRangeAll']];
   const stats: Array<[UiMessage, number, typeof Users]> = summary ? [
     ['siteVisitsOnline', summary.onlineVisitors, Users], ['siteVisitsUniqueIps', summary.uniqueIps, Eye], ['siteVisitsSessions', summary.sessions, Activity], ['siteVisitsPageViews', summary.pageViews, Clock3],

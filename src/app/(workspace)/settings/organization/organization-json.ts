@@ -5,7 +5,7 @@ import type {
   BranchItem,
   DepartmentItem,
   OrganizationImportPayload,
-} from '@/lib/api/settings/settings-api';
+} from '@/app/(workspace)/settings/settings-api';
 
 /**
  * دادهٔ هر شعبه در فایل JSON ورودی/خروجی.

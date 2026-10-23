@@ -39,7 +39,7 @@ import type {
   AccountingLedgerLine,
   AccountingPaymentActivity,
   AccountingTrialBalance,
-} from "@/types/accounting";
+} from "@/lib/api/accounting/types";
 
 /**
  * بعضی endpointها ممکن است پاسخ را مستقیم برگردانند

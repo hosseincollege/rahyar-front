@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/app/page.tsx
  * @description صفحه اصلی ERP Pro.
  *
@@ -100,4 +100,3 @@ export default function HomePage() {
    */
   return <PublicLanding />;
 }
-

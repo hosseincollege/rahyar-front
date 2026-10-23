@@ -1,11 +1,9 @@
 import { apiClient } from '@/lib/api-client';
+import { API_BASE_URL } from '@/lib/api-environment';
 
 const VISITOR_API_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'production'
-    ? 'https://rahyar-back-piuy.vercel.app'
-    : 'http://localhost:3016')
+  API_BASE_URL
 ).replace(/\/+$/, '');
 
 export type VisitorStats = {
@@ -15,14 +13,12 @@ export type VisitorStats = {
   monthly: number;
   yearly: number;
   online: number;
-  uniqueIps: number;
-  visits: number;
 };
 
 let fallbackVisitorId: string | null = null;
 const VISITOR_ID_KEY = 'erp-visitor-id';
 const SESSION_ID_KEY = 'erp-visitor-session-id';
-const disabledStats = { enabled: false, daily: 0, weekly: 0, monthly: 0, yearly: 0, online: 0, uniqueIps: 0, visits: 0, today: 0, week: 0, month: 0, year: 0 };
+const disabledStats = { enabled: false, daily: 0, weekly: 0, monthly: 0, yearly: 0, online: 0, today: 0, week: 0, month: 0, year: 0 };
 
 function isLocalRuntime() {
   if (process.env.NODE_ENV !== 'production') return true;

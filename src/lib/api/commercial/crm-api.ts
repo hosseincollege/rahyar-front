@@ -4,7 +4,7 @@ import type {
   CrmLead,
   LeadStatus,
   QualifyLeadResult,
-} from '@/types/crm';
+} from '@/lib/api/commercial/crm-types';
 
 export const crmApi = {
   listLeads(status?: LeadStatus): Promise<CrmLead[]> {

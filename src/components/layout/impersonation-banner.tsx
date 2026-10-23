@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { UserRound } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import { developmentApi, type ImpersonationContext } from '@/lib/api/development/development-api';
+import { developmentApi, type ImpersonationContext } from '@/app/(workspace)/development/development-api';
 
 export function ImpersonationBanner() {
   const { locale } = usePreferences();

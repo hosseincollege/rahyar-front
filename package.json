@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "dev": "start http://localhost:3015 && next dev -p 3015",
+        "dev": "start http://localhost:3015 && next dev --webpack -p 3015",
         "build": "next build",
         "start": "next start -p 3015",
         "lint": "eslint"
