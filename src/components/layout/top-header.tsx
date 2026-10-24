@@ -30,6 +30,7 @@ import {
   LogOut,
   Lock,
   Menu,
+  MoreHorizontal,
   Monitor,
   Moon,
   Search,
@@ -78,6 +79,9 @@ export function TopHeader({
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const missionMenuRef = useRef<HTMLDivElement>(null);
   const [isMissionMenuOpen, setIsMissionMenuOpen] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [mobileTool, setMobileTool] = useState<'search' | 'accountSwitcher' | 'province' | 'profile' | 'mission' | null>(null);
+  const mobileToolsRef = useRef<HTMLDivElement>(null);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [shellVisibility, setShellVisibility] = useState(() => readShellVisibility(isReducedEdition));
   const router = useRouter();
@@ -88,8 +92,7 @@ export function TopHeader({
   const direction = getLocaleDirection(locale);
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
-  const missionVisibilityKey = { form: 'missionForm', command: 'missionCommand', ai: 'missionAI' } as const;
-  const isMissionModeVisible = (mode: MissionEntryMode) => shellVisibility.headerControls?.[missionVisibilityKey[mode]] !== false;
+  const isMissionModeVisible = (_mode: MissionEntryMode) => shellVisibility.headerControls?.missionTools !== false;
 
   useEffect(() => {
     const refresh = () => setShellVisibility(readShellVisibility(isReducedEdition));
@@ -116,6 +119,15 @@ export function TopHeader({
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [isAccountMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileToolsOpen) return;
+    const close = (event: MouseEvent) => { if (mobileToolsRef.current && !mobileToolsRef.current.contains(event.target as Node)) setMobileToolsOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileToolsOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
+  }, [mobileToolsOpen]);
 
   useEffect(() => {
     if (!isMissionMenuOpen) return;
@@ -299,7 +311,7 @@ export function TopHeader({
         className="
           pointer-events-none absolute inset-x-3 top-1/2 z-10 w-[calc(100%-1.5rem)] -translate-y-1/2
           flex min-w-0 items-center justify-between gap-1.5
-          md:inset-x-auto md:start-5 md:w-auto md:justify-start
+          max-sm:inset-x-1 max-sm:gap-0.5 md:inset-x-auto md:start-5 md:w-auto md:justify-start
         "
       >
         <div className="order-1 flex shrink-0 items-center gap-1">
@@ -313,7 +325,7 @@ export function TopHeader({
               aria-label={message(isMobileMenuOpen ? 'closeSidebar' : 'openSidebar')}
               aria-expanded={isMobileMenuOpen}
               aria-controls="erp-mobile-navigation"
-              className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] md:hidden"
+              className="pointer-events-auto flex h-9 w-9 max-sm:h-8 max-sm:w-8 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] md:hidden"
             >
               {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
@@ -352,7 +364,7 @@ export function TopHeader({
             title={navigateModeTitle}
             aria-label={navigateModeTitle}
             aria-pressed={navigateOnClick}
-            className={`pointer-events-auto flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center
+            className={`pointer-events-auto flex h-9 w-9 max-sm:h-8 max-sm:w-8 shrink-0 cursor-pointer items-center justify-center
               rounded-xl transition-all duration-200
               ${
                 navigateOnClick
@@ -370,15 +382,28 @@ export function TopHeader({
           onClick={cycleTheme}
           title={themeTitle}
           aria-label={message('changeTheme')}
-          className="pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800/80"
+          className="pointer-events-auto flex h-9 w-9 max-sm:h-8 max-sm:w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800/80"
         >
           {themeIcon}
         </button>
-        <button type="button" onClick={() => router.push('/dashboard/search')} title={message('headerSearch')} aria-label={message('headerSearch')} className="pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] lg:hidden"><Search size={17} /></button>
+        </div>
+
+        <div ref={mobileToolsRef} className="pointer-events-auto absolute inset-y-0 left-3 z-20 lg:hidden">
+          <button type="button" onClick={() => { setMobileToolsOpen((open) => !open); setMobileTool(null); }} aria-label={message('missionShortcutTitle')} title={message('missionShortcutTitle')} aria-expanded={mobileToolsOpen} className="absolute top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] max-sm:h-8 max-sm:w-8"><MoreHorizontal size={19}/></button>
+          {mobileToolsOpen && <div dir={direction} className="fixed inset-x-3 top-[4.5rem] z-[100] max-h-[calc(100dvh-5.5rem)] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl sm:inset-x-5">
+            {mobileTool === null ? <div className="grid gap-2">{([['search','headerSearch'],['accountSwitcher','settingsHeaderAccountSwitcher'],['province','settingsHeaderProvinceSelector'],['profile','viewProfile'],['mission','missionShortcutTitle']] as const).map(([id,label]) => <button key={id} type="button" onClick={() => setMobileTool(id)} className="min-h-12 rounded-xl border border-[var(--border)] px-4 text-start text-sm font-medium text-[var(--foreground)] hover:bg-[var(--primary-soft)]">{message(label)}</button>)}</div> : <div>
+              <button type="button" onClick={() => setMobileTool(null)} aria-label={message('closeSidebar')} className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"><ChevronLeft size={18}/>{direction === 'rtl' ? '→' : '←'}</button>
+              {mobileTool === 'search' && <form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><input autoFocus type="search" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-background px-3 text-sm text-foreground"/><button aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>}
+              {mobileTool === 'accountSwitcher' && shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded/>}
+              {mobileTool === 'province' && shellVisibility.headerControls?.provinceSelector !== false && <div className="p-1"><HeaderProvinceSelector userId={user?.id}/></div>}
+              {mobileTool === 'profile' && <div className="flex items-center justify-between gap-3 p-2"><span className="min-w-0 truncate text-sm font-semibold">{[user?.firstName,user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}</span><button type="button" onClick={() => { setMobileToolsOpen(false); setMobileTool(null); void handleSignOut(); }} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400"><LogOut size={16}/>{message('sidebarSignOut')}</button></div>}
+              {mobileTool === 'mission' && <div className="grid gap-1">{([['form',FilePlus2,'missionModeForm'],['command',SquareTerminal,'missionModeCommand'],['ai',Bot,'missionModeAI']] as const).filter(([mode])=>isMissionModeVisible(mode)).map(([mode,Icon,label])=><button key={mode} type="button" onClick={()=>{setMobileToolsOpen(false);setMobileTool(null);onSelectMissionMode?.(mode);}} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-start text-sm ${activeMissionMode===mode?'bg-[var(--primary-soft)] text-[var(--primary)]':'text-foreground hover:bg-[var(--primary-soft)]'}`}><Icon size={16}/>{message(label)}</button>)}</div>}
+            </div>}
+          </div>}
         </div>
 
         {/* کپسول حساب کاربری در سوی مقابل کنترل‌ها */}
-        <div className="pointer-events-none order-2 flex shrink-0 items-center gap-1.5">
+        <div className="pointer-events-none order-2 hidden shrink-0 items-center gap-1.5 lg:flex">
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="ltr">
         {shellVisibility.headerControls?.accountSwitcher !== false && <div className="hidden md:block">
           <HeaderAccountSwitcher userId={user?.id} />
@@ -447,7 +472,7 @@ export function TopHeader({
             </div>
           )}
         </div>
-        {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div ref={missionMenuRef} className="pointer-events-auto relative lg:hidden">
+        {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div ref={missionMenuRef} className="pointer-events-auto relative hidden">
           <button type="button" onClick={() => setIsMissionMenuOpen((open) => !open)} title={message('missionShortcutTitle')} aria-label={message('missionShortcutTitle')} aria-haspopup="menu" aria-expanded={isMissionMenuOpen} aria-pressed="true" className="flex size-10 min-w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]">
             {activeMissionMode === 'form' ? <FilePlus2 className="size-[17px] shrink-0"/> : activeMissionMode === 'command' ? <SquareTerminal className="size-[17px] shrink-0"/> : <Bot className="size-[17px] shrink-0"/>}
           </button>
@@ -474,7 +499,7 @@ export function TopHeader({
           href="/dashboard"
           aria-label={message('dashboard')}
           dir="ltr"
-          className="pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-xl"
+          className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-xl sm:h-12 sm:w-12"
         >
           <span
             className="absolute right-[calc(100%+0.0625rem)] top-1/2 hidden w-max max-w-[min(24vw,15rem)] -translate-y-1/2 truncate text-left font-black tracking-tight text-[var(--foreground)] sm:block"
@@ -485,7 +510,7 @@ export function TopHeader({
 
           <div
             className={`
-              flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden
+              flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden sm:h-12 sm:w-12
               rounded-xl
               ${logoShadowClassName}
             `}

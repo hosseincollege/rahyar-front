@@ -8,7 +8,7 @@ import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 
-type Editable = Pick<RahcomSystem, 'systemName' | 'systemCode' | 'axis' | 'latitude' | 'longitude' | 'details' | 'electricityBillId' | 'simIp' | 'radarIp' | 'cameraIp' | 'pcIp' | 'routerIp' | 'laptopIp'>;
+type Editable = Pick<RahcomSystem, 'systemName' | 'systemCode' | 'axis' | 'axisCode' | 'latitude' | 'longitude' | 'details' | 'electricityBillId' | 'simIp' | 'radarIp' | 'cameraIp' | 'pcIp' | 'routerIp' | 'laptopIp'>;
 const headerAliases: Record<string, keyof Editable> = {
   name: 'systemName', systemname: 'systemName', 'نام سامانه': 'systemName', 'نام سیستم': 'systemName', axis: 'axis', route: 'axis', 'محور': 'axis',
   code: 'systemCode', systemcode: 'systemCode', id: 'systemCode', 'کد سامانه': 'systemCode', 'شناسه سامانه': 'systemCode',
@@ -36,6 +36,7 @@ const uploadHeaderAliases: Record<string, keyof Editable | 'province'> = {
   long: 'longitude', lng: 'longitude', lon: 'longitude', longitude: 'longitude', [normalizeHeader('\u0637\u0648\u0644')]: 'longitude',
   [normalizeHeader('\u0637\u0648\u0644 \u062c\u063a\u0631\u0627\u0641\u06cc\u0627\u06cc\u06cc')]: 'longitude',
   details: 'details', description: 'details', axis: 'axis', route: 'axis',
+  axiscode: 'axisCode', [normalizeHeader('\u06a9\u062f \u0645\u062d\u0648\u0631')]: 'axisCode',
   [normalizeHeader('\u062a\u0648\u0636\u06cc\u062d\u0627\u062a')]: 'details', [normalizeHeader('\u0645\u062d\u0648\u0631')]: 'axis',
   electricitybillid: 'electricityBillId', billid: 'electricityBillId', [normalizeHeader('\u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636 \u0628\u0631\u0642')]: 'electricityBillId',
   simip: 'simIp', simcardip: 'simIp', [normalizeHeader('ip \u0633\u06cc\u0645\u200c\u06a9\u0627\u0631\u062a')]: 'simIp', [normalizeHeader('ip \u0633\u06cc\u0645 \u06a9\u0627\u0631\u062a')]: 'simIp',
@@ -108,7 +109,7 @@ export default function RahcomDataPage() {
           return [];
         }
         seenCodes.add(systemCode);
-        const optionalFields = ['axis', 'electricityBillId', 'simIp', 'radarIp', 'cameraIp', 'pcIp', 'routerIp', 'laptopIp'] as const;
+        const optionalFields = ['axis', 'axisCode', 'electricityBillId', 'simIp', 'radarIp', 'cameraIp', 'pcIp', 'routerIp', 'laptopIp'] as const;
         const optionalData = Object.fromEntries(optionalFields.filter(field => normalized[field] !== undefined).map(field => [field, String(normalized[field] ?? '').trim()]));
         return [{ systemName, systemCode, latitude, longitude, details: String(normalized.details ?? '').trim(), ...optionalData }];
       });
@@ -119,7 +120,7 @@ export default function RahcomDataPage() {
     } catch (e) { setMessage(e instanceof Error ? `\u062e\u0637\u0627 \u062f\u0631 \u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc: ${e.message}` : '\u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0641\u0627\u06cc\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.'); }
     finally { setBusy(false); }
   }
-  function beginEdit(item: RahcomSystem) { setEditing(item.id); setForm({ systemName: item.systemName, systemCode: item.systemCode, axis: item.axis ?? '', latitude: item.latitude, longitude: item.longitude, details: item.details ?? '', electricityBillId: item.electricityBillId ?? '', simIp: item.simIp ?? '', radarIp: item.radarIp ?? '', cameraIp: item.cameraIp ?? '', pcIp: item.pcIp ?? '', routerIp: item.routerIp ?? '', laptopIp: item.laptopIp ?? '' }); }
+  function beginEdit(item: RahcomSystem) { setEditing(item.id); setForm({ systemName: item.systemName, systemCode: item.systemCode, axis: item.axis ?? '', axisCode: item.axisCode ?? '', latitude: item.latitude, longitude: item.longitude, details: item.details ?? '', electricityBillId: item.electricityBillId ?? '', simIp: item.simIp ?? '', radarIp: item.radarIp ?? '', cameraIp: item.cameraIp ?? '', pcIp: item.pcIp ?? '', routerIp: item.routerIp ?? '', laptopIp: item.laptopIp ?? '' }); }
   async function save() { if (!editing || !form) return; setBusy(true); try { await rahcomApi.updateSystem(editing, form); setEditing(null); setForm(null); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : 'ذخیره انجام نشد.'); } finally { setBusy(false); } }
   async function remove(id: string) { if (!window.confirm(t('rahcomDelete') + '?')) return; setBusy(true); try { await rahcomApi.deleteSystem(id); await load(); } catch (e) { setMessage(e instanceof Error ? e.message : 'حذف انجام نشد.'); } finally { setBusy(false); } }
   async function removeMany(input: { province?: string; ids?: string[] }) {

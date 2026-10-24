@@ -1,6 +1,6 @@
 import { RolesManagementPage } from './roles-management-page';
-import { SettingsAccessTabs } from '@/app/(workspace)/settings/components/settings-access-tabs';
+import { SettingsOrganizationTabs } from '@/app/(workspace)/settings/components/settings-organization-tabs';
 
 export default function RolesSettingsPage() {
-  return <div className="w-full space-y-5"><SettingsAccessTabs /><RolesManagementPage /></div>;
+  return <div className="w-full space-y-5"><SettingsOrganizationTabs /><RolesManagementPage /></div>;
 }

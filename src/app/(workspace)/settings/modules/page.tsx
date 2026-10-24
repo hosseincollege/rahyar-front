@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, Check, ChevronDown, EyeOff, PanelsTopLeft } from 'lucide-react';
+import { Boxes, Check, ChevronDown, EyeOff, PanelsTopLeft, Save } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { getLocaleDirection } from '@/languages';
 import { uiMessage } from '@/lib/ui-messages';
@@ -22,7 +22,7 @@ const moduleTitles: Record<NavigationModuleId, Parameters<typeof uiMessage>[1]> 
 };
 
 const headerTitles: Record<HeaderControlId, UiMessage> = {
-  missionForm: 'missionModeForm', missionCommand: 'missionModeCommand', missionAI: 'missionModeAI',
+  missionTools: 'settingsHeaderMissionTools',
   accountSwitcher: 'settingsHeaderAccountSwitcher', provinceSelector: 'settingsHeaderProvinceSelector',
 };
 const navigationGroups: Array<{ title: UiMessage; items: Array<{ href: string; title: UiMessage }> }> = [
@@ -33,31 +33,40 @@ const navigationGroups: Array<{ title: UiMessage; items: Array<{ href: string; t
   { title: 'sidebarHumanResources', items: [{ href: '/human-resources/employees', title: 'sidebarEmployeeRecords' }, { href: '/human-resources/attendance', title: 'sidebarAttendance' }, { href: '/human-resources/leaves', title: 'sidebarLeaveRequests' }, { href: '/human-resources/payroll', title: 'sidebarPayroll' }] },
   { title: 'sidebarStatistics', items: [{ href: '/statistics/reports', title: 'sidebarReports' }, { href: '/statistics/business-intelligence', title: 'sidebarBusinessIntelligence' }] },
   { title: 'sidebarSupport', items: [{ href: '/support/all', title: 'sidebarAllTickets' }, { href: '/support/new', title: 'supportNewTicket' }] },
-  { title: 'sidebarSettings', items: [{ href: '/settings/general', title: 'sidebarGeneral' }, { href: '/settings/modules', title: 'settingsDisplayManagement' }, { href: '/settings/announcements', title: 'sidebarAnnouncementManagement' }, { href: '/settings/company', title: 'settingsOrganizationWorkspace' }, { href: '/settings/roles', title: 'settingsAccessWorkspace' }] },
+  { title: 'sidebarSettings', items: [{ href: '/settings/general', title: 'sidebarGeneral' }, { href: '/settings/modules', title: 'settingsDisplayManagement' }, { href: '/settings/announcements', title: 'sidebarAnnouncementManagement' }, { href: '/settings/company', title: 'settingsOrganizationWorkspace' }] },
   { title: 'sidebarDevelopment', items: [{ href: '/development/site-visits', title: 'developmentSiteVisits' }, { href: '/development/test-data', title: 'sidebarTestData' }] },
 ];
 
 export default function ModuleSettingsPage() {
   const { locale } = usePreferences();
   const [visibility, setVisibility] = useState<ModuleVisibility>(() => readShellVisibility(isReducedEdition));
+  const [savedVisibility, setSavedVisibility] = useState<ModuleVisibility>(() => readShellVisibility(isReducedEdition));
   const [activeTab, setActiveTab] = useState<'modules' | 'header'>('modules');
+  const [saveError, setSaveError] = useState('');
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const hasUnsavedChanges = JSON.stringify(visibility) !== JSON.stringify(savedVisibility);
 
   useEffect(() => {
-    setVisibility(readShellVisibility(isReducedEdition));
+    const current = readShellVisibility(isReducedEdition);
+    setVisibility(current);
+    setSavedVisibility(current);
     if (new URLSearchParams(window.location.search).get('tab') === 'header') setActiveTab('header');
   }, []);
+
+  const markEdited = () => { setSaveError(''); setSaveSucceeded(false); };
 
   const update = (id: OptionalModuleId | HeaderControlId, enabled: boolean) => {
     const next: ModuleVisibility = id in (visibility.headerControls ?? {})
       ? { ...visibility, headerControls: { ...visibility.headerControls, [id]: enabled } }
       : { ...visibility, [id]: enabled };
+    markEdited();
     setVisibility(next);
-    saveModuleVisibility(next, isReducedEdition);
   };
   const updateNavigation = (href: string, enabled: boolean) => {
     const next = { ...visibility, navigationItems: { ...visibility.navigationItems, [href]: enabled } };
+    markEdited();
     setVisibility(next);
-    saveModuleVisibility(next, isReducedEdition);
   };
   const updateModule = (id: NavigationModuleId, enabled: boolean) => {
     const next: ModuleVisibility = {
@@ -65,8 +74,23 @@ export default function ModuleSettingsPage() {
       navigationModules: { ...visibility.navigationModules, [id]: enabled },
       ...(OPTIONAL_MODULE_IDS.includes(id as OptionalModuleId) ? { [id]: enabled } : {}),
     };
+    markEdited();
     setVisibility(next);
-    saveModuleVisibility(next, isReducedEdition);
+  };
+  const saveChanges = async () => {
+    const next = visibility;
+    setSaving(true);
+    setSaveError('');
+    setSaveSucceeded(false);
+    try {
+      await saveModuleVisibility(next, isReducedEdition);
+      setSavedVisibility(next);
+      setSaveSucceeded(true);
+    } catch {
+      setSaveError(uiMessage(locale, 'preferencesSaveFailed'));
+    } finally {
+      setSaving(false);
+    }
   };
   const renderOptions = (group: (typeof navigationGroups)[number]) => group.items
     .filter((item) => !item.href.includes('?tab='))
@@ -101,6 +125,7 @@ export default function ModuleSettingsPage() {
       <nav role="tablist" aria-label={uiMessage(locale, 'settingsDisplayManagement')} className="flex gap-2 rounded-2xl border border-border bg-card p-2">
         {(['modules', 'header'] as const).map((tab) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`min-h-10 rounded-xl px-4 text-sm font-semibold ${activeTab === tab ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, tab === 'modules' ? 'settingsModulesTab' : 'settingsHeaderTab')}</button>)}
       </nav>
+      {saveError && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{saveError}</p>}
       {activeTab === 'modules' ? <section role="tabpanel" className="space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-5">
         {NAVIGATION_MODULE_IDS.map((id) => {
           const group = navigationGroups.find((item) => item.title === moduleTitles[id]);
@@ -108,8 +133,8 @@ export default function ModuleSettingsPage() {
           return <div key={id} className="flex items-start gap-2 rounded-xl border border-border p-3">
             <details className="group min-w-0 flex-1">
               <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2">
-                <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{enabled ? <Check size={16} /> : <EyeOff size={16} />}</span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{uiMessage(locale, moduleTitles[id])}</span><span className={`mt-0.5 block text-[11px] ${enabled ? 'text-primary' : 'text-muted-foreground'}`}>{uiMessage(locale, enabled ? 'settingsModuleEnabled' : 'settingsModuleDisabled')}</span></span>
+                <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{enabled ? <Check size={16} strokeWidth={3} /> : <EyeOff size={16} />}</span>
+                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{uiMessage(locale, moduleTitles[id])}</span><span className={`mt-0.5 block text-[11px] font-medium ${enabled ? 'text-primary' : 'text-muted-foreground'}`}>{uiMessage(locale, enabled ? 'settingsModuleEnabled' : 'settingsModuleDisabled')}</span></span>
                 <ChevronDown size={15} className="shrink-0 transition-transform group-open:rotate-180" />
               </summary>
               {group && <div className="mt-3 space-y-2 border-t border-border pt-3">{renderOptions(group)}</div>}
@@ -123,6 +148,14 @@ export default function ModuleSettingsPage() {
           {HEADER_CONTROL_IDS.map((id) => <VisibilityRow key={id} title={uiMessage(locale, headerTitles[id])} enabled={visibility.headerControls?.[id] !== false} onToggle={() => update(id, visibility.headerControls?.[id] === false)} locale={locale} />)}
         </div>
       </section>}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+        <div className="min-h-6 text-sm" aria-live="polite">
+          {saveError ? <span className="text-destructive">{saveError}</span> : saveSucceeded && !hasUnsavedChanges ? <span className="font-medium text-primary">{uiMessage(locale, 'settingsDisplaySaved')}</span> : null}
+        </div>
+        <button type="button" onClick={() => void saveChanges()} disabled={!hasUnsavedChanges || saving} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
+          {saving ? <><span className="size-4 animate-spin rounded-full border-2 border-current border-e-transparent" />{uiMessage(locale, 'preferencesSaving')}</> : <><Save size={16} />{uiMessage(locale, 'settingsSaveDisplayChanges')}</>}
+        </button>
+      </div>
       <p className="text-[11px] leading-5 text-muted-foreground">{uiMessage(locale, 'settingsModuleLocalStorageNote')}</p>
     </main>
   );
@@ -136,5 +169,5 @@ function VisibilityRow({ title, enabled, onToggle, locale }: { title: string; en
 }
 
 function VisibilitySwitch({ title, enabled, onToggle, locale }: { title: string; enabled: boolean; onToggle: () => void; locale: Parameters<typeof uiMessage>[0] }) {
-  return <button type="button" role="switch" aria-checked={enabled} aria-label={`${title}: ${uiMessage(locale, enabled ? 'settingsModuleEnabled' : 'settingsModuleDisabled')}`} onClick={onToggle} className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${enabled ? 'border-primary bg-primary' : 'border-border bg-muted'}`}><span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: enabled ? 4 : 24 }} /></button>;
+  return <button type="button" role="switch" aria-checked={enabled} aria-label={`${title}: ${uiMessage(locale, enabled ? 'settingsModuleEnabled' : 'settingsModuleDisabled')}`} onClick={onToggle} className="relative h-7 w-12 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style={{ borderColor: enabled ? 'var(--primary)' : 'var(--border)', backgroundColor: enabled ? 'var(--primary)' : 'transparent' }}><span className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" style={{ insetInlineStart: enabled ? 4 : 24 }} /></button>;
 }

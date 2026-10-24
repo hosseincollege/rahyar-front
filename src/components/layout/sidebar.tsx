@@ -73,6 +73,7 @@ const navigation: NavigationItem[] = [
       { titleKey: 'rahcomSystemData', href: '/rahcom/data' },
       { titleKey: 'rahcomDailyTraffic', href: '/rahcom/daily-traffic' },
       { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
+      { titleKey: 'rahcomAggregateList', href: '/rahcom/aggregate' },
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
       { titleKey: 'rahcomTickets', href: '/rahcom/tickets' },
     ],
@@ -135,8 +136,7 @@ const navigation: NavigationItem[] = [
       { titleKey: 'sidebarGeneral', href: '/settings/general' },
       { titleKey: 'settingsDisplayManagement', href: '/settings/modules' },
       { titleKey: 'sidebarAnnouncementManagement', href: '/settings/announcements' },
-      { titleKey: 'settingsOrganizationWorkspace', href: '/settings/company', activeHrefs: ['/settings/company', '/settings/organization', '/settings/projects'] },
-      { titleKey: 'settingsAccessWorkspace', href: '/settings/roles', activeHrefs: ['/settings/roles', '/settings/accounts'] },
+      { titleKey: 'settingsOrganizationWorkspace', href: '/settings/company', activeHrefs: ['/settings/company', '/settings/organization', '/settings/projects', '/settings/roles', '/settings/accounts'] },
     ],
   },
   {

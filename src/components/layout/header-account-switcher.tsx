@@ -87,7 +87,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
   };
 
   return (
-    <div ref={dropdownRef} dir={getLocaleDirection(locale)} className={`pointer-events-auto relative ${embedded ? 'w-full md:hidden' : 'shrink-0'}`}>
+    <div ref={dropdownRef} dir={getLocaleDirection(locale)} className={`pointer-events-auto relative ${embedded ? 'w-full' : 'shrink-0'}`}>
       <button type="button" role={embedded ? 'menuitem' : undefined} onClick={() => setOpen((value) => !value)} aria-label={t('developmentAccountSwitching')} aria-expanded={open} aria-controls="header-account-switcher-menu" title={t('developmentAccountSwitching')} className={embedded ? 'flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)]' : 'flex h-9 items-center justify-center whitespace-nowrap rounded-xl border border-[var(--border)] px-3 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--primary-soft)] sm:text-sm'}>
         {t('developmentAccountSwitching')}
       </button>

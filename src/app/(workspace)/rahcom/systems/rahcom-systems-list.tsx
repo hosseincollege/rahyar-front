@@ -5,9 +5,10 @@ import { Check, ChevronDown, Copy, ExternalLink, MapPinned, Pencil, Save, Trash2
 import { usePreferences } from '@/components/preferences-provider';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
-import { canonicalRahcomAxis } from '@/lib/api/rahcom/rahcom-axes';
+import { canonicalRahcomAxis, rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomAxesManager } from '@/app/(workspace)/rahcom/_shared/rahcom-axes-manager';
+import { useRouter } from 'next/navigation';
 
 function provinceName(provinceId: string) {
   return iranProvinces.find(([id]) => id === provinceId)?.[1] ?? provinceId;
@@ -27,13 +28,13 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
 
 export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }) {
   const { locale } = usePreferences();
+  const router = useRouter();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [axisOptionsByProvince, setAxisOptionsByProvince] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
-  const [axisFilter, setAxisFilter] = useState('');
-  const [incidentFilter, setIncidentFilter] = useState<'all' | 'normal' | 'incident'>('all');
+  const [filters, setFilters] = useState<string[]>([]);
   const [routeSystem, setRouteSystem] = useState<RahcomSystem | null>(null);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
   const [editingSystemId, setEditingSystemId] = useState<string | null>(null);
@@ -91,12 +92,10 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
     const grouped = new Map<string, RahcomSystem[]>();
     for (const system of systems) {
       const canonicalAxis = canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province);
-      if (axisFilter && canonicalAxis !== axisFilter) continue;
-      if (incidentFilter === 'normal' && system.incidentType) continue;
-      if (incidentFilter === 'incident' && !system.incidentType) continue;
+      if (filters.includes('incidents') && !system.incidentType) continue;
       const province = system.province || 'unknown';
       const provinceLabel = provinceName(province);
-      const searchable = [provinceLabel, province, canonicalAxis, system.axis, system.systemName, system.systemCode, system.details, system.incidentType, system.incidentDetails, system.electricityBillId, system.simIp, system.radarIp, system.cameraIp, system.pcIp, system.routerIp, system.laptopIp, system.latitude, system.longitude]
+      const searchable = [provinceLabel, province, canonicalAxis, system.axis, system.axisCode, system.systemName, system.systemCode, system.details, system.incidentType, system.incidentDetails, system.electricityBillId, system.simIp, system.radarIp, system.cameraIp, system.pcIp, system.routerIp, system.laptopIp, system.latitude, system.longitude]
         .filter(Boolean).join(' ').toLocaleLowerCase(locale);
       if (normalizedQuery && !searchable.includes(normalizedQuery)) continue;
       const provinceSystems = grouped.get(province) ?? [];
@@ -108,11 +107,7 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
       if (b === 'isfahan') return 1;
       return provinceName(a).localeCompare(provinceName(b), locale);
     });
-  }, [axisFilter, incidentFilter, locale, query, systems]);
-  const axisOptions = useMemo(() => [...new Set([
-    ...Object.values(axisOptionsByProvince).flat(),
-    ...systems.map((system) => canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province)).filter(Boolean),
-  ])].sort((a, b) => a.localeCompare(b, locale)), [axisOptionsByProvince, locale, systems]);
+  }, [filters, locale, query, systems]);
 
   async function copyValue(key: string, value: string) {
     try {
@@ -158,21 +153,28 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
           <h2 className="font-semibold text-foreground">{t('rahcomSystemsList')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{systems.length} · {t('rahcomSystemName')}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground"><span>{t('rahcomProvince')}: {groups.length}</span><label className="flex items-center gap-2">{t('rahcomAxisFilter')}<select value={axisFilter} onChange={(event) => setAxisFilter(event.target.value)} className="h-9 max-w-48 rounded-lg border border-border bg-background px-2 text-sm text-foreground"><option value="">{t('rahcomAllAxes')}</option>{axisOptions.map((axis) => <option key={axis} value={axis}>{axis}</option>)}</select></label><label className="flex items-center gap-2">{t('rahcomIncidentFilter')}<select value={incidentFilter} onChange={(event) => setIncidentFilter(event.target.value as typeof incidentFilter)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground"><option value="all">{t('rahcomIncidentAll')}</option><option value="normal">{t('rahcomIncidentHide')}</option><option value="incident">{t('rahcomIncidentOnly')}</option></select></label></div>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><span>{t('rahcomProvince')}: {groups.length}</span>{['incidents','outages','tickets'].map((filter) => <label key={filter} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2"><input type="checkbox" checked={filters.includes(filter)} onChange={() => setFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter])}/>{t(filter === 'incidents' ? 'rahcomFilterIncidents' : filter === 'outages' ? 'rahcomFilterOutages' : 'rahcomFilterTickets')}</label>)}<button type="button" onClick={() => router.push('/rahcom/data')} className="min-h-9 rounded-lg bg-primary px-3 font-semibold text-primary-foreground">{t('rahcomUploadData')}</button></div>
       </div>
 
       {loading ? <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</div> : null}
       {error ? <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
       {!loading && !error && !anyRows ? <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
 
-            {groups.map(([province, rows]) => (
+            {groups.map(([province, rows]) => {
+              const byAxis = new Map<string, RahcomSystem[]>();
+              rows.forEach((system) => { const axisKey = system.axisCode?.trim() ? `code:${system.axisCode.trim()}` : 'no-axis-code'; byAxis.set(axisKey, [...(byAxis.get(axisKey) ?? []), system]); });
+              const sortedAxisGroups = [...byAxis.entries()].sort(([a],[b])=>a === 'no-axis-code' ? 1 : b === 'no-axis-code' ? -1 : a.slice(5).localeCompare(b.slice(5), 'en', { numeric: true, sensitivity: 'base' }));
+              const axisLabel = (axisRows: RahcomSystem[]) => { const first = axisRows[0]; return first.axisCode?.trim() ? `${first.axisCode.trim()} · ${canonicalRahcomAxis(first.axis, first.latitude, first.longitude, first.province) || t('rahcomNoAxis')}` : t('rahcomNoAxis'); };
+              const axisOptions = [...new Set(sortedAxisGroups.filter(([key]) => key !== 'no-axis-code').map(([, axisRows]) => axisLabel(axisRows)))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' }));
+              let systemRowNumber = 0;
+              return (
         <details key={province} open={Boolean(query.trim())} className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-semibold text-foreground marker:hidden">
             <span>{provinceName(province)}</span>
-            <span className="flex items-center gap-3 text-sm font-normal text-muted-foreground"><RahcomAxesManager province={province} canManage={canManage} /><span className="flex items-center gap-2">{rows.length} | {t('rahcomSystemName')}<ChevronDown size={17} /></span></span>
+            <span className="flex items-center gap-3 text-sm font-normal text-muted-foreground">{canManage && <details onClick={(event) => event.stopPropagation()}><summary className="cursor-pointer rounded-lg border border-border px-3 py-2">{t('rahcomEdit')}</summary><div className="absolute z-20 mt-1 grid gap-2 rounded-xl border border-border bg-card p-3 shadow-xl"><RahcomAxesManager province={province} canManage={canManage} /><button type="button" onClick={async () => { if (window.confirm(t('rahcomDeleteProvinceConfirm'))) { await rahcomApi.deleteSystems({ province }); setSystemsRevision((value) => value + 1); } }} className="rounded-lg border border-destructive/30 px-3 py-2 text-destructive">{t('rahcomDeleteProvinceSystems')}</button></div></details>}<span className="flex items-center gap-2">{rows.length} | {t('rahcomSystemName')}<ChevronDown size={17} /></span></span>
           </summary>
           <div className="space-y-3 border-t border-border p-3 sm:p-4">
-            {rows.map((system) => {
+            {sortedAxisGroups.map(([axisKey, axisRows]) => { const label = axisLabel(axisRows); const color = axisKey === 'no-axis-code' ? '#64748b' : rahcomAxisColor(label, axisOptions); return <div key={axisKey} className="space-y-2"><h3 className="sticky top-0 flex items-center gap-2 rounded-lg bg-muted/80 px-3 py-2 text-sm font-semibold text-foreground"><i className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />{label} <span className="text-xs font-normal text-muted-foreground">({axisRows.length})</span></h3>{axisRows.map((system) => { const rowNumber = ++systemRowNumber;
               const hasCoordinates = Number.isFinite(Number(system.latitude)) && Number.isFinite(Number(system.longitude));
               const codeKey = `${system.id}:code`;
               const coordinatesKey = `${system.id}:coordinates`;
@@ -180,7 +182,7 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
                 <article key={system.id} className="rounded-xl border border-border bg-background p-3 shadow-sm transition-colors hover:border-primary/30 sm:p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" aria-expanded={selectedSystemId === system.id} onClick={() => setSelectedSystemId((current) => current === system.id ? null : system.id)} className="flex min-h-10 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-1 text-start hover:bg-accent/50">
-                      <span className="min-w-0"><span className="block truncate font-semibold text-foreground">{system.systemName}{system.incidentType && <span className="ms-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">{t(system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth')}</span>}</span><span className="mt-1 block truncate text-xs text-muted-foreground" dir="ltr">{t('rahcomSystemCode')}: {system.systemCode}</span></span>
+                      <span className="min-w-0"><span className="flex items-center gap-2"><span aria-label={`${t('rahcomRowNumber')} ${rowNumber}`} className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white" style={{ backgroundColor: color }}>{rowNumber.toLocaleString(locale)}</span><span className="block truncate font-semibold text-foreground">{system.systemName}{system.incidentType && <span className="ms-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">{t(system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth')}</span>}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground" dir="ltr">{t('rahcomSystemCode')}: {system.systemCode}</span></span>
                       <ChevronDown size={17} className={`shrink-0 transition-transform ${selectedSystemId === system.id ? 'rotate-180' : ''}`} />
                     </button>
                     <button type="button" onClick={() => void copyValue(codeKey, system.systemCode)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-foreground hover:bg-accent" title={t('rahcomCopyCode')}>
@@ -204,7 +206,7 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
                       <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { setEditingSystemId(null); setEditForm(null); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm text-foreground"><X size={16}/>{t('rahcomCancel')}</button><button type="button" disabled={savingSystem} onClick={() => void saveEdit(system.id)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"><Save size={16}/>{t('rahcomSave')}</button></div>
                     </div> : <>
                       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap gap-2"><button type="button" disabled={!hasCoordinates} onClick={() => setRouteSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><MapPinned size={16} />{t('rahcomRoute')}</button>{canManage && <button type="button" onClick={() => void removeSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-destructive/30 px-4 text-sm font-medium text-destructive hover:bg-destructive/5"><Trash2 size={15}/>{t('rahcomDelete')}</button>}</div>
+                        <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void copyValue(`${system.id}:all`, [system.systemName, system.systemCode, canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province), provinceName(system.province), formatRahcomCoordinates(system.latitude, system.longitude)].filter(Boolean).join('\n'))} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground"><Copy size={15}/>{copiedKey === `${system.id}:all` ? t('rahcomCopied') : t('rahcomCopy')}</button><button type="button" disabled={!hasCoordinates} onClick={() => setRouteSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><MapPinned size={16} />{t('rahcomRoute')}</button>{canManage && <button type="button" onClick={() => void removeSystem(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-destructive/30 px-4 text-sm font-medium text-destructive hover:bg-destructive/5"><Trash2 size={15}/>{t('rahcomDelete')}</button>}</div>
                         {canManage && <button type="button" onClick={() => startEdit(system)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-accent"><Pencil size={15}/>{t('rahcomEditSystem')}</button>}
                       </div>
                       {system.axis && <p className="mb-3 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{t('rahcomAxis')}: {canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province)}</p>}
@@ -222,10 +224,10 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
                   </div> : null}
                 </article>
               );
-            })}
+            })}</div>; })}
           </div>
         </details>
-      ))}
+      );})}
 
       {routeSystem ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setRouteSystem(null); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="rahcom-route-title" className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">

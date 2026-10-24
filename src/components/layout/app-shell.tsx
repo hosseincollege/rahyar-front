@@ -11,6 +11,8 @@ import { TopHeader } from './top-header';
 import { ImpersonationBanner } from './impersonation-banner';
 import { getLocaleDirection, getOrganizationAccentStyle, usePreferences } from '@/components/preferences-provider';
 import { MissionQuickActions, type MissionEntryMode } from './mission-quick-actions';
+import { loadOrganizationModuleVisibility } from '@/lib/module-visibility';
+import { isReducedEdition } from '@/lib/product-edition';
 
 const SIDEBAR_COLLAPSED_KEY = 'erp-sidebar-collapsed';
 const SIDEBAR_LOCKED_KEY = 'erp-sidebar-locked';
@@ -43,6 +45,17 @@ export function AppShell({ children }: AppShellProps) {
   const [isProfileActive, setIsProfileActive] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [navigateOnClick, setNavigateOnClick] = useState(false);
+
+  useEffect(() => {
+    const refreshOrganizationVisibility = () => { void loadOrganizationModuleVisibility(isReducedEdition); };
+    refreshOrganizationVisibility();
+    window.addEventListener('auth:login', refreshOrganizationVisibility);
+    window.addEventListener('auth:user-updated', refreshOrganizationVisibility);
+    return () => {
+      window.removeEventListener('auth:login', refreshOrganizationVisibility);
+      window.removeEventListener('auth:user-updated', refreshOrganizationVisibility);
+    };
+  }, []);
 
   /*
    * خواندن وضعیت ذخیره‌شده سایدبار و حالت ناوبری از localStorage در سمت کلاینت

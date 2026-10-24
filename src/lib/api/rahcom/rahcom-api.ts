@@ -32,7 +32,7 @@ async function afterActivityMutation<T>(request: Promise<T>): Promise<T> {
 }
 
 export type RahcomSystem = {
-  id: string; province: string; systemName: string; systemCode: string; axis: string | null;
+  id: string; province: string; systemName: string; systemCode: string; axis: string | null; axisCode: string | null;
   incidentType: 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | null; incidentDetails: string | null;
   latitude: number; longitude: number; details: string | null;
   electricityBillId: string | null; simIp: string | null; radarIp: string | null;
@@ -54,6 +54,7 @@ export type RahcomTrafficSnapshot = {
   id: string; fileName: string; sheetName: string; headers: string[];
   rows: string[][]; rowCount: number; createdAt: string;
 };
+export type RahcomTrafficSystemHistory = Pick<RahcomTrafficSnapshot, 'id' | 'fileName' | 'sheetName' | 'rowCount' | 'createdAt' | 'headers'> & { row: string[] };
 /** Coordinates copied for search or navigation: latitude first, ASCII comma, longitude. */
 export function formatRahcomCoordinates(latitude: number, longitude: number) {
   return `${latitude}, ${longitude}`;
@@ -77,6 +78,7 @@ export const rahcomApi = {
   solarSnapshots: () => apiClient.get<RahcomSolarSnapshot[]>('/rahcom/solar-snapshots'),
   createSolarSnapshot: (data: { downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),
   trafficSnapshot: () => apiClient.get<RahcomTrafficSnapshot | null>('/rahcom/traffic-snapshot'),
+  trafficSystemHistory: (systemCode: string) => apiClient.get<RahcomTrafficSystemHistory[]>(`/rahcom/traffic-snapshot/history?systemCode=${encodeURIComponent(systemCode)}`),
   createTrafficSnapshot: (data: Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'>) => afterTrafficSnapshotMutation(apiClient.post<RahcomTrafficSnapshot>('/rahcom/traffic-snapshots', data)),
   applyTrafficAxes: () => afterAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>('/rahcom/traffic-snapshot/apply-axes', {})),
   importSystems: (province: string, systems: Array<Record<string, unknown>>) => afterSystemsMutation(apiClient.post<{ imported: number }>('/rahcom/systems/import', { province, systems })),

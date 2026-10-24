@@ -138,9 +138,12 @@ export default function NewTicketPage() {
       if (!active) return;
       const creatable = available.filter((project) => project.supportRole !== 'VIEWER');
       setProjects(creatable);
-      const requestedId = new URLSearchParams(window.location.search).get('projectId');
+      const params = new URLSearchParams(window.location.search);
+      const requestedId = params.get('projectId');
+      const systemCode = params.get('systemCode')?.trim();
+      const systemName = params.get('systemName')?.trim();
       const selected = creatable.find((project) => project.id === requestedId) ?? (creatable.length === 1 ? creatable[0] : null);
-      if (selected) setForm((current) => ({ ...current, projectId: selected.id }));
+      if (selected || systemCode) setForm((current) => ({ ...current, ...(selected ? { projectId: selected.id } : {}), ...(systemCode && !current.subject.trim() ? { subject: `${systemCode} · ${systemName || ''}`.trim() } : {}) }));
     }).catch((error) => {
       if (active) setSubmitError(error instanceof Error ? error.message : uiMessage(locale, 'supportLoadFailed'));
     });

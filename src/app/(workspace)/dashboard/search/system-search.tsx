@@ -9,6 +9,7 @@ import { uiMessage } from '@/lib/ui-messages';
 import type { UiMessage } from '@/languages/types';
 import { isReducedEdition } from '@/lib/product-edition';
 import { readSearchHistory, saveSearchHistory } from '@/lib/search-history';
+import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 
 const destinations: Array<{ href: string; title: UiMessage }> = [
   { href: '/dashboard', title: 'sidebarDashboard' },
@@ -63,6 +64,8 @@ export function SystemSearchPage() {
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const [query, setQuery] = useState(initialQuery);
   const [history, setHistory] = useState<string[]>([]);
+  const [systems, setSystems] = useState<RahcomSystem[]>([]);
+  useEffect(() => { void rahcomApi.systems().then(setSystems).catch(() => setSystems([])); }, []);
   useEffect(() => {
     setQuery(initialQuery);
     setHistory(initialQuery ? saveSearchHistory(initialQuery, isReducedEdition) : readSearchHistory(isReducedEdition));
@@ -72,10 +75,14 @@ export function SystemSearchPage() {
     if (!normalized) return [];
     return destinations.filter((item) => t(item.title).normalize('NFKC').toLocaleLowerCase(locale).includes(normalized));
   }, [locale, query]);
+  const systemResults = useMemo(() => {
+    const normalized = query.trim().normalize('NFKC').toLocaleLowerCase(locale);
+    return normalized ? systems.filter((system) => `${system.systemName} ${system.systemCode}`.normalize('NFKC').toLocaleLowerCase(locale).includes(normalized)) : [];
+  }, [locale, query, systems]);
 
   return <div dir={getLocaleDirection(locale)} className="mx-auto max-w-4xl space-y-5">
     <header><h1 className="flex items-center gap-2 text-xl font-bold text-foreground"><Search size={21} className="text-primary" />{t('headerSearch')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('searchDescription')}</p></header>
     <label className="relative block"><Search size={17} aria-hidden="true" className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-muted-foreground" /><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') setHistory(saveSearchHistory(query, isReducedEdition)); }} aria-label={t('headerSearch')} placeholder={t('headerSearch')} className="h-12 w-full rounded-xl border border-border bg-card ps-11 pe-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label>
-    {query.trim() ? <section aria-live="polite" className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"><ul className="divide-y divide-border">{results.map((item) => <li key={item.href}><Link href={item.href} className="flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"><span>{t(item.title)}</span><ArrowUpRight size={15} className="shrink-0 text-muted-foreground" /></Link></li>)}{results.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">{t('searchNoResults')}</li>}</ul></section> : history.length > 0 && <section className="rounded-2xl border border-border bg-card p-4"><h2 className="mb-2 text-sm font-semibold text-foreground">{t('dashboardHistory')}</h2><ul className="flex flex-wrap gap-2">{history.map((item) => <li key={item}><button type="button" onClick={() => setQuery(item)} className="rounded-full border border-border px-3 py-1.5 text-sm text-foreground hover:border-primary hover:text-primary">{item}</button></li>)}</ul></section>}
+    {query.trim() ? <div className="space-y-4" aria-live="polite"><section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"><ul className="divide-y divide-border">{results.map((item) => <li key={item.href}><Link href={item.href} className="flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"><span>{t(item.title)}</span><ArrowUpRight size={15} className="shrink-0 text-muted-foreground" /></Link></li>)}</ul></section>{systemResults.map(system => <article key={system.id} className="space-y-3 rounded-2xl border border-border bg-card p-4"><div><h2 className="font-bold text-foreground">{system.systemName}</h2><p dir="ltr" className="mt-1 text-sm text-muted-foreground">{system.systemCode} · {system.province} · {system.axis || ''}</p></div><div className="flex flex-wrap gap-2">{[[`/rahcom/map?system=${encodeURIComponent(system.id)}`, 'rahcomMap'], [`/rahcom/systems?q=${encodeURIComponent(system.systemCode)}`, 'rahcomSystemsList'], [`/rahcom/daily-traffic?system=${encodeURIComponent(system.systemCode)}`, 'rahcomDailyTraffic'], [`/rahcom/solar-daily?system=${encodeURIComponent(system.systemCode)}`, 'rahcomSolarDaily'], [`/rahcom/actions?system=${encodeURIComponent(system.id)}`, 'activityHistoryTitle'], [`/rahcom/tickets?system=${encodeURIComponent(system.systemCode)}`, 'rahcomTickets']].map(([href, key]) => <Link key={href} href={href} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:border-primary hover:text-primary">{t(key as Parameters<typeof uiMessage>[1])}</Link>)}</div></article>)}{results.length === 0 && systemResults.length === 0 && <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">{t('searchNoResults')}</p>}</div> : history.length > 0 && <section className="rounded-2xl border border-border bg-card p-4"><h2 className="mb-2 text-sm font-semibold text-foreground">{t('dashboardHistory')}</h2><ul className="flex flex-wrap gap-2">{history.map((item) => <li key={item}><button type="button" onClick={() => setQuery(item)} className="rounded-full border border-border px-3 py-1.5 text-sm text-foreground hover:border-primary hover:text-primary">{item}</button></li>)}</ul></section>}
   </div>;
 }

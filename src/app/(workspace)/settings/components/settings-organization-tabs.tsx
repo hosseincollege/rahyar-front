@@ -9,6 +9,8 @@ import type { UiMessage } from '@/languages/types';
 const tabs: Array<{ href: string; label: UiMessage }> = [
   { href: '/settings/company', label: 'sidebarCompanyInformation' },
   { href: '/settings/organization', label: 'sidebarOrganizationStructure' },
+  { href: '/settings/roles', label: 'sidebarRolesPermissions' },
+  { href: '/settings/accounts', label: 'sidebarUserAccounts' },
   { href: '/settings/projects', label: 'sidebarProjectManagement' },
 ];
 

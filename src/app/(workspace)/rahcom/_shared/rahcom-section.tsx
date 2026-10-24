@@ -13,8 +13,10 @@ import { getCurrentOrganizationId, getCurrentUser } from '@/lib/api/shared/auth-
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
+import { RahcomTickets } from '@/app/(workspace)/rahcom/tickets/rahcom-tickets';
+import { RahcomAggregateList } from '@/app/(workspace)/rahcom/aggregate/rahcom-aggregate-list';
 
-export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 'solar-daily' | 'tickets';
+export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
 
 export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const { locale } = usePreferences();
@@ -22,9 +24,9 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [province, setProvince] = useState('isfahan');
   const [mapSystemsCount, setMapSystemsCount] = useState(0);
   const [mapSystemsError, setMapSystemsError] = useState('');
-  const [mapAxisFilter, setMapAxisFilter] = useState('');
   const [mapAxisOptions, setMapAxisOptions] = useState<string[]>([]);
   const [solarDownFilter, setSolarDownFilter] = useState(false);
+  const [countyLabels, setCountyLabels] = useState(true);
   const [solarSnapshotAvailable, setSolarSnapshotAvailable] = useState<boolean | null>(null);
   const [mapLocationError, setMapLocationError] = useState(false);
   const [accessState, setAccessState] = useState<'loading' | 'allowed' | 'denied' | 'error'>('loading');
@@ -35,7 +37,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const handleAxisOptions = useCallback((axes: string[]) => setMapAxisOptions(axes), []);
   const handleLocationStatus = useCallback((status: { locating: boolean; error: boolean }) => setMapLocationError(status.error), []);
   const handleSolarSnapshotAvailability = useCallback((available: boolean | null) => setSolarSnapshotAvailable(available), []);
-  const titleKey = section === 'map' ? 'rahcomMap' : section === 'actions' ? 'rahcomActions' : section === 'systems' ? 'rahcomSystemsList' : section === 'solar-daily' ? 'rahcomSolarDaily' : section === 'tickets' ? 'rahcomTickets' : 'rahcomDailyTraffic';
+  const titleKey = section === 'map' ? 'rahcomMap' : section === 'actions' ? 'rahcomActions' : section === 'systems' ? 'rahcomSystemsList' : section === 'solar-daily' ? 'rahcomSolarDaily' : section === 'aggregate' ? 'rahcomAggregateList' : section === 'tickets' ? 'rahcomTickets' : 'rahcomDailyTraffic';
 
   useEffect(() => {
     let active = true;
@@ -63,10 +65,10 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     });
     const onProvinceChange = (event: Event) => {
       const selected = (event as CustomEvent<{ province?: string }>).detail?.province;
-      if (selected) { setProvince(selected); setMapAxisFilter(''); }
+      if (selected) setProvince(selected);
     };
     const onStorageChange = (event: StorageEvent) => {
-      if (event.key === key) { setProvince(event.newValue || 'isfahan'); setMapAxisFilter(''); }
+      if (event.key === key) setProvince(event.newValue || 'isfahan');
       if (event.key === 'rahyar-rahcom-focus-province') setFocusProvince(event.newValue !== 'false');
     };
     window.addEventListener('rahyar:province-change', onProvinceChange);
@@ -96,7 +98,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
           {mapSystemsError && <span role="alert" className="text-xs text-destructive">{mapSystemsError}</span>}
         </div>}
         {section === 'map' && <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground">{uiMessage(locale, 'rahcomAxisFilter')}<select value={mapAxisFilter} onChange={(event) => setMapAxisFilter(event.target.value)} className="h-10 max-w-56 rounded-lg border border-border bg-background px-3 text-sm"><option value="">{uiMessage(locale, 'rahcomAllAxes')}</option>{mapAxisOptions.map((axis) => <option key={axis} value={axis}>{axis}</option>)}</select></label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground"><input type="checkbox" checked={countyLabels} onChange={(event) => setCountyLabels(event.target.checked)} />{uiMessage(locale, 'rahcomShowCountyLabels')}</label>
           <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground ${solarSnapshotAvailable !== true ? 'opacity-60' : ''}`}><input type="checkbox" checked={solarDownFilter} disabled={solarSnapshotAvailable !== true} onChange={(event) => setSolarDownFilter(event.target.checked)} />{uiMessage(locale, 'rahcomSolarDownFilter')}</label>
           {solarSnapshotAvailable === false && <span role="status" className="text-xs text-muted-foreground">{uiMessage(locale, 'rahcomSolarTodaySnapshotMissing')}</span>}
           {province === 'isfahan' && <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground">
@@ -119,7 +121,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessCheckFailed')}</p>
       ) : section === 'map' ? (
         <section aria-label={uiMessage(locale, 'rahcomMap')} className="h-[70vh] min-h-[460px] max-h-[820px] overflow-hidden rounded-2xl border border-border bg-card">
-          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} axisFilter={mapAxisFilter} solarDownFilter={solarDownFilter} onAxisFilterChange={setMapAxisFilter} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onSolarSnapshotAvailabilityChange={handleSolarSnapshotAvailability} />
+          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} solarDownFilter={solarDownFilter} countyLabels={countyLabels} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onSolarSnapshotAvailabilityChange={handleSolarSnapshotAvailability} />
         </section>
       ) : section === 'actions' ? (
         <RahcomActions canManage={canManageRahcom} />
@@ -127,8 +129,10 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <RahcomSystemsList canManage={canManageRahcom} />
       ) : section === 'solar-daily' ? (
         <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} />
+      ) : section === 'aggregate' ? (
+        <RahcomAggregateList />
       ) : section === 'tickets' ? (
-        <section className="rounded-2xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsUploadLater')}</section>
+        <RahcomTickets />
       ) : (
         <RahcomDailyTraffic canManage={canManageRahcom} />
       )}

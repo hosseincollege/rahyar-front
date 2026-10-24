@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Activity, ChevronLeft, ChevronRight, FileSpreadsheet, LoaderCircle, Mail, Search, Users, Wrench } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import { rahcomApi, type RahcomActivity, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomActivity, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomTrafficUpload } from './rahcom-traffic-upload';
@@ -33,7 +34,19 @@ export function RahcomDailyTraffic({ canManage = false }: { canManage?: boolean 
   const [systemsByCode, setSystemsByCode] = useState<Record<string, RahcomSystem>>({});
   const [systemsIndexLoaded, setSystemsIndexLoaded] = useState(false);
   const [solarSnapshot, setSolarSnapshot] = useState<RahcomSolarSnapshot | null>(null);
+  const [selectedProvince, setSelectedProvince] = useState('isfahan');
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
+
+  useEffect(() => {
+    const userId = getCurrentUser()?.id;
+    const key = `rahyar-selected-province:${userId || 'current'}`;
+    setSelectedProvince(window.localStorage.getItem(key) || 'isfahan');
+    const onProvinceChange = (event: Event) => { const value = (event as CustomEvent<{ province?: string }>).detail?.province; if (value) setSelectedProvince(value); };
+    const onStorage = (event: StorageEvent) => { if (event.key === key) setSelectedProvince(event.newValue || 'isfahan'); };
+    window.addEventListener('rahyar:province-change', onProvinceChange);
+    window.addEventListener('storage', onStorage);
+    return () => { window.removeEventListener('rahyar:province-change', onProvinceChange); window.removeEventListener('storage', onStorage); };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -70,9 +83,9 @@ export function RahcomDailyTraffic({ canManage = false }: { canManage?: boolean 
   }, [loadTrafficSnapshot]);
 
   const loadSolarSnapshot = useCallback(async () => {
-    try { setSolarSnapshot(latestRahcomSolarSnapshotForToday(await rahcomApi.solarSnapshots(), tehranDateKey())); }
+    try { setSolarSnapshot(latestRahcomSolarSnapshotForToday(await rahcomApi.solarSnapshots(), tehranDateKey(date ?? undefined))); }
     catch { setSolarSnapshot(null); }
-  }, []);
+  }, [date]);
   useEffect(() => { void loadSolarSnapshot(); }, [loadSolarSnapshot]);
   useEffect(() => {
     window.addEventListener('rahyar:solar-snapshots-changed', loadSolarSnapshot);
@@ -98,14 +111,17 @@ export function RahcomDailyTraffic({ canManage = false }: { canManage?: boolean 
   }), [items]);
 
   const trafficRows = trafficSnapshot?.rows ?? [];
+  const normalizedTrafficHeaders = (trafficSnapshot?.headers ?? []).map(normalizeHeader);
+  const trafficProvinceIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('استان') || header.includes('province'));
+  const selectedProvinceName = iranProvinces.find(([id]) => id === selectedProvince)?.[1] ?? selectedProvince;
+  const provinceTrafficRows = useMemo(() => trafficProvinceIndex < 0 ? trafficRows : trafficRows.filter((row) => normalizeHeader(row[trafficProvinceIndex] ?? '').includes(normalizeHeader(selectedProvinceName))), [selectedProvinceName, trafficProvinceIndex, trafficRows]);
   const filteredTrafficRows = useMemo(() => {
     const query = trafficSearch.trim().toLocaleLowerCase(locale);
-    if (!query) return trafficRows;
-    return trafficRows.filter((row) => row.join(' ').toLocaleLowerCase(locale).includes(query));
-  }, [locale, trafficRows, trafficSearch]);
+    if (!query) return provinceTrafficRows;
+    return provinceTrafficRows.filter((row) => row.join(' ').toLocaleLowerCase(locale).includes(query));
+  }, [locale, provinceTrafficRows, trafficSearch]);
   const trafficPageCount = Math.max(1, Math.ceil(filteredTrafficRows.length / pageSize));
   const visibleTrafficRows = filteredTrafficRows.slice(trafficPage * pageSize, (trafficPage + 1) * pageSize);
-  const normalizedTrafficHeaders = (trafficSnapshot?.headers ?? []).map(normalizeHeader);
   const solarColumnIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('سولار') || header.includes('solar'));
   const savedDownCount = trafficSnapshot ? trafficRows.filter((row) => /^(down|دان|قطع|قطعی)$/i.test(row[solarColumnIndex] ?? '')).length : 0;
   const savedNoTrafficCount = trafficSnapshot ? trafficRows.filter((row) => /بدون\s*تردد/i.test(row[normalizedTrafficHeaders.findIndex((header) => header.includes('بدونتردد') && header.includes('سهروز'))] ?? '')).length : 0;

@@ -1,6 +1,6 @@
 import { UserAccountsPage } from './user-accounts-page';
-import { SettingsAccessTabs } from '@/app/(workspace)/settings/components/settings-access-tabs';
+import { SettingsOrganizationTabs } from '@/app/(workspace)/settings/components/settings-organization-tabs';
 
 export default function AccountsSettingsPage() {
-  return <div dir="rtl" className="w-full space-y-5"><SettingsAccessTabs /><UserAccountsPage /></div>;
+  return <div dir="rtl" className="w-full space-y-5"><SettingsOrganizationTabs /><UserAccountsPage /></div>;
 }

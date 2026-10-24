@@ -28,6 +28,7 @@ export type ProjectImportRecord = {
 export const projectsApi = {
   getAll: () => apiClient.get<ProjectItem[]>('/projects'),
   getSupportProjects: () => apiClient.get<SupportProjectItem[]>('/projects/support/accessible'),
+  getRahcomProject: () => apiClient.get<ProjectItem>('/projects/rahcom'),
   create: (project: ProjectDraft) => apiClient.post<ProjectItem>('/projects', project),
   update: (id: string, project: Partial<ProjectDraft>) =>
     apiClient.patch<ProjectItem>(`/projects/${encodeURIComponent(id)}`, project),

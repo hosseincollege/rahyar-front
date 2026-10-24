@@ -88,7 +88,7 @@ export function RahcomAxesManager({ province, canManage }: { province: string; c
     {open && <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="rahcom-axes-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl" dir="rtl">
         <header className="flex items-start justify-between gap-3">
-          <div><h2 id="rahcom-axes-title" className="text-lg font-bold text-foreground">{t('rahcomAxesTitle')} · {provinceName}</h2><p className="mt-1 text-sm text-muted-foreground">{t('rahcomAxisFilter')}</p></div>
+          <div><h2 id="rahcom-axes-title" className="text-lg font-bold text-foreground">{t('rahcomAxesTitle')} · {provinceName}</h2></div>
           <button type="button" onClick={() => setOpen(false)} aria-label={t('closeSidebar')} className="rounded-lg p-2 text-muted-foreground hover:bg-accent"><X size={18} /></button>
         </header>
 

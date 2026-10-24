@@ -543,6 +543,16 @@ export const settingsApi = {
     );
   },
 
+  async getOrganizationShellVisibility(orgId: string): Promise<{ shellVisibility: Record<string, unknown> }> {
+    const id = assertOrgId(orgId);
+    return apiClient.get(`/settings/organization/${id}/shell-visibility`);
+  },
+
+  async updateOrganizationShellVisibility(orgId: string, shellVisibility: Record<string, unknown>): Promise<{ shellVisibility: Record<string, unknown> }> {
+    const id = assertOrgId(orgId);
+    return apiClient.put(`/settings/organization/${id}/shell-visibility`, { shellVisibility });
+  },
+
   async getOrganizationBranding(
     orgId: string,
   ): Promise<OrganizationBranding> {
