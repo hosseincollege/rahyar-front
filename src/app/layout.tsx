@@ -9,7 +9,6 @@ import { Vazirmatn } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PreferencesProvider } from "@/components/preferences-provider";
 import { VisitorPresenceTracker } from "@/components/home/visitor-presence-tracker";
-import { OrganizationFavicon } from "@/components/organization-favicon";
 import "./globals.css";
 
 const vazirmatn = Vazirmatn({
@@ -81,7 +80,7 @@ export default function RootLayout({
       <body className="font-sans antialiased h-screen overflow-hidden bg-[color:var(--background)] text-[color:var(--foreground)]">
         <Script id="appearance-bootstrap" strategy="beforeInteractive">{appearanceBootstrap}</Script>
         <ThemeProvider>
-          <PreferencesProvider><VisitorPresenceTracker /><OrganizationFavicon />{children}</PreferencesProvider>
+          <PreferencesProvider><VisitorPresenceTracker />{children}</PreferencesProvider>
         </ThemeProvider>
       </body>
     </html>
