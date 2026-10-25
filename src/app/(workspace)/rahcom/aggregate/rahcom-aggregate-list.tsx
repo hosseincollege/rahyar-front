@@ -101,7 +101,12 @@ export function RahcomAggregateList() {
       if (!trafficByCode.has(code)) trafficByCode.set(code, row);
     }
     const systemIncidentCodes = [...systemByCode.entries()].filter(([, system]) => Boolean(system.incidentType || system.incidentDetails)).map(([code]) => code);
-    const codes = new Set([...solarByCode.keys(), ...trafficByCode.keys(), ...(showTrafficIncidents ? trafficIncidentCodes : []), ...(showSystemIncidents ? systemIncidentCodes : [])].filter((code) => systemByCode.has(code) || trafficRowsByCode.has(code)));
+    const codes = new Set([...solarByCode.keys(), ...trafficByCode.keys(), ...trafficIncidentCodes, ...systemIncidentCodes].filter((code) => {
+      if (!systemByCode.has(code) && !trafficRowsByCode.has(code)) return false;
+      if (!showTrafficIncidents && trafficIncidentCodes.has(code)) return false;
+      if (!showSystemIncidents && systemIncidentCodes.includes(code)) return false;
+      return true;
+    }));
     return [...codes].map((code) => {
       const system = systemByCode.get(code);
       const trafficRow = trafficRowsByCode.get(code);
