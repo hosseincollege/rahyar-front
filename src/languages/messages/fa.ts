@@ -1,6 +1,7 @@
 import type { UiMessage } from "../types";
 
 const messages = {
+  solarDownloadExcel: "\u062f\u0627\u0646\u0644\u0648\u062f \u0627\u06a9\u0633\u0644",
   usersTotal: "تعداد کل کاربران",
   usersSearchPlaceholder: "جست‌وجو بر اساس نام، ایمیل یا نقش",
   usersNoMatch: "حسابی با این جست‌وجو پیدا نشد.",

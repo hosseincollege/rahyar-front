@@ -867,6 +867,7 @@ export type UiMessage =
   | "solarCloseForm"
   | "solarPreview"
   | "solarHistory"
+  | "solarDownloadExcel"
   | "solarNoSnapshots"
   | "solarExpandSnapshot"
   | "solarChangesFromPrevious"

@@ -68,7 +68,7 @@ export function RahcomAggregateList() {
     const solarIndex = trafficHeaders.findIndex((header) => has(header, 'وضعیتسولار', 'سولار', 'solarstatus', 'solar'));
     const trafficIncidentIndex = trafficHeaders.findIndex((header) => has(header, 'سرقت', 'تخریب', 'تعریض', 'جابجایی', 'theft', 'damage', 'widening', 'relocation'));
     const provinceName = iranProvinces.find(([id]) => id === selectedProvince)?.[1] ?? selectedProvince;
-    const belongsToProvince = (value: string) => normalize(value) === normalize(selectedProvince) || normalize(value).includes(normalize(provinceName));
+    const belongsToProvince = (value: string) => selectedProvince === 'all' || normalize(value) === normalize(selectedProvince) || normalize(value).includes(normalize(provinceName));
     const systemByCode = new Map(systems.filter((system) => belongsToProvince(system.province)).map((system) => [normalize(system.systemCode), system]));
     const solarByCode = new Map<string, Set<string>>();
     const rawSolarEntries = solar ? [...parseRahcomSolarList(solar.downText ?? '', 'down'), ...parseRahcomSolarList(solar.unreachableText ?? '', 'unreachable')]
@@ -94,6 +94,7 @@ export function RahcomAggregateList() {
       if (provinceIndex >= 0 && !belongsToProvince(row[provinceIndex] ?? '')) continue;
       const code = normalize(row[codeIndex] ?? '');
       if (!code) continue;
+      if (!systemByCode.has(code)) continue;
       if (!trafficRowsByCode.has(code)) trafficRowsByCode.set(code, row);
       if (trafficIncidentIndex >= 0 && row[trafficIncidentIndex]?.trim() && !/^(0|[-—–]|none|null|no incident|ندارد|نداشته|بدون\s*مورد)$/i.test(row[trafficIncidentIndex].trim())) trafficIncidentCodes.add(code);
       const status = solarIndex >= 0 ? normalize(row[solarIndex] ?? '') : '';

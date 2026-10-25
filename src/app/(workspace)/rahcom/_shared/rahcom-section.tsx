@@ -128,7 +128,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       ) : section === 'systems' ? (
         <RahcomSystemsList canManage={canManageRahcom} />
       ) : section === 'solar-daily' ? (
-        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} />
+        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} />
       ) : section === 'aggregate' ? (
         <RahcomAggregateList />
       ) : section === 'tickets' ? (

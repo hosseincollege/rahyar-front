@@ -1,7 +1,7 @@
 import type { RahcomSolarSnapshot } from '@/lib/api/rahcom/rahcom-api';
 
 export type RahcomSolarState = 'down' | 'unreachable';
-export type RahcomSolarEntry = { site: string; equipment: string; state: RahcomSolarState };
+export type RahcomSolarEntry = { site: string; equipment: string; state: RahcomSolarState; province?: string };
 
 export function parseRahcomSolarList(text: string, state: RahcomSolarState): RahcomSolarEntry[] {
   const output: RahcomSolarEntry[] = [];
@@ -14,7 +14,8 @@ export function parseRahcomSolarList(text: string, state: RahcomSolarState): Rah
         ?? match[1].match(/^(.+?)-ESF/i)?.[1]
         ?? match[1].split('-')[0];
       const site = line.match(/\d{3}[A-Z]\d{5}/i)?.[0];
-      if (site) output.push({ site: site.toUpperCase(), equipment: equipment.toUpperCase(), state });
+      const province = /(?:^|-)ESF(?:-|$)|ISFAHAN/i.test(match[1]) ? 'isfahan' : undefined;
+      if (site) output.push({ site: site.toUpperCase(), equipment: equipment.toUpperCase(), state, province });
       continue;
     }
     const site = line.match(/\d{3}[A-Z]\d{5}/i)?.[0];
