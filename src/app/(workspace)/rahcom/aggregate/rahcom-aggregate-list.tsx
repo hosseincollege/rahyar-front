@@ -43,9 +43,15 @@ export function RahcomAggregateList() {
     Promise.all([rahcomApi.systems(), rahcomApi.solarSnapshots(), rahcomApi.trafficSnapshot()])
       .then(([systemRows, solarRows, trafficRow]) => {
         if (!active) return;
-        setSystems(systemRows);
-        setSolar([...solarRows].filter((item) => tehranDateKey(item.capturedAt) === tehranDateKey(date ?? undefined)).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0] ?? null);
-        setTraffic(trafficRow);
+        const safeSystems = Array.isArray(systemRows) ? systemRows.filter(Boolean) : [];
+        const safeSolarRows = Array.isArray(solarRows) ? solarRows.filter((item) => item && typeof item === 'object') : [];
+        setSystems(safeSystems);
+        setSolar([...safeSolarRows].filter((item) => item.capturedAt && tehranDateKey(item.capturedAt) === tehranDateKey(date ?? undefined)).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0] ?? null);
+        setTraffic(trafficRow && typeof trafficRow === 'object' ? {
+          ...trafficRow,
+          headers: Array.isArray(trafficRow.headers) ? trafficRow.headers.map((header) => String(header ?? '')) : [],
+          rows: Array.isArray(trafficRow.rows) ? trafficRow.rows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? ''))) : [],
+        } : null);
       })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : t('rahcomHistoryLoadError')); })
       .finally(() => { if (active) setLoading(false); });
@@ -53,7 +59,7 @@ export function RahcomAggregateList() {
   }, [date]);
 
   const rows = useMemo(() => {
-    const trafficHeaders = traffic?.headers.map(normalize) ?? [];
+    const trafficHeaders = Array.isArray(traffic?.headers) ? traffic.headers.map((header) => normalize(String(header ?? ''))) : [];
     const codeIndex = trafficHeaders.findIndex((header) => has(header, 'کدسامانه', 'systemcode') || header === 'code');
     const nameIndex = trafficHeaders.findIndex((header) => has(header, 'نامسامانه', 'systemname'));
     const axisCodeIndex = trafficHeaders.findIndex((header) => has(header, 'کدمحور', 'axiscode'));
@@ -65,7 +71,7 @@ export function RahcomAggregateList() {
     const belongsToProvince = (value: string) => normalize(value) === normalize(selectedProvince) || normalize(value).includes(normalize(provinceName));
     const systemByCode = new Map(systems.filter((system) => belongsToProvince(system.province)).map((system) => [normalize(system.systemCode), system]));
     const solarByCode = new Map<string, Set<string>>();
-    const rawSolarEntries = solar ? [...parseRahcomSolarList(solar.downText, 'down'), ...parseRahcomSolarList(solar.unreachableText, 'unreachable')]
+    const rawSolarEntries = solar ? [...parseRahcomSolarList(solar.downText ?? '', 'down'), ...parseRahcomSolarList(solar.unreachableText ?? '', 'unreachable')]
       .filter((entry) => defaultSolarEquipment.has(/^LTE-[12]$/i.test(entry.equipment) ? 'LTE' : entry.equipment.toUpperCase())) : [];
     const rawByCode = new Map<string, Set<string>>();
     for (const entry of rawSolarEntries) {
@@ -84,7 +90,7 @@ export function RahcomAggregateList() {
     const trafficByCode = new Map<string, string[]>();
     const trafficRowsByCode = new Map<string, string[]>();
     const trafficIncidentCodes = new Set<string>();
-    if (traffic && codeIndex >= 0) for (const row of traffic.rows) {
+    if (traffic && codeIndex >= 0) for (const row of Array.isArray(traffic.rows) ? traffic.rows : []) {
       if (provinceIndex >= 0 && !belongsToProvince(row[provinceIndex] ?? '')) continue;
       const code = normalize(row[codeIndex] ?? '');
       if (!code) continue;

@@ -712,7 +712,7 @@ const faMessages = {
   rahcomTrafficNationalDailyHint: "این فایل، فهرست کشوری تردد روزانه است. پس از ثبت، وضعیت سولار سامانه‌ها با همین فهرست مقایسه و کد محورهای فایل روی سامانه‌های منطبق اعمال می‌شود.",
   rahcomTrafficCurrentFile: "آخرین فهرست ثبت‌شده",
   rahcomTrafficImportedStatus: "وضعیت لیست تردد",
-  rahcomTrafficSolarStatus: "وضعیت آخرین لیست سولار روزانه",
+  rahcomTrafficSolarStatus: "وضعیت سولار در لیست تردد روزانه",
   rahcomTrafficSolarSnapshotMissing: "برای امروز ثبت نشده",
   rahcomAllProvinces: "همهٔ استان‌ها",
   rahcomTickets: "تیکت‌ها",
