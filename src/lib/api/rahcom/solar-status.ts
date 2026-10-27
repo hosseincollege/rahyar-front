@@ -46,7 +46,8 @@ export function tehranDateKey(value: Date | string = new Date()) {
 export function latestRahcomSolarSnapshotForToday(snapshots: RahcomSolarSnapshot[], today = tehranDateKey()) {
   return snapshots
     .filter((snapshot) => tehranDateKey(snapshot.capturedAt) === today)
-    .sort((left, right) => new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime())[0] ?? null;
+    .sort((left, right) => new Date(right.createdAt || right.capturedAt).getTime() - new Date(left.createdAt || left.capturedAt).getTime()
+      || new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime())[0] ?? null;
 }
 
 export function failedRahcomSystemCodes(snapshot: RahcomSolarSnapshot | null) {
@@ -55,5 +56,18 @@ export function failedRahcomSystemCodes(snapshot: RahcomSolarSnapshot | null) {
     ...parseRahcomSolarList(snapshot.downText, 'down'),
     ...parseRahcomSolarList(snapshot.unreachableText, 'unreachable'),
   ]);
+  return new Set(entries.map(({ site }) => site));
+}
+
+export function isRahcomIncidentValue(value: string | null | undefined) {
+  const raw = (value ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+  if (!raw || /^[-\u2014\u2013]+$/.test(raw)) return false;
+  const normalized = raw.replace(/[\s\u200c]/g, '');
+  return !['0', 'none', 'null', 'noincident', '\u0646\u062f\u0627\u0631\u062f', '\u0646\u062f\u0627\u0634\u062a\u0647', '\u0628\u062f\u0648\u0646\u0645\u0648\u0631\u062f'].includes(normalized);
+}
+
+export function downRahcomSystemCodes(snapshot: RahcomSolarSnapshot | null) {
+  if (!snapshot) return new Set<string>();
+  const entries = filterRahcomLtePairs(parseRahcomSolarList(snapshot.downText, 'down'));
   return new Set(entries.map(({ site }) => site));
 }

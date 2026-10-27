@@ -15,17 +15,22 @@ import { uiMessage } from '@/lib/ui-messages';
 import { rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
 import { RahcomTickets } from '@/app/(workspace)/rahcom/tickets/rahcom-tickets';
 import { RahcomAggregateList } from '@/app/(workspace)/rahcom/aggregate/rahcom-aggregate-list';
+import { useRahcomDate } from './rahcom-date';
 
 export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
 
 export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const { locale } = usePreferences();
+  const { dateText } = useRahcomDate();
   const [focusProvince, setFocusProvince] = useState(true);
   const [province, setProvince] = useState('isfahan');
   const [mapSystemsCount, setMapSystemsCount] = useState(0);
   const [mapSystemsError, setMapSystemsError] = useState('');
   const [mapAxisOptions, setMapAxisOptions] = useState<string[]>([]);
   const [solarDownFilter, setSolarDownFilter] = useState(false);
+  const [showTrafficIncidents, setShowTrafficIncidents] = useState(true);
+  const [showSystemIncidents, setShowSystemIncidents] = useState(true);
+  const [incidentFiltersLoaded, setIncidentFiltersLoaded] = useState(false);
   const [countyLabels, setCountyLabels] = useState(true);
   const [solarSnapshotAvailable, setSolarSnapshotAvailable] = useState<boolean | null>(null);
   const [mapLocationError, setMapLocationError] = useState(false);
@@ -38,6 +43,21 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const handleLocationStatus = useCallback((status: { locating: boolean; error: boolean }) => setMapLocationError(status.error), []);
   const handleSolarSnapshotAvailability = useCallback((available: boolean | null) => setSolarSnapshotAvailable(available), []);
   const titleKey = section === 'map' ? 'rahcomMap' : section === 'actions' ? 'rahcomActions' : section === 'systems' ? 'rahcomSystemsList' : section === 'solar-daily' ? 'rahcomSolarDaily' : section === 'aggregate' ? 'rahcomAggregateList' : section === 'tickets' ? 'rahcomTickets' : 'rahcomDailyTraffic';
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('rahcom-incident-display');
+    if (saved) {
+      try {
+        const values = JSON.parse(saved) as { traffic?: boolean; systems?: boolean };
+        if (typeof values.traffic === 'boolean') setShowTrafficIncidents(values.traffic);
+        if (typeof values.systems === 'boolean') setShowSystemIncidents(values.systems);
+      } catch { /* Ignore invalid local display preferences. */ }
+    }
+    setIncidentFiltersLoaded(true);
+  }, []);
+  useEffect(() => {
+    if (incidentFiltersLoaded) window.localStorage.setItem('rahcom-incident-display', JSON.stringify({ traffic: showTrafficIncidents, systems: showSystemIncidents }));
+  }, [incidentFiltersLoaded, showTrafficIncidents, showSystemIncidents]);
 
   useEffect(() => {
     let active = true;
@@ -92,6 +112,10 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         </div>
         {section === 'solar-daily' && <button type="button" onClick={() => setSolarFormOpen((open) => !open)} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"><span className="flex size-5 items-center justify-center">{solarFormOpen ? <X size={17} /> : <Plus size={17} />}</span>{uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')}</button>}
         <RahcomHeaderDate />
+        <div className="flex w-full flex-wrap items-center gap-2 border-t border-border pt-3">
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground"><input type="checkbox" checked={showTrafficIncidents} onChange={(event) => setShowTrafficIncidents(event.target.checked)} /><i aria-hidden="true" className="size-3 rounded-full border-[3px] border-orange-500" />{uiMessage(locale, 'rahcomTrafficIncidentColumn')}</label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground"><input type="checkbox" checked={showSystemIncidents} onChange={(event) => setShowSystemIncidents(event.target.checked)} /><i aria-hidden="true" className="size-3 rounded-full border-[3px] border-violet-600" />{uiMessage(locale, 'rahcomSystemIncidentColumn')}</label>
+        </div>
         {section === 'map' && <div className="ms-auto flex flex-wrap items-center gap-2">
           <span role="status" className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-muted-foreground">{mapSystemsCount} {uiMessage(locale, 'rahcomSystemsOnMap')}</span>
           {mapLocationError && <span role="alert" className="text-xs text-destructive">{uiMessage(locale, 'rahcomLocationUnavailable')}</span>}
@@ -99,7 +123,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         </div>}
         {section === 'map' && <div className="flex flex-wrap items-center gap-2">
           <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground"><input type="checkbox" checked={countyLabels} onChange={(event) => setCountyLabels(event.target.checked)} />{uiMessage(locale, 'rahcomShowCountyLabels')}</label>
-          <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground ${solarSnapshotAvailable !== true ? 'opacity-60' : ''}`}><input type="checkbox" checked={solarDownFilter} disabled={solarSnapshotAvailable !== true} onChange={(event) => setSolarDownFilter(event.target.checked)} />{uiMessage(locale, 'rahcomSolarDownFilter')}</label>
+          <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground ${solarSnapshotAvailable !== true ? 'opacity-60' : ''}`}><input type="checkbox" checked={solarDownFilter} disabled={solarSnapshotAvailable !== true} onChange={(event) => setSolarDownFilter(event.target.checked)} />{uiMessage(locale, 'rahcomSolarDownFilter')} · {dateText}</label>
           {solarSnapshotAvailable === false && <span role="status" className="text-xs text-muted-foreground">{uiMessage(locale, 'rahcomSolarTodaySnapshotMissing')}</span>}
           {province === 'isfahan' && <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground">
             <input type="checkbox" checked={focusProvince} onChange={(event) => {
@@ -121,14 +145,14 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessCheckFailed')}</p>
       ) : section === 'map' ? (
         <section aria-label={uiMessage(locale, 'rahcomMap')} className="h-[70vh] min-h-[460px] max-h-[820px] overflow-hidden rounded-2xl border border-border bg-card">
-          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} solarDownFilter={solarDownFilter} countyLabels={countyLabels} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onSolarSnapshotAvailabilityChange={handleSolarSnapshotAvailability} />
+          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} solarDownFilter={solarDownFilter} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} countyLabels={countyLabels} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onSolarSnapshotAvailabilityChange={handleSolarSnapshotAvailability} />
         </section>
       ) : section === 'actions' ? (
         <RahcomActions canManage={canManageRahcom} />
       ) : section === 'systems' ? (
         <RahcomSystemsList canManage={canManageRahcom} />
       ) : section === 'solar-daily' ? (
-        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} />
+        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} />
       ) : section === 'aggregate' ? (
         <RahcomAggregateList />
       ) : section === 'tickets' ? (

@@ -9,11 +9,11 @@ import { useTheme } from '@/components/theme-provider';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import 'leaflet/dist/leaflet.css';
-import { formatRahcomCoordinates, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { formatRahcomCoordinates, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { canonicalRahcomAxis, rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
-import { failedRahcomSystemCodes, latestRahcomSolarSnapshotForToday, tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { failedRahcomSystemCodes, isRahcomIncidentValue, latestRahcomSolarSnapshotForToday, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 type Point = { lat: number; lng: number };
@@ -88,10 +88,12 @@ function getStoredProvince() {
   return window.localStorage.getItem(`rahyar-selected-province:${userId || 'current'}`) || 'isfahan';
 }
 
-export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilter = false, countyLabels = true, onAxisOptionsChange, onSystemsCountChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotAvailabilityChange }: {
+export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilter = false, showTrafficIncidents = true, showSystemIncidents = true, countyLabels = true, onAxisOptionsChange, onSystemsCountChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotAvailabilityChange }: {
   focusProvince: boolean;
   canManage?: boolean;
   solarDownFilter?: boolean;
+  showTrafficIncidents?: boolean;
+  showSystemIncidents?: boolean;
   countyLabels?: boolean;
   onAxisOptionsChange?: (axes: string[]) => void;
   onSystemsCountChange?: (count: number) => void;
@@ -104,6 +106,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   const tileLayerRef = useRef<TileLayer | null>(null);
   const currentMarker = useRef<CircleMarker | null>(null);
   const systemsLayer = useRef<LayerGroup | null>(null);
+  const systemMarkers = useRef<Map<string, Marker>>(new Map());
   const countyLabelsLayer = useRef<LayerGroup | null>(null);
   const fittedProvince = useRef<string | null>(null);
   const fittedSystemsView = useRef('');
@@ -114,6 +117,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   const [province, setProvince] = useState(getStoredProvince);
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
+  const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [solarSnapshotsLoaded, setSolarSnapshotsLoaded] = useState(false);
   const [todayDateKey, setTodayDateKey] = useState(() => tehranDateKey());
   const [systemsRevision, setSystemsRevision] = useState(0);
@@ -137,6 +141,21 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   const axisOptions = useMemo(() => [...axisLabelByCode.values()].sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })), [axisLabelByCode]);
   const todaySolarSnapshot = useMemo(() => latestRahcomSolarSnapshotForToday(solarSnapshots, date || todayDateKey), [solarSnapshots, date, todayDateKey]);
   const solarFailedCodes = useMemo(() => failedRahcomSystemCodes(todaySolarSnapshot), [todaySolarSnapshot]);
+  const incidentCodes = useMemo(() => {
+    const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\u200c_./-]/g, '');
+    const headers = trafficSnapshot?.headers ?? [];
+    const codeIndex = headers.findIndex((value) => { const key = normalize(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
+    const incidentIndexes = headers.flatMap((value, index) => { const key = normalize(value); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', '\u062a\u0639\u0631\u06cc\u0636', '\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc', 'theft', 'damage', 'widening', 'relocation'].some((term) => key.includes(normalize(term))) ? [index] : []; });
+    if (codeIndex < 0 || incidentIndexes.length === 0) return new Set<string>();
+    return new Set((trafficSnapshot?.rows ?? []).filter((row) => {
+      return incidentIndexes.some((index) => isRahcomIncidentValue(row[index]));
+    }).map((row) => (row[codeIndex] ?? '').trim().toUpperCase()).filter(Boolean));
+  }, [trafficSnapshot]);
+  const systemIncidentCodes = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => system.systemCode.trim().toUpperCase())), [systems]);
+  const incidentVisibility = useRef({ showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes });
+  useEffect(() => {
+    incidentVisibility.current = { showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes };
+  }, [showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes]);
   const visibleSystems = useMemo(() => systems.filter((system) =>
     !solarDownFilter || solarFailedCodes.has(system.systemCode.trim().toUpperCase()),
   ), [solarDownFilter, solarFailedCodes, systems]);
@@ -185,6 +204,14 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       window.removeEventListener('rahyar:systems-changed', onSystemsChanged);
       window.removeEventListener('rahyar:focus-system', onFocusSystem);
     };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refreshTraffic = () => { void rahcomApi.trafficSnapshot().then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
+    refreshTraffic();
+    window.addEventListener('rahyar:traffic-snapshot-changed', refreshTraffic);
+    return () => { active = false; window.removeEventListener('rahyar:traffic-snapshot-changed', refreshTraffic); };
   }, []);
 
   useEffect(() => {
@@ -365,16 +392,24 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     void import('leaflet').then(({ divIcon, latLngBounds, marker: leafletMarker }) => {
       if (cancelled || !systemsLayer.current) return;
       const layer = systemsLayer.current; layer.clearLayers();
-      const markers: Marker[] = visibleSystems.map((system) => {
+      const nextSystemMarkers = new Map<string, Marker>();
+      const markers: Marker[] = [];
+      visibleSystems.forEach((system) => {
         const systemAxisCode = system.axisCode?.trim() ?? '';
         const markerColor = systemAxisCode ? rahcomAxisColor(axisLabelByCode.get(systemAxisCode) ?? systemAxisCode, axisOptions) : '#64748b';
+        const systemCode = system.systemCode.trim().toUpperCase();
         const systemIcon = divIcon({
           className: '', iconSize: [18, 18], iconAnchor: [9, 9],
           html: `<span style="display:block;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:${markerColor};box-shadow:0 1px 5px #1118"></span>`,
         });
         const marker = leafletMarker([system.latitude, system.longitude], { icon: systemIcon, draggable: false })
-          .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: Math.min(300, window.innerWidth - 40), maxWidth: Math.min(window.innerWidth - 40, 440), className: 'rahcom-map-system-popup', autoPanPadding: [24, 24] })
-          .addTo(layer);
+          .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: Math.min(300, window.innerWidth - 40), maxWidth: Math.min(window.innerWidth - 40, 440), className: 'rahcom-map-system-popup', autoPanPadding: [24, 24] });
+        const visibility = incidentVisibility.current;
+        const hasTrafficIncident = visibility.incidentCodes.has(systemCode);
+        const hasSystemIncident = visibility.systemIncidentCodes.has(systemCode);
+        const shouldShow = (!hasTrafficIncident && !hasSystemIncident) || (visibility.showTrafficIncidents && hasTrafficIncident) || (visibility.showSystemIncidents && hasSystemIncident);
+        if (shouldShow) { marker.addTo(layer); markers.push(marker); }
+        nextSystemMarkers.set(systemCode, marker);
 
         marker.on('popupopen', ({ popup }) => {
           let editing = false;
@@ -472,14 +507,14 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
           };
           renderPopup();
         });
-        return marker;
       });
+      systemMarkers.current = nextSystemMarkers;
       let focusedSystem = false;
       const focusSystemId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
       if (focusSystemId) {
-        const focusIndex = visibleSystems.findIndex((system) => system.id === focusSystemId);
-        if (focusIndex >= 0) {
-          const marker = markers[focusIndex];
+        const focusedRecord = visibleSystems.find((system) => system.id === focusSystemId);
+        const marker = focusedRecord ? systemMarkers.current.get(focusedRecord.systemCode.trim().toUpperCase()) : undefined;
+        if (marker && systemsLayer.current?.hasLayer(marker)) {
           mapRef.current?.setView(marker.getLatLng(), 15, { animate: false });
           marker.openPopup();
           focusedSystem = true;
@@ -497,6 +532,18 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     });
     return () => { cancelled = true; };
   }, [mapReady, visibleSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, solarDownFilter, axisOptions, axisLabelByCode]);
+
+  useEffect(() => {
+    const layer = systemsLayer.current;
+    if (!mapReady || !layer) return;
+    for (const [systemCode, marker] of systemMarkers.current) {
+      const hasTrafficIncident = incidentCodes.has(systemCode);
+      const hasSystemIncident = systemIncidentCodes.has(systemCode);
+      const shouldShow = (!hasTrafficIncident && !hasSystemIncident) || (showTrafficIncidents && hasTrafficIncident) || (showSystemIncidents && hasSystemIncident);
+      if (shouldShow && !layer.hasLayer(marker)) marker.addTo(layer);
+      else if (!shouldShow && layer.hasLayer(marker)) layer.removeLayer(marker);
+    }
+  }, [mapReady, showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;

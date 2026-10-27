@@ -6,10 +6,11 @@ import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, parseRahcomSolarList as parseList, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 const commonEquipment = ['LTE', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2', 'PC', 'RLY', 'RLY-1', 'WL-1', 'WLP2P'];
+const emptyTrafficHeaders: string[] = [];
 const defaultEquipment = ['LTE', 'RTR-1', 'CAM-1', 'RAD-1'];
 
 function jalaliParts(date: Date) {
@@ -208,22 +209,23 @@ function axisTagStyle(value: string) {
   return { color, borderColor: `color-mix(in srgb, ${color} 38%, transparent)`, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` };
 }
 
-function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot }) {
-  const [showTrafficIncidents, setShowTrafficIncidents] = useState(true);
-  const [showSystemIncidents, setShowSystemIncidents] = useState(true);
+function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, showTrafficIncidents, showSystemIncidents }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showTrafficIncidents: boolean; showSystemIncidents: boolean }) {
   const [sortBy, setSortBy] = useState<'code' | 'name'>('code');
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const normalize = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
     .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_\-./()]/g, '');
-  const headers = traffic?.headers ?? [];
+  const headers = traffic?.headers ?? emptyTrafficHeaders;
   const findHeader = (predicate: (normalized: string) => boolean) => headers.findIndex((header) => predicate(normalize(header)));
   const codeIndex = findHeader((header) => header.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || header.includes('systemcode'));
   const axisCodeIndex = findHeader((header) => header.includes('\u06a9\u062f\u0645\u062d\u0648\u0631') || header.includes('axiscode'));
   const axisNameIndex = findHeader((header) => header.includes('\u0646\u0627\u0645\u0645\u062d\u0648\u0631') || header.includes('axisname'));
   const systemNameIndex = findHeader((header) => header.includes('\u0646\u0627\u0645\u0633\u0627\u0645\u0627\u0646\u0647') || header.includes('systemname'));
   const stationNameIndex = findHeader((header) => header.includes('\u0646\u0627\u0645\u0627\u06cc\u0633\u062a\u06af\u0627\u0647') || header.includes('stationname'));
-  const incidentIndex = findHeader((header) => header.includes('\u0633\u0631\u0642\u062a') || header.includes('\u062a\u062e\u0631\u06cc\u0628') || header.includes('\u062a\u0639\u0631\u06cc\u0636') || header.includes('\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc') || header.includes('theft') || header.includes('damage') || header.includes('widening') || header.includes('relocation'));
+  const incidentIndexes = useMemo(() => headers.flatMap((header, index) => {
+    const normalized = normalize(header);
+    return normalized.includes('\u0633\u0631\u0642\u062a') || normalized.includes('\u062a\u062e\u0631\u06cc\u0628') || normalized.includes('\u062a\u0639\u0631\u06cc\u0636') || normalized.includes('\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc') || normalized.includes('theft') || normalized.includes('damage') || normalized.includes('widening') || normalized.includes('relocation') ? [index] : [];
+  }), [headers]);
   const outageIndex = findHeader((header) => header.includes('\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('\u062a\u0639\u062f\u0627\u062f\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('outagedays'));
   const solarIndex = findHeader((header) => header.includes('\u0633\u0648\u0644\u0627\u0631') || header.includes('solar'));
   const provinceName = iranProvinces.find(([id]) => id === selectedProvince)?.[1] ?? selectedProvince;
@@ -237,23 +239,26 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const validEntries = filterRahcomLtePairs(entries).filter((entry) => allowedSites.has(entry.site.trim().toUpperCase()));
   const displayedEntries = validEntries.filter((entry) => selectedColumns.has(entry.equipment.toUpperCase()) || (selectedColumns.has('LTE') && /^LTE-[12]$/i.test(entry.equipment)));
   const solarSites = displayedEntries.map((entry) => entry.site.toUpperCase());
-  const trafficIncidentSites = new Set<string>();
-  const systemIncidentSites = new Set<string>();
-  if (incidentIndex >= 0 && codeIndex >= 0) {
-    for (const row of traffic?.rows ?? []) {
+  const trafficIncidentsByCode = useMemo(() => {
+    const incidents = new Map<string, string[]>();
+    if (incidentIndexes.length > 0 && codeIndex >= 0) for (const row of traffic?.rows ?? []) {
       const code = (row[codeIndex] ?? '').trim().toUpperCase();
-      const incident = row[incidentIndex]?.trim() ?? '';
-      if (code && allowedSites.has(code) && incident && !/^(0|[-—–]|none|null|no incident|ندارد|نداشته|بدون\s*مورد)$/i.test(incident)) trafficIncidentSites.add(code);
+      if (!code) continue;
+      const values = incidentIndexes.map((index) => row[index]?.trim() ?? '').filter(isRahcomIncidentValue);
+      if (values.length) incidents.set(code, [...new Set([...(incidents.get(code) ?? []), ...values])]);
     }
-  }
-  for (const system of provinceSystems) if (system.incidentType || system.incidentDetails) systemIncidentSites.add(system.systemCode.trim().toUpperCase());
-  const incidentSites = new Set([
-    ...(showTrafficIncidents ? trafficIncidentSites : []),
-    ...(showSystemIncidents ? systemIncidentSites : []),
-  ]);
-  const sites = [...new Set([...solarSites, ...incidentSites])]
-    .filter((site) => (showTrafficIncidents || !trafficIncidentSites.has(site)) && (showSystemIncidents || !systemIncidentSites.has(site)))
-    .sort();
+    return incidents;
+  }, [traffic, codeIndex, incidentIndexes]);
+  const trafficIncidentSites = useMemo(() => new Set(trafficIncidentsByCode.keys()), [trafficIncidentsByCode]);
+  const systemIncidentSites = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => system.systemCode.trim().toUpperCase())), [systems]);
+  const solarSiteSet = new Set(solarSites);
+  const sites = [...new Set([...solarSites, ...trafficIncidentSites, ...systemIncidentSites])].filter((site) => allowedSites.has(site))
+    .filter((site) => {
+      const hasTrafficIncident = trafficIncidentSites.has(site);
+      const hasSystemIncident = systemIncidentSites.has(site);
+      if (!hasTrafficIncident && !hasSystemIncident) return solarSiteSet.has(site);
+      return (showTrafficIncidents && hasTrafficIncident) || (showSystemIncidents && hasSystemIncident);
+    }).sort();
   const bySiteEquipment = new Map(validEntries.map((entry) => [`${entry.site.toUpperCase()}:${entry.equipment.toUpperCase()}`, entry.state]));
   const fixedEquipment = ['LTE', 'LTE-1', 'LTE-2', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2'];
   const extraEquipment = [...selectedColumns].filter((item) => !fixedEquipment.includes(item)).sort((a, b) => a.localeCompare(b));
@@ -309,13 +314,13 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const columnCount = 8 + equipmentGroups.length + Number(showTrafficIncidents) + Number(showSystemIncidents);
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
-  return <div className="space-y-3"><div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showTrafficIncidents} onChange={(event) => setShowTrafficIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomTrafficIncidentColumn')}</label><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showSystemIncidents} onChange={(event) => setShowSystemIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomSystemIncidentColumn')}</label><button type="button" onClick={downloadExcel} className="ms-auto inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 font-medium text-foreground hover:border-primary hover:text-primary"><Download size={16} />{t('solarDownloadExcel')}</button></div><div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
+  return <div className="space-y-3"><div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><button type="button" onClick={downloadExcel} className="ms-auto inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 font-medium text-foreground hover:border-primary hover:text-primary"><Download size={16} />{t('solarDownloadExcel')}</button></div><div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
     <th className="p-3 text-center">{t('rahcomRowNumber')}</th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
     {showTrafficIncidents && <th className="p-3 text-start">{t('rahcomTrafficIncidentColumn')}</th>}{showSystemIncidents && <th className="p-3 text-start">{t('rahcomSystemIncidentColumn')}</th>}<th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>{sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
-      const trafficIncident = incidentIndex >= 0 ? trafficRow?.[incidentIndex]?.trim() : '';
-      const hasTrafficIncident = Boolean(trafficIncident && !/^(0|[-—–]|none|null|no incident|ندارد|نداشته|بدون\s*مورد)$/i.test(trafficIncident));
+      const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
+      const hasTrafficIncident = isRahcomIncidentValue(trafficIncident);
       const systemIncident = system?.incidentType ? `${t(system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth')}${system.incidentDetails ? ` · ${system.incidentDetails}` : ''}` : system?.incidentDetails || '—';
       const previousSiteStates = previousStatesBySite.get(site);
       const historyChanges = displayedEquipmentCodes.reduce<{ equipment: string; from: 'normal' | 'down' | 'unreachable' | null; to: 'normal' | 'down' | 'unreachable' }[]>((changes, equipment) => {
@@ -337,7 +342,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, showTrafficIncidents, showSystemIncidents }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; showTrafficIncidents: boolean; showSystemIncidents: boolean }) {
   const { locale } = usePreferences();
   const { dateText } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -413,13 +418,13 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
 
-    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} /></div>}
+    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} /></div>}
     </>}
 
     <div className="space-y-3"><h2 className="text-lg font-bold">{t('solarHistory')}</h2>{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : snapshots.length === 0 ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : snapshots.map((snapshot) => {
       const columns = snapshot.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column).filter((column, columnIndex, all) => all.indexOf(column) === columnIndex);
       const entries = [...parseList(snapshot.downText, 'down'), ...parseList(snapshot.unreachableText, 'unreachable')];
-      return <details key={snapshot.id} className="group rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold"><span className="flex items-center gap-2"><Check size={16} className="text-primary" />{formatCapturedAt(snapshot.capturedAt, locale)}</span><span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{t('solarExpandSnapshot')}<ChevronDown size={16} className="transition-transform group-open:rotate-180" /></span></summary><div className="mt-4 space-y-4"><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} currentSnapshot={snapshot} /></div></details>;
+      return <details key={snapshot.id} className="group rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold"><span className="flex items-center gap-2"><Check size={16} className="text-primary" />{formatCapturedAt(snapshot.capturedAt, locale)}</span><span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{t('solarExpandSnapshot')}<ChevronDown size={16} className="transition-transform group-open:rotate-180" /></span></summary><div className="mt-4 space-y-4"><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} currentSnapshot={snapshot} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} /></div></details>;
     })}</div>
   </section>;
 }
