@@ -743,3 +743,178 @@ svg {
   filter: invert(1) hue-rotate(180deg) brightness(1.08) contrast(1.08);
   transition: filter 180ms ease-out;
 }
+
+.rahcom-map-system-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+}
+
+.rahcom-map-system-popup .leaflet-popup-content {
+  width: min(25rem, calc(100vw - 4rem)) !important;
+  max-height: min(65vh, 32rem);
+  margin: 0;
+  overflow: auto;
+}
+
+.rahcom-map-system-popup .leaflet-popup-tip {
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.rahcom-system-popup {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem;
+  font-family: inherit;
+}
+
+.rahcom-popup-header,
+.rahcom-popup-row,
+.rahcom-popup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+
+.rahcom-popup-header > div {
+  display: grid;
+  min-width: 0;
+  gap: .2rem;
+}
+
+.rahcom-popup-title {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: .95rem;
+  font-weight: 700;
+}
+
+.rahcom-popup-subtitle {
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .75rem;
+}
+
+.rahcom-popup-data {
+  display: grid;
+  gap: .4rem;
+  border-block: 1px solid var(--border);
+  padding-block: .65rem;
+}
+
+.rahcom-popup-row {
+  min-width: 0;
+  border-radius: .6rem;
+  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  padding: .45rem .55rem;
+  font-size: .75rem;
+}
+
+.rahcom-popup-row > span {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+}
+
+.rahcom-popup-row > b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .74rem;
+  text-align: end;
+}
+
+.rahcom-popup-copy {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: var(--background);
+  padding: .3rem .55rem;
+  color: var(--foreground);
+  font: inherit;
+  font-size: .7rem;
+  cursor: pointer;
+}
+
+.rahcom-popup-copy:hover,
+.rahcom-popup-actions button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.rahcom-popup-basics .rahcom-popup-copy {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  color: var(--primary);
+}
+
+.rahcom-popup-status:empty {
+  display: none;
+}
+
+.rahcom-popup-status:not(:empty) {
+  color: var(--destructive);
+  font-size: .75rem;
+}
+
+.rahcom-popup-actions {
+  flex-wrap: wrap;
+}
+
+.rahcom-popup-actions button {
+  min-height: 2.35rem;
+  flex: 1 1 auto;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: var(--background);
+  padding: .4rem .7rem;
+  color: var(--foreground);
+  font: inherit;
+  font-size: .75rem;
+  cursor: pointer;
+}
+
+.rahcom-popup-actions button[data-popup-action="route"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.rahcom-popup-hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: .72rem;
+}
+
+.rahcom-popup-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+.rahcom-popup-edit-fields label {
+  display: grid;
+  min-width: 0;
+  gap: .25rem;
+  color: var(--muted-foreground);
+  font-size: .7rem;
+}
+
+.rahcom-popup-edit-fields input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: var(--background);
+  padding: .35rem .5rem;
+  color: var(--foreground);
+  font: inherit;
+  font-size: .75rem;
+}

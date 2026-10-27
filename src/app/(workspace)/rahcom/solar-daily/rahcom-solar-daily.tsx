@@ -65,6 +65,141 @@ function captureTimestamp(dateValue: string, timeValue: string) {
   return new Date(wallClockAsUtc - (representedAsUtc - wallClockAsUtc)).toISOString();
 }
 
+function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
+  const original = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const archive = XLSX.CFB.read(new Uint8Array(original), { type: 'array' });
+  const worksheetFile = XLSX.CFB.find(archive, '/xl/worksheets/sheet1.xml');
+  const stylesFile = XLSX.CFB.find(archive, '/xl/styles.xml');
+  if (!worksheetFile || !stylesFile) return original;
+
+  let stylesXml = new TextDecoder().decode(stylesFile.content as Uint8Array);
+  const existingFillCount = Number(stylesXml.match(/<fills\b[^>]*count="(\d+)"/)?.[1] ?? 0);
+  const existingFontCount = Number(stylesXml.match(/<fonts\b[^>]*count="(\d+)"/)?.[1] ?? 0);
+  const existingXfCount = Number(stylesXml.match(/<cellXfs\b[^>]*count="(\d+)"/)?.[1] ?? 1);
+  const worksheet = workbook.Sheets.Solar;
+  const sheetRange = worksheet?.['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null;
+  const lteColumnIndex = sheetRange ? Array.from({ length: sheetRange.e.c - sheetRange.s.c + 1 }, (_, index) => sheetRange.s.c + index)
+    .find((columnIndex) => String(worksheet[XLSX.utils.encode_cell({ r: sheetRange.s.r, c: columnIndex })]?.v ?? '').trim().toUpperCase() === 'LTE') ?? -1 : -1;
+  const newFills = [
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFF0F4F8"/><bgColor indexed="64"/></patternFill></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF29445F"/><bgColor indexed="64"/></patternFill></fill>',
+  ].join('');
+  stylesXml = stylesXml.replace(/<fills\b([^>]*)>([\s\S]*?)<\/fills>/, (_all, attributes: string, body: string) => {
+    const updatedAttributes = attributes.replace(/\s+count="\d+"/, '').trim();
+    return `<fills ${updatedAttributes} count="${existingFillCount + 3}">${body}${newFills}</fills>`;
+  });
+  const newHeaderFont = '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>';
+  stylesXml = stylesXml.replace(/<fonts\b([^>]*)>([\s\S]*?)<\/fonts>/, (_all, attributes: string, body: string) => {
+    const updatedAttributes = attributes.replace(/\s+count="\d+"/, '').trim();
+    return `<fonts ${updatedAttributes} count="${existingFontCount + 1}">${body}${newHeaderFont}</fonts>`;
+  });
+  const alignment = '<alignment horizontal="center" vertical="center" wrapText="1"/>';
+  const noWrapAlignment = '<alignment horizontal="center" vertical="center"/>';
+  const newCellFormats = [
+    `<xf numFmtId="0" fontId="0" fillId="${existingFillCount}" borderId="0" xfId="0" applyFill="1" applyAlignment="1">${alignment}</xf>`,
+    `<xf numFmtId="0" fontId="0" fillId="${existingFillCount + 1}" borderId="0" xfId="0" applyFill="1" applyAlignment="1">${alignment}</xf>`,
+    `<xf numFmtId="0" fontId="${existingFontCount}" fillId="${existingFillCount + 2}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignment}</xf>`,
+    `<xf numFmtId="0" fontId="0" fillId="${existingFillCount}" borderId="0" xfId="0" applyFill="1" applyAlignment="1">${noWrapAlignment}</xf>`,
+    `<xf numFmtId="0" fontId="0" fillId="${existingFillCount + 1}" borderId="0" xfId="0" applyFill="1" applyAlignment="1">${noWrapAlignment}</xf>`,
+    `<xf numFmtId="0" fontId="${existingFontCount}" fillId="${existingFillCount + 2}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${noWrapAlignment}</xf>`,
+  ].join('');
+  stylesXml = stylesXml.replace(/<cellXfs\b([^>]*)>([\s\S]*?)<\/cellXfs>/, (_all, attributes: string, body: string) => {
+    const updatedAttributes = attributes.replace(/\s+count="\d+"/, '').trim();
+    return `<cellXfs ${updatedAttributes} count="${existingXfCount + 6}">${body}${newCellFormats}</cellXfs>`;
+  });
+
+  let worksheetXml = new TextDecoder().decode(worksheetFile.content as Uint8Array);
+  if (/<sheetView\b[^>]*>/i.test(worksheetXml)) {
+    worksheetXml = worksheetXml.replace(/<sheetView\b([^>]*?)(\/?)>/i, (_all, attributes: string, selfClosing: string) => {
+      const updatedAttributes = attributes.replace(/\s+rightToLeft="[^"]*"/i, '').trim();
+      return `<sheetView ${updatedAttributes} rightToLeft="1"${selfClosing ? '/' : ''}>`;
+    });
+  } else {
+    const view = '<sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews>';
+    worksheetXml = /<dimension\b[^>]*\/>/i.test(worksheetXml)
+      ? worksheetXml.replace(/<dimension\b[^>]*\/>/i, (dimension) => `${dimension}${view}`)
+      : worksheetXml.replace(/<worksheet\b[^>]*>/i, (root) => `${root}${view}`);
+  }
+
+  worksheetXml = worksheetXml.replace(/<c\b[^>]*>[\s\S]*?<\/c>/g, (cellXml) => {
+    const cellReference = cellXml.match(/\br="([A-Z]+\d+)"/)?.[1];
+    if (!cellReference) return cellXml;
+    const rowNumber = Number(cellReference.match(/\d+$/)?.[0] ?? 1);
+    const isLteColumn = XLSX.utils.decode_cell(cellReference).c === lteColumnIndex;
+    const styleId = rowNumber === 1 ? existingXfCount + (isLteColumn ? 5 : 2) : rowNumber % 2 === 0 ? existingXfCount + (isLteColumn ? 3 : 0) : existingXfCount + (isLteColumn ? 4 : 1);
+    let styledCellXml = cellXml;
+    const value = cellXml.match(/<v>([\s\S]*?)<\/v>/)?.[1];
+    if (value !== undefined) {
+      const statusPattern = /\[\[RAHCOM_STATUS_(DOWN|UNREACHABLE)\]\]/g;
+      const runs: string[] = [];
+      let previousEnd = 0;
+      let match: RegExpExecArray | null;
+      let matchedStatus = false;
+      while ((match = statusPattern.exec(value))) {
+        const equipment = value.slice(previousEnd, match.index).trim();
+        if (equipment) runs.push(`<r><t xml:space="preserve">${equipment}</t></r>`);
+        const color = match[1] === 'DOWN' ? 'FFDC2626' : 'FF9CA3AF';
+        runs.push(`<r><rPr><sz val="26"/><color rgb="${color}"/></rPr><t xml:space="preserve"> \u25CF </t></r>`);
+        previousEnd = statusPattern.lastIndex;
+        matchedStatus = true;
+      }
+      if (matchedStatus) {
+        const remainingEquipment = value.slice(previousEnd).trim();
+        if (remainingEquipment) runs.push(`<r><t xml:space="preserve">${remainingEquipment}</t></r>`);
+        styledCellXml = `<c r="${cellReference}" t="inlineStr"><is>${runs.join('')}</is></c>`;
+      }
+    }
+    return styledCellXml.replace(/<c\b([^>]*)>/, (_all, attributes: string) => {
+      const updatedAttributes = attributes.replace(/\s+s="[^"]*"/, '').trim();
+      return `<c ${updatedAttributes} s="${styleId}">`;
+    });
+  });
+
+  XLSX.CFB.utils.cfb_add(archive, '/xl/styles.xml', new TextEncoder().encode(stylesXml));
+  XLSX.CFB.utils.cfb_add(archive, '/xl/worksheets/sheet1.xml', new TextEncoder().encode(worksheetXml));
+  return XLSX.CFB.write(archive, { fileType: 'zip', type: 'array' });
+}
+
+function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook) {
+  const worksheet = workbook.Sheets.Solar;
+  if (!worksheet?.['!ref']) return;
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  const lteColumnIndex = Array.from({ length: range.e.c - range.s.c + 1 }, (_, index) => range.s.c + index)
+    .find((columnIndex) => String(worksheet[XLSX.utils.encode_cell({ r: range.s.r, c: columnIndex })]?.v ?? '').trim().toUpperCase() === 'LTE') ?? -1;
+  const minimumWidths = [7, 18, 18, 14, 18];
+  const maximumWidths = [10, 28, 42, 22, 36];
+  const columnWidths = Array.from({ length: range.e.c + 1 }, (_, columnIndex) => {
+    let longestValue = 0;
+    for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex += 1) {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })];
+      if (!cell) continue;
+      const value = String(cell.w ?? cell.v ?? '').replace(/\[\[RAHCOM_STATUS_(?:DOWN|UNREACHABLE)\]\]/g, '');
+      longestValue = Math.max(longestValue, ...value.split(/\r?\n/).map((line) => Array.from(line.trim()).length));
+    }
+    const minimum = columnIndex === lteColumnIndex ? 36 : minimumWidths[columnIndex] ?? 12;
+    const maximum = columnIndex === lteColumnIndex ? 44 : maximumWidths[columnIndex] ?? 48;
+    const naturalWidth = Math.ceil(longestValue * 1.15 + 2);
+    return Math.min(maximum, Math.max(minimum, naturalWidth));
+  });
+  worksheet['!cols'] = columnWidths.map((wch) => ({ wch }));
+  worksheet['!rows'] = Array.from({ length: range.e.r + 1 }, (_, rowIndex) => {
+    if (rowIndex === 0) return { hpt: 34 };
+    let estimatedLines = 1;
+    let hasStatusDot = false;
+    for (let columnIndex = 0; columnIndex <= range.e.c; columnIndex += 1) {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })];
+      const value = String(cell?.w ?? cell?.v ?? '');
+      hasStatusDot ||= value.includes('[[RAHCOM_STATUS_');
+      const columnWidth = Math.max(8, columnWidths[columnIndex] - 2);
+      const lines = value.replace(/\[\[RAHCOM_STATUS_(?:DOWN|UNREACHABLE)\]\]/g, '').split(/\r?\n/)
+        .map((line) => Math.max(1, Math.ceil(Array.from(line).length / columnWidth)));
+      estimatedLines = Math.max(estimatedLines, ...lines);
+    }
+    return { hpt: Math.min(150, Math.max(hasStatusDot ? 36 : 22, estimatedLines * 18 + 6)) };
+  });
+}
+
 function axisTagStyle(value: string) {
   let hash = 0;
   for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) | 0;
@@ -155,9 +290,21 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const statusText = (state: 'normal' | 'down' | 'unreachable') => t(state === 'down' ? 'solarStatusDown' : state === 'unreachable' ? 'solarStatusUnreachable' : 'solarStatusNormal');
   const downloadExcel = () => {
     if (!tableRef.current) return;
-    const workbook = XLSX.utils.table_to_book(tableRef.current, { sheet: 'Solar' });
+    const exportTable = tableRef.current.cloneNode(true) as HTMLTableElement;
+    exportTable.querySelectorAll<HTMLElement>('[data-export-state]').forEach((status) => {
+      status.append(document.createTextNode(`[[RAHCOM_STATUS_${status.dataset.exportState?.toUpperCase()}]]`));
+    });
+    const workbook = XLSX.utils.table_to_book(exportTable, { sheet: 'Solar' });
+    sizeSolarWorksheetColumns(workbook);
     const timestamp = (currentSnapshot?.capturedAt ?? new Date().toISOString()).replace(/[-:T.Z]/g, '').slice(0, 14);
-    XLSX.writeFile(workbook, `solar-daily-${timestamp}.xlsx`);
+    const fileData = workbookWithColoredSolarStatuses(workbook);
+    const fileBytes = new Uint8Array(fileData as ArrayBuffer);
+    const fileUrl = URL.createObjectURL(new Blob([fileBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const downloadLink = document.createElement('a');
+    downloadLink.href = fileUrl;
+    downloadLink.download = `solar-daily-${timestamp}.xlsx`;
+    downloadLink.click();
+    window.setTimeout(() => URL.revokeObjectURL(fileUrl), 1000);
   };
   const columnCount = 8 + equipmentGroups.length + Number(showTrafficIncidents) + Number(showSystemIncidents);
   let nextRowNumber = 0;
@@ -179,7 +326,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         return changes;
       }, []);
       return <tr key={site} className="border-t border-border hover:bg-muted/20"><td className="p-3 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td><td className="p-3 font-mono" dir="ltr">{site}</td><td className="p-3">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td><td className="p-3 font-mono" dir="ltr">{axisCode ? <span className="inline-flex rounded-md border px-2 py-1 font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisCode}</span> : '—'}</td><td className="p-3">{axisName ? <span className="inline-flex rounded-md border px-2 py-1 font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisName}</span> : '—'}</td>
-      {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center">{group.equipment.length === 2 && group.equipment.every((equipment) => /^LTE-[12]$/i.test(equipment)) && !group.equipment.every((equipment) => bySiteEquipment.has(`${site}:${equipment}`)) ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(`${site}:${equipment}`)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(`${site}:${equipment}`)).map((equipment, equipmentIndex) => { const state = bySiteEquipment.get(`${site}:${equipment}`)!; return <span key={equipment} className={`inline-flex items-center ${equipmentIndex ? 'ms-2' : ''} gap-1.5`} dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)}><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span></span>; })}</td>)}
+      {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center">{group.equipment.length === 2 && group.equipment.every((equipment) => /^LTE-[12]$/i.test(equipment)) && !group.equipment.every((equipment) => bySiteEquipment.has(`${site}:${equipment}`)) ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(`${site}:${equipment}`)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(`${site}:${equipment}`)).map((equipment, equipmentIndex) => { const state = bySiteEquipment.get(`${site}:${equipment}`)!; return <span key={equipment} className={`inline-flex items-center ${equipmentIndex ? 'ms-2' : ''} gap-1.5`} dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span></span>; })}</td>)}
       {showTrafficIncidents && <td className={`max-w-56 whitespace-nowrap p-3 ${hasTrafficIncident ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}>{hasTrafficIncident ? trafficIncident : '—'}</td>}{showSystemIncidents && <td className="max-w-64 whitespace-nowrap p-3">{systemIncident}</td>}<td className="p-3 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td><td className="p-3 whitespace-nowrap">{solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '—' : '—'}</td><td className="max-w-72 p-3 text-xs"><time className="mb-1 block text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{historyChanges.length === 0 ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <div className="flex flex-col gap-1">{historyChanges.map(({ equipment, from, to }) => <span key={equipment} dir="auto"><bdi dir="ltr">{equipment}</bdi>: {from ? `${statusText(from)} → ` : ''}{statusText(to)}</span>)}</div>}</td></tr>;
   })}</tbody></table></div></div>;
 }

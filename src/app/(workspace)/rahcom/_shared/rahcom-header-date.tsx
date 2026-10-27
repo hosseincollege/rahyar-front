@@ -68,17 +68,18 @@ export function RahcomHeaderDate() {
     setOpen(false);
   };
 
-  return <div ref={wrapperRef} className="relative ms-auto flex flex-wrap items-center justify-end gap-3">
+  return <div ref={wrapperRef} className="ms-auto flex flex-wrap items-center justify-end gap-3">
     <span className="text-sm font-medium text-muted-foreground">{weekday}</span>
-    <label className="relative block" aria-label={uiMessage(locale, 'rahcomVisitDate')}>
-      <CalendarDays size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input type="text" inputMode="numeric" dir="ltr" aria-label={uiMessage(locale, 'rahcomVisitDate')} placeholder="1405/07/30" value={dateText} onClick={() => setOpen(true)} onChange={(event) => setDateText(event.target.value)} className="h-10 w-36 rounded-lg border border-border bg-background ps-9 pe-3 text-sm text-foreground" />
-    </label>
-    <button type="button" aria-label={uiMessage(locale, 'rahcomVisitDate')} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid size-10 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted" title={uiMessage(locale, 'rahcomVisitDate')}>
-      <CalendarDays size={18} />
-    </button>
-    {open && <div role="dialog" aria-label={uiMessage(locale, 'rahcomVisitDate')} className="absolute end-0 top-full z-[1000] mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-card p-3 shadow-xl">
+    <div className="relative flex items-center gap-2">
+      <label className="block" aria-label={uiMessage(locale, 'rahcomVisitDate')}>
+        <input type="text" inputMode="numeric" dir="ltr" aria-label={uiMessage(locale, 'rahcomVisitDate')} placeholder="1405/07/30" value={dateText} onClick={() => setOpen(true)} onChange={(event) => setDateText(event.target.value)} className="h-10 w-36 rounded-lg border border-border bg-background px-3 text-sm text-foreground" />
+      </label>
+      <button type="button" aria-label={uiMessage(locale, 'rahcomVisitDate')} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid size-10 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted" title={uiMessage(locale, 'rahcomVisitDate')}>
+        <CalendarDays size={18} />
+      </button>
+      {open && <div role="dialog" aria-label={uiMessage(locale, 'rahcomVisitDate')} className="absolute end-0 top-full z-[1100] isolate mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border p-3 text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: 'var(--card)' }}>
       <div className="mb-3 flex items-center justify-between gap-2">
+        <button type="button" onClick={() => { setDateText(todayJalaliDate()); setViewMonth(persianParts(fallbackDate)); setOpen(false); }} className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold text-foreground hover:bg-muted">{uiMessage(locale, 'rahcomGoToToday')}</button>
         <button type="button" aria-label={uiMessage(locale, 'rahcomPreviousMonth')} onClick={() => setViewMonth((month) => shiftedMonth(month.year, month.month, -1))} className="grid size-9 place-items-center rounded-lg border border-border text-foreground hover:bg-muted">{direction === 'rtl' ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>
         <strong className="text-sm text-foreground">{monthLabel}</strong>
         <button type="button" aria-label={uiMessage(locale, 'rahcomNextMonth')} onClick={() => setViewMonth((month) => shiftedMonth(month.year, month.month, 1))} className="grid size-9 place-items-center rounded-lg border border-border text-foreground hover:bg-muted">{direction === 'rtl' ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
@@ -93,6 +94,7 @@ export function RahcomHeaderDate() {
             return <button key={day} type="button" role="gridcell" aria-label={dayLabel} aria-pressed={selected} onClick={() => chooseDay(day)} className={`grid aspect-square place-items-center rounded-lg text-sm text-foreground hover:bg-primary/10 ${selected ? 'bg-primary text-primary-foreground hover:bg-primary' : ''}`}>{number.format(day)}</button>;
           })())}
       </div>
-    </div>}
+      </div>}
+    </div>
   </div>;
 }

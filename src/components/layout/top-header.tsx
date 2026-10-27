@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   getCurrentOrganizationId,
   getCurrentUser,
@@ -45,6 +45,8 @@ import { uiMessage } from '@/lib/ui-messages';
 import { readShellVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
 import { saveSearchHistory } from '@/lib/search-history';
+import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { searchRahcomSystems } from '@/lib/rahcom-system-search';
 import { HeaderAccountSwitcher } from './header-account-switcher';
 import { HeaderProvinceSelector } from './header-province-selector';
 import type { MissionEntryMode } from './mission-quick-actions';
@@ -83,8 +85,16 @@ export function TopHeader({
   const [mobileTool, setMobileTool] = useState<'search' | 'accountSwitcher' | 'province' | 'profile' | 'mission' | null>(null);
   const mobileToolsRef = useRef<HTMLDivElement>(null);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
+  const [headerSystems, setHeaderSystems] = useState<RahcomSystem[] | null>(null);
+  const [headerSearchResults, setHeaderSearchResults] = useState<RahcomSystem[]>([]);
+  const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
+  const [headerSearchLoading, setHeaderSearchLoading] = useState(false);
+  const [headerSearchError, setHeaderSearchError] = useState(false);
+  const headerSystemsPromiseRef = useRef<Promise<RahcomSystem[]> | null>(null);
+  const headerSearchRef = useRef<HTMLFormElement>(null);
   const [shellVisibility, setShellVisibility] = useState(() => readShellVisibility(isReducedEdition));
   const router = useRouter();
+  const pathname = usePathname();
   const [organizationBranding, setOrganizationBranding] =
     useState<OrganizationBranding | null>(null);
   const { theme, setTheme } = useTheme();
@@ -93,6 +103,53 @@ export function TopHeader({
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const isMissionModeVisible = (_mode: MissionEntryMode) => shellVisibility.headerControls?.missionTools !== false;
+
+  useEffect(() => {
+    const query = headerSearchQuery.trim();
+    if (!query) {
+      setHeaderSearchResults([]);
+      setHeaderSearchLoading(false);
+      setHeaderSearchError(false);
+      setHeaderSearchOpen(false);
+      return;
+    }
+    setHeaderSearchOpen(true);
+    if (headerSystems) {
+      setHeaderSearchResults(searchRahcomSystems(headerSystems, query, locale).slice(0, 8));
+      setHeaderSearchLoading(false);
+      setHeaderSearchError(false);
+      return;
+    }
+    setHeaderSearchLoading(true);
+    let active = true;
+    const timer = window.setTimeout(() => {
+      headerSystemsPromiseRef.current ??= rahcomApi.systems();
+      void headerSystemsPromiseRef.current
+        .then((items) => {
+          if (!active) return;
+          setHeaderSystems(items);
+          setHeaderSearchResults(searchRahcomSystems(items, query, locale).slice(0, 8));
+          setHeaderSearchError(false);
+        })
+        .catch(() => {
+          headerSystemsPromiseRef.current = null;
+          if (active) { setHeaderSearchResults([]); setHeaderSearchError(true); }
+        })
+        .finally(() => { if (active) setHeaderSearchLoading(false); });
+    }, 160);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [headerSearchQuery, headerSystems, locale]);
+
+  useEffect(() => {
+    const closeOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!headerSearchRef.current?.contains(target) && !mobileToolsRef.current?.contains(target)) setHeaderSearchOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setHeaderSearchOpen(false); };
+    document.addEventListener('mousedown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('mousedown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
+  }, []);
 
   useEffect(() => {
     const refresh = () => setShellVisibility(readShellVisibility(isReducedEdition));
@@ -159,6 +216,31 @@ export function TopHeader({
     if (query) saveSearchHistory(query, isReducedEdition);
     router.push(query ? `/dashboard/search?q=${encodeURIComponent(query)}` : '/dashboard/search');
   };
+
+  const selectHeaderSystem = (system: RahcomSystem) => {
+    saveSearchHistory(headerSearchQuery, isReducedEdition);
+    window.sessionStorage.setItem('rahyar-rahcom-focus-system', system.id);
+    const userId = getCurrentUser()?.id;
+    window.localStorage.setItem(`rahyar-selected-province:${userId || 'current'}`, system.province);
+    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: system.province } }));
+    setHeaderSearchQuery('');
+    setHeaderSearchOpen(false);
+    setMobileToolsOpen(false);
+    setMobileTool(null);
+    if (pathname === '/rahcom/map') window.dispatchEvent(new Event('rahyar:focus-system'));
+    else router.push('/rahcom/map');
+  };
+
+  const renderHeaderSystemSuggestions = (mobile = false) => headerSearchOpen && headerSearchQuery.trim() ? (
+    <div role="listbox" aria-label={message('headerSearch')} aria-live="polite" dir={direction} className={`${mobile ? 'relative mt-2 w-full' : 'absolute start-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)]'} z-[120] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-2xl`}>
+      {headerSearchLoading ? <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground"><span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />{message('headerSearch')}</div> : null}
+      {headerSearchError ? <p role="alert" className="px-3 py-3 text-sm text-muted-foreground">{message('rahcomSystemsLoadError')}</p> : null}
+      {!headerSearchLoading && !headerSearchError && headerSearchResults.length === 0 ? <p className="px-3 py-3 text-sm text-muted-foreground">{message('searchNoResults')}</p> : null}
+      {!headerSearchLoading ? headerSearchResults.map((system) => <button key={system.id} type="button" role="option" aria-selected="false" onClick={() => selectHeaderSystem(system)} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2 text-start last:border-b-0 hover:bg-[var(--primary-soft)] focus-visible:bg-[var(--primary-soft)] focus-visible:outline-none">
+        <span className="min-w-0 truncate text-sm font-medium">{system.systemName}</span><span dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</span>
+      </button>) : null}
+    </div>
+  ) : null;
 
   /*
    * دریافت اطلاعات کاربر و اعمال تم ذخیره‌شده
@@ -393,7 +475,7 @@ export function TopHeader({
           {mobileToolsOpen && <div dir={direction} className="fixed inset-x-3 top-[4.5rem] z-[100] max-h-[calc(100dvh-5.5rem)] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl sm:inset-x-5">
             {mobileTool === null ? <div className="grid gap-2">{([['search','headerSearch'],['accountSwitcher','settingsHeaderAccountSwitcher'],['province','settingsHeaderProvinceSelector'],['profile','viewProfile'],['mission','missionShortcutTitle']] as const).map(([id,label]) => <button key={id} type="button" onClick={() => setMobileTool(id)} className="min-h-12 rounded-xl border border-[var(--border)] px-4 text-start text-sm font-medium text-[var(--foreground)] hover:bg-[var(--primary-soft)]">{message(label)}</button>)}</div> : <div>
               <button type="button" onClick={() => setMobileTool(null)} aria-label={message('closeSidebar')} className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"><ChevronLeft size={18}/>{direction === 'rtl' ? '→' : '←'}</button>
-              {mobileTool === 'search' && <form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><input autoFocus type="search" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-background px-3 text-sm text-foreground"/><button aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>}
+              {mobileTool === 'search' && <div className="relative"><form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><input autoFocus type="search" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-background px-3 text-sm text-foreground"/><button type="submit" aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>{renderHeaderSystemSuggestions(true)}</div>}
               {mobileTool === 'accountSwitcher' && shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded/>}
               {mobileTool === 'province' && shellVisibility.headerControls?.provinceSelector !== false && <div className="p-1"><HeaderProvinceSelector userId={user?.id}/></div>}
               {mobileTool === 'profile' && <div className="flex items-center justify-between gap-3 p-2"><span className="min-w-0 truncate text-sm font-semibold">{[user?.firstName,user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}</span><button type="button" onClick={() => { setMobileToolsOpen(false); setMobileTool(null); void handleSignOut(); }} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400"><LogOut size={16}/>{message('sidebarSignOut')}</button></div>}
@@ -559,11 +641,12 @@ export function TopHeader({
             <Icon size={17}/>
           </button>
         ))}
-        <form onSubmit={submitHeaderSearch} role="search" className="pointer-events-auto hidden xl:flex">
+        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="pointer-events-auto relative hidden xl:flex">
           <label className="relative block">
-            <Search size={16} aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <button type="submit" aria-label={message('headerSearch')} className="absolute start-1 top-1/2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:text-[var(--primary)]"><Search size={16} aria-hidden="true" /></button>
             <input type="search" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-9 w-48 rounded-xl border border-[var(--border)] bg-[var(--surface)] ps-9 pe-3 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] 2xl:w-56" />
           </label>
+          {renderHeaderSystemSuggestions()}
         </form>
         <button type="button" onClick={() => router.push('/dashboard/search')} title={message('headerSearch')} aria-label={message('headerSearch')} className="pointer-events-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] xl:hidden"><Search size={17} /></button>
       </div>

@@ -55,6 +55,10 @@ export type RahcomTrafficSnapshot = {
   rows: string[][]; rowCount: number; createdAt: string;
 };
 export type RahcomTrafficSystemHistory = Pick<RahcomTrafficSnapshot, 'id' | 'fileName' | 'sheetName' | 'rowCount' | 'createdAt' | 'headers'> & { row: string[] };
+export type RahcomImportedTicket = {
+  id: string; ticketCode: string; systemCode: string; summary: string; customer: string; equipment: string;
+  type: string; status: string; priority: string; supportTeam: string; createdOn: string; sourceFileName: string; importedAt: string;
+};
 /** Coordinates copied for search or navigation: latitude first, ASCII comma, longitude. */
 export function formatRahcomCoordinates(latitude: number, longitude: number) {
   return `${latitude}, ${longitude}`;
@@ -79,6 +83,8 @@ export const rahcomApi = {
   createSolarSnapshot: (data: { downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),
   trafficSnapshot: () => apiClient.get<RahcomTrafficSnapshot | null>('/rahcom/traffic-snapshot'),
   trafficSystemHistory: (systemCode: string) => apiClient.get<RahcomTrafficSystemHistory[]>(`/rahcom/traffic-snapshot/history?systemCode=${encodeURIComponent(systemCode)}`),
+  importedTickets: () => apiClient.get<RahcomImportedTicket[]>('/rahcom/tickets'),
+  importTickets: (sourceFileName: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt'>>) => apiClient.post<{ imported: number }, { sourceFileName: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, tickets }),
   createTrafficSnapshot: (data: Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'>) => afterTrafficSnapshotMutation(apiClient.post<RahcomTrafficSnapshot>('/rahcom/traffic-snapshots', data)),
   applyTrafficAxes: () => afterAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>('/rahcom/traffic-snapshot/apply-axes', {})),
   importSystems: (province: string, systems: Array<Record<string, unknown>>) => afterSystemsMutation(apiClient.post<{ imported: number }>('/rahcom/systems/import', { province, systems })),
