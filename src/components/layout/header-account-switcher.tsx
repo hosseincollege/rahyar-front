@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { UsersRound } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { developmentApi, type DevelopmentAccount, type ImpersonationContext } from '@/app/(workspace)/development/development-api';
 import { ApiError, setAccessToken } from '@/lib/api-client';
@@ -88,11 +89,11 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
 
   return (
     <div ref={dropdownRef} dir={getLocaleDirection(locale)} className={`pointer-events-auto relative ${embedded ? 'w-full' : 'shrink-0'}`}>
-      <button type="button" role={embedded ? 'menuitem' : undefined} onClick={() => setOpen((value) => !value)} aria-label={t('developmentAccountSwitching')} aria-expanded={open} aria-controls="header-account-switcher-menu" title={t('developmentAccountSwitching')} className={embedded ? 'flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)]' : 'flex h-9 items-center justify-center whitespace-nowrap rounded-xl border border-[var(--border)] px-3 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--primary-soft)] sm:text-sm'}>
-        {t('developmentAccountSwitching')}
+      <button type="button" role={embedded ? 'menuitem' : undefined} onClick={() => setOpen((value) => !value)} aria-label={t('developmentAccountSwitching')} aria-haspopup={embedded ? undefined : 'menu'} aria-expanded={open} aria-controls="header-account-switcher-menu" title={t('developmentAccountSwitching')} className={embedded ? 'flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)]' : `flex size-9 items-center justify-center rounded-xl border text-[var(--foreground)] transition-colors ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
+        {embedded ? t('developmentAccountSwitching') : <UsersRound size={17} aria-hidden="true" />}
       </button>
       {open && (
-        <div id="header-account-switcher-menu" role="menu" className={embedded ? 'absolute inset-x-0 top-full z-[70] mt-1 max-h-[min(65vh,24rem)] w-full space-y-1 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl' : 'absolute end-0 top-full z-[70] mt-2 w-[min(18rem,calc(100vw-1rem))] space-y-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl'}>
+        <div id="header-account-switcher-menu" role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={embedded ? 'absolute inset-x-0 top-full z-[70] mt-1 max-h-[min(65vh,24rem)] w-full space-y-1 overflow-y-auto rounded-xl border border-[var(--border)] p-2 shadow-xl' : 'absolute end-0 top-full z-[70] mt-2 w-[min(18rem,calc(100vw-1rem))] space-y-1 rounded-xl border border-[var(--border)] p-2 shadow-xl'}>
           {impersonation?.isImpersonating && (
             <button type="button" role="menuitem" onClick={() => void returnToAdmin()} disabled={returning} className="flex min-h-11 w-full items-center rounded-lg px-3 text-start text-sm font-semibold text-foreground transition-colors hover:bg-[var(--primary-soft)] disabled:cursor-wait disabled:opacity-60">
               {t(returning ? 'developmentReturningToAdmin' : 'developmentReturnToAdmin')}

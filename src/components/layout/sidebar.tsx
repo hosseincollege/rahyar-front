@@ -70,12 +70,11 @@ const navigation: NavigationItem[] = [
     sub: [
       { titleKey: 'rahcomMap', href: '/rahcom/map' },
       { titleKey: 'rahcomSystemsList', href: '/rahcom/systems' },
-      { titleKey: 'rahcomSystemData', href: '/rahcom/data' },
       { titleKey: 'rahcomDailyTraffic', href: '/rahcom/daily-traffic' },
       { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
+      { titleKey: 'rahcomTickets', href: '/rahcom/tickets' },
       { titleKey: 'rahcomAggregateList', href: '/rahcom/aggregate' },
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
-      { titleKey: 'rahcomTickets', href: '/rahcom/tickets' },
     ],
   },
   {

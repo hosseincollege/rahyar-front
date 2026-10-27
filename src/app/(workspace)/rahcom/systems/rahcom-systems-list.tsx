@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Copy, ExternalLink, MapPinned, Pencil, Save, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, ExternalLink, MapPinned, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
@@ -153,7 +153,7 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
           <h2 className="font-semibold text-foreground">{t('rahcomSystemsList')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{systems.length} · {t('rahcomSystemName')}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><span>{t('rahcomProvince')}: {groups.length}</span>{['incidents','outages','tickets'].map((filter) => <label key={filter} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2"><input type="checkbox" checked={filters.includes(filter)} onChange={() => setFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter])}/>{t(filter === 'incidents' ? 'rahcomFilterIncidents' : filter === 'outages' ? 'rahcomFilterOutages' : 'rahcomFilterTickets')}</label>)}<button type="button" onClick={() => router.push('/rahcom/data')} className="min-h-9 rounded-lg bg-primary px-3 font-semibold text-primary-foreground">{t('rahcomUploadData')}</button></div>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><span>{t('rahcomProvince')}: {groups.length}</span>{['incidents','outages','tickets'].map((filter) => <label key={filter} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2"><input type="checkbox" checked={filters.includes(filter)} onChange={() => setFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter])}/>{t(filter === 'incidents' ? 'rahcomFilterIncidents' : filter === 'outages' ? 'rahcomFilterOutages' : 'rahcomFilterTickets')}</label>)}<button type="button" onClick={() => router.push('/rahcom/data')} aria-label={t('rahcomUploadData')} title={t('rahcomUploadData')} className="inline-flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Upload size={17} aria-hidden="true" /></button></div>
       </div>
 
       {loading ? <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</div> : null}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomImportedTicket, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { filterRahcomLtePairs, parseRahcomSolarList, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
@@ -18,10 +18,12 @@ export function RahcomAggregateList() {
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [solar, setSolar] = useState<RahcomSolarSnapshot | null>(null);
   const [traffic, setTraffic] = useState<RahcomTrafficSnapshot | null>(null);
+  const [tickets, setTickets] = useState<RahcomImportedTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedProvince, setSelectedProvince] = useState('isfahan');
   const [sortBy, setSortBy] = useState<'code' | 'name'>('code');
+  const [setOperation, setSetOperation] = useState<'union' | 'intersection'>('union');
   const [showTrafficIncidents, setShowTrafficIncidents] = useState(true);
   const [showSystemIncidents, setShowSystemIncidents] = useState(true);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -40,12 +42,13 @@ export function RahcomAggregateList() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([rahcomApi.systems(), rahcomApi.solarSnapshots(), rahcomApi.trafficSnapshot()])
-      .then(([systemRows, solarRows, trafficRow]) => {
+    Promise.all([rahcomApi.systems(), rahcomApi.solarSnapshots(), rahcomApi.trafficSnapshot(), rahcomApi.importedTickets()])
+      .then(([systemRows, solarRows, trafficRow, ticketRows]) => {
         if (!active) return;
         const safeSystems = Array.isArray(systemRows) ? systemRows.filter(Boolean) : [];
         const safeSolarRows = Array.isArray(solarRows) ? solarRows.filter((item) => item && typeof item === 'object') : [];
         setSystems(safeSystems);
+        setTickets(Array.isArray(ticketRows) ? ticketRows.filter(Boolean) : []);
         setSolar([...safeSolarRows].filter((item) => item.capturedAt && tehranDateKey(item.capturedAt) === tehranDateKey(date ?? undefined)).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0] ?? null);
         setTraffic(trafficRow && typeof trafficRow === 'object' ? {
           ...trafficRow,
@@ -73,57 +76,60 @@ export function RahcomAggregateList() {
     const solarByCode = new Map<string, Set<string>>();
     const rawSolarEntries = solar ? [...parseRahcomSolarList(solar.downText ?? '', 'down'), ...parseRahcomSolarList(solar.unreachableText ?? '', 'unreachable')]
       .filter((entry) => defaultSolarEquipment.has(/^LTE-[12]$/i.test(entry.equipment) ? 'LTE' : entry.equipment.toUpperCase())) : [];
-    const rawByCode = new Map<string, Set<string>>();
-    for (const entry of rawSolarEntries) {
-      const equipments = rawByCode.get(normalize(entry.site)) ?? new Set<string>();
-      equipments.add(entry.equipment.toUpperCase());
-      rawByCode.set(normalize(entry.site), equipments);
-    }
-    const singleLteOnlyCodes = new Set([...rawByCode.entries()]
-      .filter(([, equipments]) => [...equipments].filter((equipment) => /^LTE-[12]$/.test(equipment)).length === 1 && [...equipments].every((equipment) => /^LTE-[12]$/.test(equipment)))
-      .map(([code]) => code));
     for (const entry of filterRahcomLtePairs(rawSolarEntries)) {
       const equipment = solarByCode.get(normalize(entry.site)) ?? new Set<string>();
       equipment.add(`${entry.equipment}:${entry.state}`);
       solarByCode.set(normalize(entry.site), equipment);
     }
-    const trafficByCode = new Map<string, string[]>();
     const trafficRowsByCode = new Map<string, string[]>();
+    const trafficListCodes = new Set<string>();
     const trafficIncidentCodes = new Set<string>();
     if (traffic && codeIndex >= 0) for (const row of Array.isArray(traffic.rows) ? traffic.rows : []) {
       if (provinceIndex >= 0 && !belongsToProvince(row[provinceIndex] ?? '')) continue;
       const code = normalize(row[codeIndex] ?? '');
       if (!code) continue;
+      // Use the system registry as the authoritative province boundary when the
+      // imported traffic sheet has no recognizable province column.
       if (!systemByCode.has(code)) continue;
       if (!trafficRowsByCode.has(code)) trafficRowsByCode.set(code, row);
+      trafficListCodes.add(code);
       if (trafficIncidentIndex >= 0 && row[trafficIncidentIndex]?.trim() && !/^(0|[-—–]|none|null|no incident|ندارد|نداشته|بدون\s*مورد)$/i.test(row[trafficIncidentIndex].trim())) trafficIncidentCodes.add(code);
-      const status = solarIndex >= 0 ? normalize(row[solarIndex] ?? '') : '';
-      if (!(status.includes('down') || status.includes('دان') || status.includes('قطع')) || singleLteOnlyCodes.has(code)) continue;
-      if (!trafficByCode.has(code)) trafficByCode.set(code, row);
     }
+    const ticketCountByCode = new Map<string, number>();
+    for (const ticket of tickets) {
+      const code = normalize(ticket.systemCode || '');
+      if (code && systemByCode.has(code)) ticketCountByCode.set(code, (ticketCountByCode.get(code) ?? 0) + 1);
+    }
+    const solarListCodes = new Set([...solarByCode.keys()].filter((code) => systemByCode.has(code)));
+    const ticketListCodes = new Set(ticketCountByCode.keys());
+    const sourceCodes = [trafficListCodes, solarListCodes, ticketListCodes];
     const systemIncidentCodes = [...systemByCode.entries()].filter(([, system]) => Boolean(system.incidentType || system.incidentDetails)).map(([code]) => code);
-    const codes = new Set([...solarByCode.keys(), ...trafficByCode.keys(), ...trafficIncidentCodes, ...systemIncidentCodes].filter((code) => {
-      if (!systemByCode.has(code) && !trafficRowsByCode.has(code)) return false;
-      if (!showTrafficIncidents && trafficIncidentCodes.has(code)) return false;
-      if (!showSystemIncidents && systemIncidentCodes.includes(code)) return false;
-      return true;
-    }));
+    const codes = new Set((setOperation === 'union'
+      ? sourceCodes.flatMap((source) => [...source])
+      : [...sourceCodes[0]].filter((code) => sourceCodes.every((source) => source.has(code))))
+      .filter((code) => {
+        if (!systemByCode.has(code)) return false;
+        // Keep the incident controls available for the extra detail columns.
+        if (!showTrafficIncidents && trafficIncidentCodes.has(code)) return false;
+        if (!showSystemIncidents && systemIncidentCodes.includes(code)) return false;
+        return true;
+      }));
     return [...codes].map((code) => {
       const system = systemByCode.get(code);
       const trafficRow = trafficRowsByCode.get(code);
       const systemIncident = system?.incidentType ? `${t(system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth')}${system.incidentDetails ? ` · ${system.incidentDetails}` : ''}` : system?.incidentDetails || '—';
-      return { code, system, trafficRow, trafficSolarStatus: solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '' : '', equipment: [...(solarByCode.get(code) ?? [])], name: system?.systemName || (nameIndex >= 0 ? trafficRow?.[nameIndex] : '') || '—', axisCode: system?.axisCode || (axisCodeIndex >= 0 ? trafficRow?.[axisCodeIndex] : '') || '', axisName: (system?.axis || (axisNameIndex >= 0 ? trafficRow?.[axisNameIndex] : '') || '').replace(/^محور\s*/u, '').trim(), trafficIncident: trafficIncidentIndex >= 0 ? trafficRow?.[trafficIncidentIndex]?.trim() || '' : '', systemIncident };
+      return { code, system, trafficRow, inTrafficList: trafficListCodes.has(code), inSolarList: solarListCodes.has(code), ticketCount: ticketCountByCode.get(code) ?? 0, trafficSolarStatus: solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '' : '', equipment: [...(solarByCode.get(code) ?? [])], name: system?.systemName || (nameIndex >= 0 ? trafficRow?.[nameIndex] : '') || '—', axisCode: system?.axisCode || (axisCodeIndex >= 0 ? trafficRow?.[axisCodeIndex] : '') || '', axisName: (system?.axis || (axisNameIndex >= 0 ? trafficRow?.[axisNameIndex] : '') || '').replace(/^محور\s*/u, '').trim(), trafficIncident: trafficIncidentIndex >= 0 ? trafficRow?.[trafficIncidentIndex]?.trim() || '' : '', systemIncident };
     }).sort((a, b) => (sortBy === 'code' ? a.axisCode : a.axisName).localeCompare(sortBy === 'code' ? b.axisCode : b.axisName, locale, { numeric: true, sensitivity: 'base' }) || a.code.localeCompare(b.code));
-  }, [locale, selectedProvince, showSystemIncidents, showTrafficIncidents, solar, sortBy, systems, traffic]);
+  }, [locale, selectedProvince, setOperation, showSystemIncidents, showTrafficIncidents, solar, sortBy, systems, tickets, traffic]);
 
   const included = (value: boolean) => <span className={value ? 'font-semibold text-primary' : 'text-muted-foreground'}>{value ? `✓ ${t('rahcomInList')}` : `— ${t('rahcomNotInList')}`}</span>;
-  const tableColumnCount = 8 + Number(showTrafficIncidents) + Number(showSystemIncidents);
+  const tableColumnCount = 10 + Number(showTrafficIncidents) + Number(showSystemIncidents);
   return <section dir="auto" className="space-y-4">
     <p className="text-sm text-muted-foreground">{t('rahcomAggregateDescription')}</p>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showTrafficIncidents} onChange={(event) => setShowTrafficIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomTrafficIncidentColumn')}</label><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showSystemIncidents} onChange={(event) => setShowSystemIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomSystemIncidentColumn')}</label></div>
+    <div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group" aria-label={t('rahcomAggregateOperation')}><button type="button" aria-pressed={setOperation === 'union'} onClick={() => setSetOperation('union')} className={`px-3 py-1.5 ${setOperation === 'union' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAggregateUnion')}</button><button type="button" aria-pressed={setOperation === 'intersection'} onClick={() => setSetOperation('intersection')} className={`border-s border-border px-3 py-1.5 ${setOperation === 'intersection' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAggregateIntersection')}</button></div><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showTrafficIncidents} onChange={(event) => setShowTrafficIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomTrafficIncidentColumn')}</label><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showSystemIncidents} onChange={(event) => setShowSystemIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomSystemIncidentColumn')}</label></div>
     <div className="overflow-x-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-      {[t('rahcomRowNumber'), t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomSolarDaily'), t('rahcomTrafficSolarStatus'), t('rahcomAggregateEquipment')].map((heading) => <th key={heading} className="p-3 text-start">{heading}</th>)}{showTrafficIncidents && <th className="p-3 text-start">{t('rahcomTrafficIncidentColumn')}</th>}{showSystemIncidents && <th className="p-3 text-start">{t('rahcomSystemIncidentColumn')}</th>}
-    </tr></thead><tbody>{loading ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('rahcomSystemsLoading')}</td></tr> : rows.length === 0 ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : rows.map((row, index) => { const rawStatus = normalize(row.trafficSolarStatus); const isDown = rawStatus.includes('down') || rawStatus.includes('دان') || rawStatus.includes('قطع'); const hasTrafficIncident = Boolean(row.trafficIncident && !/^(0|[-—–]|none|null|no incident|ندارد|نداشته|بدون\s*مورد)$/i.test(row.trafficIncident)); return <tr key={row.code} className="border-t border-border"><td className="p-3 text-center tabular-nums">{(index + 1).toLocaleString(locale)}</td><td className="p-3 font-mono" dir="ltr">{row.code}</td><td className="p-3">{row.name}</td><td className="p-3 font-mono" dir="ltr">{row.axisCode || '—'}</td><td className="p-3">{row.axisName || '—'}</td><td className="p-3">{included(row.equipment.length > 0)}</td><td className={isDown ? 'font-semibold text-destructive' : 'text-primary'}>{rawStatus ? t(isDown ? 'solarStatusDown' : 'solarStatusNormal') : '—'}</td><td className="p-3" dir="ltr">{row.equipment.length ? row.equipment.map((item) => <span key={item} className="me-2 whitespace-nowrap">{item.replace(':down', ' 🔴').replace(':unreachable', ' ⚪')}</span>) : '—'}</td>{showTrafficIncidents && <td className={hasTrafficIncident ? 'font-semibold text-destructive' : 'text-muted-foreground'}>{hasTrafficIncident ? row.trafficIncident : '—'}</td>}{showSystemIncidents && <td>{row.systemIncident}</td>}</tr>; })}</tbody></table></div>
+      {[t('rahcomRowNumber'), t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomDailyTraffic'), t('rahcomSolarDaily'), t('rahcomTickets'), t('rahcomTrafficSolarStatus'), t('rahcomAggregateEquipment')].map((heading) => <th key={heading} className="p-3 text-start">{heading}</th>)}{showTrafficIncidents && <th className="p-3 text-start">{t('rahcomTrafficIncidentColumn')}</th>}{showSystemIncidents && <th className="p-3 text-start">{t('rahcomSystemIncidentColumn')}</th>}
+    </tr></thead><tbody>{loading ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('rahcomSystemsLoading')}</td></tr> : rows.length === 0 ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : rows.map((row, index) => { const rawStatus = normalize(row.trafficSolarStatus); const isDown = rawStatus.includes('down') || rawStatus.includes('دان') || rawStatus.includes('قطع'); const hasTrafficIncident = Boolean(row.trafficIncident && !/^(0|[-—–]|none|null|no incident|ندارد|نداشته|بدون\s*مورد)$/i.test(row.trafficIncident)); return <tr key={row.code} className="border-t border-border"><td className="p-3 text-center tabular-nums">{(index + 1).toLocaleString(locale)}</td><td className="p-3 font-mono" dir="ltr">{row.code}</td><td className="p-3">{row.name}</td><td className="p-3 font-mono" dir="ltr">{row.axisCode || '—'}</td><td className="p-3">{row.axisName || '—'}</td><td className="p-3">{included(row.inTrafficList)}</td><td className="p-3">{included(row.inSolarList)}</td><td className="p-3">{row.ticketCount ? new Intl.NumberFormat(locale).format(row.ticketCount) : '—'}</td><td className={isDown ? 'font-semibold text-destructive' : 'text-primary'}>{rawStatus ? t(isDown ? 'solarStatusDown' : 'solarStatusNormal') : '—'}</td><td className="p-3" dir="ltr">{row.equipment.length ? row.equipment.map((item) => { const [equipment, state] = item.split(':'); return <span key={item} className="me-3 inline-flex items-center gap-1.5 whitespace-nowrap"><bdi>{equipment}</bdi><i className={`size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} title={state === 'down' ? t('solarStatusDown') : t('solarStatusUnreachable')} /></span>; }) : '—'}</td>{showTrafficIncidents && <td className={hasTrafficIncident ? 'font-semibold text-destructive' : 'text-muted-foreground'}>{hasTrafficIncident ? row.trafficIncident : '—'}</td>}{showSystemIncidents && <td>{row.systemIncident}</td>}</tr>; })}</tbody></table></div>
   </section>;
 }
