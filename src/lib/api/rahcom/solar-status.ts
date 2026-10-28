@@ -46,8 +46,8 @@ export function tehranDateKey(value: Date | string = new Date()) {
 export function latestRahcomSolarSnapshotForToday(snapshots: RahcomSolarSnapshot[], today = tehranDateKey()) {
   return snapshots
     .filter((snapshot) => tehranDateKey(snapshot.capturedAt) === today)
-    .sort((left, right) => new Date(right.createdAt || right.capturedAt).getTime() - new Date(left.createdAt || left.capturedAt).getTime()
-      || new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime())[0] ?? null;
+    .sort((left, right) => new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime()
+      || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;
 }
 
 export function failedRahcomSystemCodes(snapshot: RahcomSolarSnapshot | null) {

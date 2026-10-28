@@ -152,13 +152,17 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     }).map((row) => (row[codeIndex] ?? '').trim().toUpperCase()).filter(Boolean));
   }, [trafficSnapshot]);
   const systemIncidentCodes = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => system.systemCode.trim().toUpperCase())), [systems]);
-  const incidentVisibility = useRef({ showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes });
-  useEffect(() => {
-    incidentVisibility.current = { showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes };
-  }, [showTrafficIncidents, showSystemIncidents, incidentCodes, systemIncidentCodes]);
   const visibleSystems = useMemo(() => systems.filter((system) =>
     !solarDownFilter || solarFailedCodes.has(system.systemCode.trim().toUpperCase()),
   ), [solarDownFilter, solarFailedCodes, systems]);
+  const displayedSystems = useMemo(() => visibleSystems.filter((system) => {
+    const systemCode = system.systemCode.trim().toUpperCase();
+    const hasTrafficIncident = incidentCodes.has(systemCode);
+    const hasSystemIncident = systemIncidentCodes.has(systemCode);
+    return (!hasTrafficIncident && !hasSystemIncident)
+      || (showTrafficIncidents && hasTrafficIncident)
+      || (showSystemIncidents && hasSystemIncident);
+  }), [visibleSystems, incidentCodes, systemIncidentCodes, showTrafficIncidents, showSystemIncidents]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
     name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axis: t('rahcomAxis'), axisCode: t('rahcomAxisCode'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'), copy: t('rahcomCopy'), copyAll: t('rahcomCopyAll'),
@@ -383,7 +387,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   }, [province, systemsRevision]);
 
   useEffect(() => { onAxisOptionsChange?.(axisOptions); }, [axisOptions, onAxisOptionsChange]);
-  useEffect(() => { onSystemsCountChange?.(visibleSystems.length); }, [onSystemsCountChange, visibleSystems.length]);
+  useEffect(() => { onSystemsCountChange?.(displayedSystems.length); }, [onSystemsCountChange, displayedSystems.length]);
   useEffect(() => { onSystemsErrorChange?.(systemsError); }, [onSystemsErrorChange, systemsError]);
 
   useEffect(() => {
@@ -394,7 +398,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       const layer = systemsLayer.current; layer.clearLayers();
       const nextSystemMarkers = new Map<string, Marker>();
       const markers: Marker[] = [];
-      visibleSystems.forEach((system) => {
+      displayedSystems.forEach((system) => {
         const systemAxisCode = system.axisCode?.trim() ?? '';
         const markerColor = systemAxisCode ? rahcomAxisColor(axisLabelByCode.get(systemAxisCode) ?? systemAxisCode, axisOptions) : '#64748b';
         const systemCode = system.systemCode.trim().toUpperCase();
@@ -404,11 +408,8 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
         });
         const marker = leafletMarker([system.latitude, system.longitude], { icon: systemIcon, draggable: false })
           .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: Math.min(300, window.innerWidth - 40), maxWidth: Math.min(window.innerWidth - 40, 440), className: 'rahcom-map-system-popup', autoPanPadding: [24, 24] });
-        const visibility = incidentVisibility.current;
-        const hasTrafficIncident = visibility.incidentCodes.has(systemCode);
-        const hasSystemIncident = visibility.systemIncidentCodes.has(systemCode);
-        const shouldShow = (!hasTrafficIncident && !hasSystemIncident) || (visibility.showTrafficIncidents && hasTrafficIncident) || (visibility.showSystemIncidents && hasSystemIncident);
-        if (shouldShow) { marker.addTo(layer); markers.push(marker); }
+        marker.addTo(layer);
+        markers.push(marker);
         nextSystemMarkers.set(systemCode, marker);
 
         marker.on('popupopen', ({ popup }) => {
@@ -531,7 +532,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       }
     });
     return () => { cancelled = true; };
-  }, [mapReady, visibleSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, solarDownFilter, axisOptions, axisLabelByCode]);
+  }, [mapReady, displayedSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, solarDownFilter, axisOptions, axisLabelByCode]);
 
   useEffect(() => {
     const layer = systemsLayer.current;
