@@ -744,6 +744,42 @@ svg {
   transition: filter 180ms ease-out;
 }
 
+
+.rahcom-osm-map .leaflet-container .leaflet-tooltip.rahcom-system-code-tooltip {
+  display: none;
+}
+
+.rahcom-osm-map .leaflet-container.rahcom-system-codes-visible .leaflet-tooltip.rahcom-system-code-tooltip {
+  display: block;
+}
+
+.leaflet-tooltip.rahcom-system-code-tooltip {
+  border: 0;
+  background: transparent;
+  color: var(--rahcom-axis-code-color, #64748b);
+  direction: ltr;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--rahcom-system-code-size, 1.125rem);
+  font-weight: 800;
+  line-height: 1.15;
+  padding: 0;
+  pointer-events: auto;
+  text-shadow: 0 1px 3px #000, 0 0 5px #000;
+  -webkit-text-stroke: 1px #0b1220;
+  paint-order: stroke fill;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.leaflet-tooltip.rahcom-system-code-tooltip::before {
+  display: none !important;
+}
+
+html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
+  color: color-mix(in srgb, var(--rahcom-axis-code-color, #64748b) 58%, #fff);
+  -webkit-text-stroke-color: #030712;
+}
+
 .rahcom-map-system-popup .leaflet-popup-content-wrapper {
   padding: 0;
   overflow: hidden;
@@ -755,8 +791,8 @@ svg {
 }
 
 .rahcom-map-system-popup .leaflet-popup-content {
-  width: min(25rem, calc(100vw - 4rem)) !important;
-  max-height: min(65vh, 32rem);
+  width: min(17rem, calc(100vw - 3rem)) !important;
+  max-height: min(42vh, 18rem);
   margin: 0;
   overflow: auto;
 }
@@ -768,9 +804,11 @@ svg {
 
 .rahcom-system-popup {
   display: grid;
-  gap: .75rem;
-  padding: 1rem;
+  gap: .35rem;
+  padding: .45rem;
   font-family: inherit;
+  direction: rtl;
+  text-align: right;
 }
 
 .rahcom-popup-header,
@@ -801,19 +839,53 @@ svg {
   font-size: .75rem;
 }
 
+.rahcom-popup-code {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  direction: ltr;
+}
+
 .rahcom-popup-data {
   display: grid;
-  gap: .4rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .2rem;
   border-block: 1px solid var(--border);
-  padding-block: .65rem;
+  padding-block: .3rem;
 }
 
 .rahcom-popup-row {
+  grid-column: 1 / -1;
   min-width: 0;
   border-radius: .6rem;
   background: color-mix(in srgb, var(--muted) 42%, transparent);
-  padding: .45rem .55rem;
-  font-size: .75rem;
+  padding: .2rem .3rem;
+  font-size: .68rem;
+}
+
+.rahcom-popup-row-compact {
+  grid-column: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  row-gap: .1rem;
+}
+
+.rahcom-popup-row-compact > span {
+  grid-column: 1 / -1;
+  font-size: .6rem;
+}
+
+.rahcom-popup-row-compact > b {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: .62rem;
+  text-align: start;
+}
+
+.rahcom-popup-row-compact > .rahcom-popup-copy {
+  grid-column: 2;
+  grid-row: 1 / 3;
 }
 
 .rahcom-popup-row > span {
@@ -832,15 +904,30 @@ svg {
 
 .rahcom-popup-copy {
   flex: 0 0 auto;
-  min-height: 2rem;
+  display: inline-flex;
+  width: 1.7rem;
+  min-height: 1.7rem;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
-  border-radius: .55rem;
+  border-radius: .45rem;
   background: var(--background);
-  padding: .3rem .55rem;
+  padding: .25rem;
   color: var(--foreground);
   font: inherit;
   font-size: .7rem;
   cursor: pointer;
+}
+
+.rahcom-popup-copy svg,
+.rahcom-popup-actions svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .rahcom-popup-copy:hover,
@@ -865,15 +952,20 @@ svg {
 
 .rahcom-popup-actions {
   flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .rahcom-popup-actions button {
-  min-height: 2.35rem;
-  flex: 1 1 auto;
+  display: inline-flex;
+  width: 2rem;
+  min-height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   border-radius: .65rem;
   background: var(--background);
-  padding: .4rem .7rem;
+  padding: .25rem;
   color: var(--foreground);
   font: inherit;
   font-size: .75rem;
@@ -884,6 +976,10 @@ svg {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--primary-foreground);
+}
+
+.rahcom-popup-actions button.danger {
+  color: var(--destructive);
 }
 
 .rahcom-popup-hint {

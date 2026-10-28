@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker, TileLayer } from 'leaflet';
 import type { Feature, Polygon } from 'geojson';
-import { ExternalLink, LocateFixed, Minus, Plus, X } from 'lucide-react';
+import { Compass, Map as MapIcon, MapPinned, Navigation, X } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
@@ -17,22 +17,6 @@ import { failedRahcomSystemCodes, isRahcomIncidentValue, latestRahcomSolarSnapsh
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 type Point = { lat: number; lng: number };
-const isfahanCountyLabels = [
-  { name: 'آران و بیدگل', lat: 34.1511, lng: 51.8712 }, { name: 'اردستان', lat: 33.6521, lng: 52.407 },
-  { name: 'اصفهان', lat: 32.5692, lng: 51.8161 }, { name: 'برخوار', lat: 33.0128, lng: 51.7845 },
-  { name: 'بوئین و میاندشت', lat: 33.1664, lng: 50.1 }, { name: 'تیران و کرون', lat: 32.7849, lng: 50.8936 },
-  { name: 'خمینی‌شهر', lat: 32.6786, lng: 51.5031 }, { name: 'خوانسار', lat: 33.2492, lng: 50.3657 },
-  { name: 'خور و بیابانک', lat: 33.6749, lng: 54.8684 }, { name: 'دهاقان', lat: 32.0158, lng: 51.5934 },
-  { name: 'سمیرم', lat: 31.2832, lng: 51.6141 }, { name: 'شاهین‌شهر و میمه', lat: 33.2436, lng: 51.1548 },
-  { name: 'شهرضا', lat: 31.8895, lng: 51.9128 }, { name: 'فریدن', lat: 32.9605, lng: 50.41 },
-  { name: 'فریدون‌شهر', lat: 32.8496, lng: 49.9813 }, { name: 'فلاورجان', lat: 32.5224, lng: 51.5503 },
-  { name: 'کاشان', lat: 33.9737, lng: 51.3744 }, { name: 'لنجان', lat: 32.376, lng: 51.2192 },
-  { name: 'مبارکه', lat: 32.264, lng: 51.5179 }, { name: 'نائین', lat: 33.3938, lng: 53.6896 },
-  { name: 'نجف‌آباد', lat: 32.9045, lng: 51.047 }, { name: 'نطنز', lat: 33.6101, lng: 51.8797 },
-  { name: 'چادگان', lat: 32.7458, lng: 50.5354 }, { name: 'گلپایگان', lat: 33.4458, lng: 50.3558 },
-  { name: 'هرند', lat: 32.5032, lng: 52.3589 }, { name: 'ورزنه', lat: 32.2956, lng: 52.6993 },
-  { name: 'جرقویه', lat: 31.9901, lng: 52.5549 }, { name: 'کوهپایه', lat: 32.7375, lng: 52.4566 },
-] as const;
 type PopupLabels = {
   name: string; code: string; axis: string; axisCode: string; latitude: string; longitude: string; copy: string; copyCode: string; copyCoordinates: string; copyAll: string; copied: string;
   electricityBillId: string; simIp: string; radarIp: string; cameraIp: string; pcIp: string; routerIp: string; laptopIp: string;
@@ -53,13 +37,28 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
+const popupIcons = {
+  copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>',
+  route: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 19-9-9 19-2-8-8-2Z"/></svg>',
+  history: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>',
+  save: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12M6 6l12 12"/></svg>',
+  delete: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6"/></svg>',
+} as const;
+
 function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: boolean, editing: boolean, status: string, copiedValue = '') {
-  const copyButton = (value: string, label: string) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value).replace(/\r?\n/g, '&#10;')}">${escapeHtml(copiedValue === value ? labels.copied : label)}</button>`;
-  const row = (label: string, value: string, copyLabel = labels.copy) => `<div class="rahcom-popup-row"><span>${escapeHtml(label)}</span><b dir="ltr">${escapeHtml(value)}</b>${copyButton(value, copyLabel)}</div>`;
+  const copyButton = (value: string, label: string) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value).replace(/\r?\n/g, '&#10;')}" aria-label="${escapeHtml(copiedValue === value ? labels.copied : label)}" title="${escapeHtml(copiedValue === value ? labels.copied : label)}">${copiedValue === value ? popupIcons.save : popupIcons.copy}</button>`;
+  const row = (label: string, value: string, copyLabel = labels.copy, compact = false) => `<div class="rahcom-popup-row${compact ? ' rahcom-popup-row-compact' : ''}"><span>${escapeHtml(label)}</span><b dir="ltr">${escapeHtml(value)}</b>${copyButton(value, copyLabel)}</div>`;
   const coordinatePair = formatRahcomCoordinates(system.latitude, system.longitude);
   const axisCode = system.axisCode?.trim() ?? '';
   const axis = canonicalRahcomAxis(system.axis, system.latitude, system.longitude, system.province);
-  const copyBasics = [system.systemName, system.systemCode, axisCode].filter(Boolean).join('\n');
+  const copyBasics = [
+    `${labels.name}: ${system.systemName}`,
+    `${labels.code}: ${system.systemCode}`,
+    `${labels.axisCode}: ${axisCode || '—'}`,
+    `${labels.axis}: ${axis || '—'}`,
+  ].join('\n');
   const editFields = editing && canManage ? `<div class="rahcom-popup-edit-fields">
     <label>${escapeHtml(labels.name)}<input data-system-field="systemName" value="${escapeHtml(system.systemName)}"></label>
     <label>${escapeHtml(labels.code)}<input data-system-field="systemCode" dir="ltr" value="${escapeHtml(system.systemCode)}"></label>
@@ -71,14 +70,14 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
   const optionalRows = ([
     [labels.electricityBillId, system.electricityBillId], [labels.simIp, system.simIp], [labels.radarIp, system.radarIp],
     [labels.cameraIp, system.cameraIp], [labels.pcIp, system.pcIp], [labels.routerIp, system.routerIp], [labels.laptopIp, system.laptopIp],
-  ] as const).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => row(label, value));
+  ] as const).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => row(label, value, labels.copy, true));
   const basics = `<div class="rahcom-popup-basics">${copyButton(copyBasics, labels.copyAll)}</div>`;
   const axisRows = `${axisCode ? row(labels.axisCode, axisCode) : ''}${axis ? row(labels.axis, axis) : ''}`;
-  const coordinates = `<div class="rahcom-popup-data">${row(labels.name, system.systemName, labels.copy)}${row(labels.code, system.systemCode, labels.copyCode)}${axisRows}<div class="rahcom-popup-row"><span>${escapeHtml(labels.copyCoordinates)}</span><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
+  const coordinates = `<div class="rahcom-popup-data">${axisRows}<div class="rahcom-popup-row"><span>${escapeHtml(labels.copyCoordinates)}</span><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
   const actions = editing && canManage
-    ? `${editFields}<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save">${escapeHtml(labels.save)}</button><button type="button" data-popup-action="cancel">${escapeHtml(labels.cancel)}</button><button type="button" data-popup-action="delete" class="danger">${escapeHtml(labels.remove)}</button></div>`
-    : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit">${escapeHtml(labels.edit)}</button>` : ''}<button type="button" data-popup-action="route">${escapeHtml(labels.route)}</button><button type="button" data-popup-action="history">${escapeHtml(labels.history)}</button></div>`;
-  const header = `<header class="rahcom-popup-header"><div><strong class="rahcom-popup-title">${escapeHtml(system.systemName)}</strong><span class="rahcom-popup-subtitle" dir="ltr">${escapeHtml(system.systemCode)}</span></div>${basics}</header>`;
+    ? `${editFields}<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save" aria-label="${escapeHtml(labels.save)}" title="${escapeHtml(labels.save)}">${popupIcons.save}</button><button type="button" data-popup-action="cancel" aria-label="${escapeHtml(labels.cancel)}" title="${escapeHtml(labels.cancel)}">${popupIcons.close}</button><button type="button" data-popup-action="delete" class="danger" aria-label="${escapeHtml(labels.remove)}" title="${escapeHtml(labels.remove)}">${popupIcons.delete}</button></div>`
+    : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit" aria-label="${escapeHtml(labels.edit)}" title="${escapeHtml(labels.edit)}">${popupIcons.edit}</button>` : ''}<button type="button" data-popup-action="route" aria-label="${escapeHtml(labels.route)}" title="${escapeHtml(labels.route)}">${popupIcons.route}</button><button type="button" data-popup-action="history" aria-label="${escapeHtml(labels.history)}" title="${escapeHtml(labels.history)}">${popupIcons.history}</button></div>`;
+  const header = `<header class="rahcom-popup-header"><div><strong class="rahcom-popup-title">${escapeHtml(system.systemName)}</strong><div class="rahcom-popup-code"><span class="rahcom-popup-subtitle" dir="ltr">${escapeHtml(system.systemCode)}</span>${copyButton(system.systemCode, labels.copyCode)}</div></div>${basics}</header>`;
   return `<div class="rahcom-system-popup" dir="rtl">${header}${editing && canManage ? '' : coordinates}<div data-popup-status role="status" class="rahcom-popup-status">${escapeHtml(status)}</div>${actions}</div>`;
 }
 
@@ -88,18 +87,18 @@ function getStoredProvince() {
   return window.localStorage.getItem(`rahyar-selected-province:${userId || 'current'}`) || 'isfahan';
 }
 
-export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilter = false, showTrafficIncidents = true, showSystemIncidents = true, countyLabels = true, onAxisOptionsChange, onSystemsCountChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotAvailabilityChange }: {
+export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilter = false, showTrafficIncidents = true, showSystemIncidents = true, onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotAvailabilityChange }: {
   focusProvince: boolean;
   canManage?: boolean;
   solarDownFilter?: boolean;
   showTrafficIncidents?: boolean;
   showSystemIncidents?: boolean;
-  countyLabels?: boolean;
+  onLocateMeReady?: (locate: (() => void) | null) => void;
   onAxisOptionsChange?: (axes: string[]) => void;
   onSystemsCountChange?: (count: number) => void;
   onSystemsErrorChange?: (error: string) => void;
   onLocationStatusChange?: (status: { locating: boolean; error: boolean }) => void;
-  onSolarSnapshotAvailabilityChange?: (available: boolean | null) => void;
+  onSolarSnapshotAvailabilityChange?: (available: boolean | null, capturedAt: string | null) => void;
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -107,7 +106,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   const currentMarker = useRef<CircleMarker | null>(null);
   const systemsLayer = useRef<LayerGroup | null>(null);
   const systemMarkers = useRef<Map<string, Marker>>(new Map());
-  const countyLabelsLayer = useRef<LayerGroup | null>(null);
   const fittedProvince = useRef<string | null>(null);
   const fittedSystemsView = useRef('');
   const [mapReady, setMapReady] = useState(false);
@@ -140,7 +138,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   }, [systems]);
   const axisOptions = useMemo(() => [...axisLabelByCode.values()].sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })), [axisLabelByCode]);
   const todaySolarSnapshot = useMemo(() => latestRahcomSolarSnapshotForToday(solarSnapshots, date || todayDateKey), [solarSnapshots, date, todayDateKey]);
-  const solarFailedCodes = useMemo(() => failedRahcomSystemCodes(todaySolarSnapshot), [todaySolarSnapshot]);
+  const solarStatusCodes = useMemo(() => failedRahcomSystemCodes(todaySolarSnapshot), [todaySolarSnapshot]);
   const incidentCodes = useMemo(() => {
     const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\u200c_./-]/g, '');
     const headers = trafficSnapshot?.headers ?? [];
@@ -153,8 +151,8 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   }, [trafficSnapshot]);
   const systemIncidentCodes = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => system.systemCode.trim().toUpperCase())), [systems]);
   const visibleSystems = useMemo(() => systems.filter((system) =>
-    !solarDownFilter || solarFailedCodes.has(system.systemCode.trim().toUpperCase()),
-  ), [solarDownFilter, solarFailedCodes, systems]);
+    !solarDownFilter || solarStatusCodes.has(system.systemCode.trim().toUpperCase()),
+  ), [solarDownFilter, solarStatusCodes, systems]);
   const displayedSystems = useMemo(() => visibleSystems.filter((system) => {
     const systemCode = system.systemCode.trim().toUpperCase();
     const hasTrafficIncident = incidentCodes.has(systemCode);
@@ -183,7 +181,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       map.createPane('rahcomProvinceShade').style.zIndex = '350';
       map.createPane('rahcomProvinceBoundary').style.zIndex = '430';
       systemsLayer.current = leaflet.layerGroup().addTo(map);
-      countyLabelsLayer.current = leaflet.layerGroup().addTo(map);
       mapRef.current = map;
       setMapReady(true);
     });
@@ -195,7 +192,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       tileLayerRef.current = null;
       currentMarker.current = null;
       systemsLayer.current = null;
-      countyLabelsLayer.current = null;
     };
   }, []);
 
@@ -225,13 +221,12 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     void import('leaflet').then((leaflet) => {
       if (cancelled || mapRef.current !== map) return;
       tileLayerRef.current?.remove();
-      tileLayerRef.current = leaflet.tileLayer(
-        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
-        },
-      ).addTo(map);
+      const streetUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      const streetOptions = {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
+      };
+      tileLayerRef.current = leaflet.tileLayer(streetUrl, streetOptions).addTo(map);
     });
     return () => { cancelled = true; };
   }, [mapReady, resolvedTheme]);
@@ -255,7 +250,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     const timer = window.setInterval(updateToday, 60_000);
     return () => window.clearInterval(timer);
   }, []);
-  useEffect(() => { onSolarSnapshotAvailabilityChange?.(solarSnapshotsLoaded ? Boolean(todaySolarSnapshot) : null); }, [onSolarSnapshotAvailabilityChange, solarSnapshotsLoaded, todaySolarSnapshot]);
+  useEffect(() => { onSolarSnapshotAvailabilityChange?.(solarSnapshotsLoaded ? Boolean(todaySolarSnapshot) : null, todaySolarSnapshot?.capturedAt ?? null); }, [onSolarSnapshotAvailabilityChange, solarSnapshotsLoaded, todaySolarSnapshot]);
 
   useEffect(() => {
     if (!mapReady || province !== 'isfahan') return;
@@ -325,36 +320,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     };
   }, [mapReady, province, provinceBoundary, focusProvince, resolvedTheme]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    const layer = countyLabelsLayer.current;
-    if (!mapReady || !map || !layer) return;
-    let cancelled = false;
-    const updateCountyLabels = () => {
-      if (cancelled) return;
-      layer.clearLayers();
-      if (!countyLabels || province !== 'isfahan' || map.getZoom() < 7) return;
-      void import('leaflet').then(({ divIcon, marker: leafletMarker }) => {
-        if (cancelled || !countyLabels || province !== 'isfahan' || map.getZoom() < 7) return;
-        const dark = resolvedTheme === 'dark';
-        for (const county of isfahanCountyLabels) {
-          const width = Math.max(56, county.name.length * 9 + 8);
-          const icon = divIcon({
-            className: '', iconSize: [width, 24], iconAnchor: [width / 2, 12],
-            html: `<span dir="rtl" style="display:block;width:${width}px;white-space:nowrap;text-align:center;font-size:14px;line-height:20px;font-weight:700;color:${dark ? '#f8fafc' : '#172033'};text-shadow:${dark ? '0 1px 3px #000,0 0 5px #000' : '0 1px 2px #fff,0 0 4px #fff'}">${county.name}</span>`,
-          });
-          leafletMarker([county.lat, county.lng], { icon, interactive: false, keyboard: false, zIndexOffset: -100 }).addTo(layer);
-        }
-      });
-    };
-    updateCountyLabels();
-    map.on('zoomend', updateCountyLabels);
-    return () => {
-      cancelled = true;
-      map.off('zoomend', updateCountyLabels);
-      layer.clearLayers();
-    };
-  }, [mapReady, province, resolvedTheme, countyLabels]);
 
   useEffect(() => {
     const userId = getCurrentUser()?.id;
@@ -391,8 +356,29 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   useEffect(() => { onSystemsErrorChange?.(systemsError); }, [onSystemsErrorChange, systemsError]);
 
   useEffect(() => {
-    if (!mapReady || !systemsLayer.current) return;
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    const updateSystemCodeLabels = () => {
+      const zoom = map.getZoom();
+      const container = map.getContainer();
+      container.classList.toggle('rahcom-system-codes-visible', zoom >= 8);
+      container.style.setProperty('--rahcom-system-code-size', `${Math.min(32, 18 + Math.max(0, zoom - 8) * 1.8)}px`);
+    };
+    updateSystemCodeLabels();
+    map.on('zoomend', updateSystemCodeLabels);
+    return () => {
+      map.off('zoomend', updateSystemCodeLabels);
+      map.getContainer().classList.remove('rahcom-system-codes-visible');
+      map.getContainer().style.removeProperty('--rahcom-system-code-size');
+    };
+  }, [mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !systemsLayer.current || !map) return;
     let cancelled = false;
+    let labelLayoutFrame = 0;
+    let scheduleLabelLayout: (() => void) | null = null;
     void import('leaflet').then(({ divIcon, latLngBounds, marker: leafletMarker }) => {
       if (cancelled || !systemsLayer.current) return;
       const layer = systemsLayer.current; layer.clearLayers();
@@ -403,11 +389,13 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
         const markerColor = systemAxisCode ? rahcomAxisColor(axisLabelByCode.get(systemAxisCode) ?? systemAxisCode, axisOptions) : '#64748b';
         const systemCode = system.systemCode.trim().toUpperCase();
         const systemIcon = divIcon({
-          className: '', iconSize: [18, 18], iconAnchor: [9, 9],
-          html: `<span style="display:block;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:${markerColor};box-shadow:0 1px 5px #1118"></span>`,
+          className: '', iconSize: [19, 24], iconAnchor: [9.5, 23],
+          html: `<svg aria-hidden="true" width="19" height="24" viewBox="0 0 24 30" style="display:block;filter:drop-shadow(0 1px 2px #0008)"><path d="M12 29S1 17 1 12a11 11 0 1 1 22 0c0 5-11 17-11 17Z" fill="${markerColor}" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="#fff" fill-opacity=".92"/></svg>`,
         });
         const marker = leafletMarker([system.latitude, system.longitude], { icon: systemIcon, draggable: false })
-          .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: Math.min(300, window.innerWidth - 40), maxWidth: Math.min(window.innerWidth - 40, 440), className: 'rahcom-map-system-popup', autoPanPadding: [24, 24] });
+          .bindTooltip(escapeHtml(system.systemCode.trim()), { permanent: true, direction: 'top', offset: [0, -2], className: 'rahcom-system-code-tooltip', opacity: 1, interactive: true })
+          .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { minWidth: Math.min(220, window.innerWidth - 40), maxWidth: Math.min(window.innerWidth - 40, 340), className: 'rahcom-map-system-popup', autoPanPadding: [16, 16] });
+        marker.on('tooltipopen', (event) => event.tooltip.getElement()?.style.setProperty('--rahcom-axis-code-color', markerColor));
         marker.addTo(layer);
         markers.push(marker);
         nextSystemMarkers.set(systemCode, marker);
@@ -510,6 +498,48 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
         });
       });
       systemMarkers.current = nextSystemMarkers;
+      const layoutLabels = () => {
+        const mapBounds = map.getContainer().getBoundingClientRect();
+        const placed: DOMRect[] = [];
+        const markerBounds = markers.map((marker) => ({ marker, bounds: marker.getElement()?.getBoundingClientRect() })).filter((item): item is { marker: Marker; bounds: DOMRect } => Boolean(item.bounds));
+        const gap = 5;
+        for (const marker of markers) {
+          const element = marker.getTooltip()?.getElement();
+          if (!element || getComputedStyle(element).display === 'none') continue;
+          element.style.visibility = 'visible';
+          element.style.marginLeft = '0px';
+          element.style.marginTop = '0px';
+          const base = element.getBoundingClientRect();
+          const candidates: Array<[number, number]> = [[0, 0]];
+          for (let row = 1; row <= 2; row += 1) candidates.push([0, -row * (base.height + gap)]);
+          for (let step = 1; step <= 6; step += 1) {
+            const dx = step * 12;
+            for (let row = 0; row <= 2; row += 1) {
+              const dy = -row * (base.height + gap);
+              candidates.push([-dx, dy], [dx, dy]);
+            }
+          }
+          candidates.sort((left, right) => Math.hypot(...left) - Math.hypot(...right));
+          let selected: [number, number] | null = null;
+          for (const [dx, dy] of candidates) {
+            const bounds = new DOMRect(base.left + dx, base.top + dy, base.width, base.height);
+            const insideMap = bounds.left >= mapBounds.left + 2 && bounds.right <= mapBounds.right - 2 && bounds.top >= mapBounds.top + 2 && bounds.bottom <= mapBounds.bottom - 2;
+            const overlapsLabel = placed.some((other) => bounds.left < other.right + gap && bounds.right + gap > other.left && bounds.top < other.bottom + gap && bounds.bottom + gap > other.top);
+            const overlapsPin = markerBounds.some((pin) => bounds.left < pin.bounds.right && bounds.right > pin.bounds.left && bounds.top < pin.bounds.bottom && bounds.bottom > pin.bounds.top);
+            if (insideMap && !overlapsLabel && !overlapsPin) { selected = [dx, dy]; break; }
+          }
+          if (!selected) { element.style.visibility = 'hidden'; continue; }
+          element.style.marginLeft = `${selected[0]}px`;
+          element.style.marginTop = `${selected[1]}px`;
+          placed.push(element.getBoundingClientRect());
+        }
+      };
+      scheduleLabelLayout = () => {
+        if (labelLayoutFrame) window.cancelAnimationFrame(labelLayoutFrame);
+        labelLayoutFrame = window.requestAnimationFrame(layoutLabels);
+      };
+      map.on('zoomend moveend resize', scheduleLabelLayout);
+      scheduleLabelLayout();
       let focusedSystem = false;
       const focusSystemId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
       if (focusSystemId) {
@@ -531,7 +561,11 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
         fittedSystemsView.current = viewKey;
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (scheduleLabelLayout) map.off('zoomend moveend resize', scheduleLabelLayout);
+      if (labelLayoutFrame) window.cancelAnimationFrame(labelLayoutFrame);
+    };
   }, [mapReady, displayedSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, solarDownFilter, axisOptions, axisLabelByCode]);
 
   useEffect(() => {
@@ -585,8 +619,10 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
     );
   }, []);
 
-  const zoomIn = useCallback(() => mapRef.current?.zoomIn(), []);
-  const zoomOut = useCallback(() => mapRef.current?.zoomOut(), []);
+  useEffect(() => {
+    onLocateMeReady?.(locateMe);
+    return () => onLocateMeReady?.(null);
+  }, [locateMe, onLocateMeReady]);
 
   useEffect(() => {
     onLocationStatusChange?.({ locating, error: locationError });
@@ -609,23 +645,18 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   return (
     <div className={`rahcom-osm-map relative h-full w-full overflow-hidden ${resolvedTheme === 'dark' ? 'rahcom-osm-map-dark' : ''}`}>
       <div ref={mapElement} className="absolute inset-0 z-0" />
-      <div className="absolute start-3 top-3 z-[500] flex items-center gap-2 rounded-xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur">
-        <button type="button" onClick={zoomIn} aria-label={t('rahcomZoomIn')} title={t('rahcomZoomIn')} className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground"><Plus size={17} /></button>
-        <button type="button" onClick={zoomOut} aria-label={t('rahcomZoomOut')} title={t('rahcomZoomOut')} className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground"><Minus size={17} /></button>
-        <button type="button" onClick={locateMe} disabled={locating} aria-label={t('rahcomLocateMe')} title={t('rahcomLocateMe')} className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground disabled:opacity-50">{locating ? <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <LocateFixed size={17} />}</button>
-      </div>
       {routeSystem ? <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setRouteSystem(null); }}>
-        <section role="dialog" aria-modal="true" aria-labelledby="rahcom-map-route-title" className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+        <section role="dialog" aria-modal="true" aria-labelledby="rahcom-map-route-title" className="w-full max-w-xs rounded-2xl border border-border bg-card p-3 shadow-2xl">
           <div className="flex items-start justify-between gap-3">
             <div><h2 id="rahcom-map-route-title" className="font-bold text-foreground">{t('rahcomChooseRouteApp')}</h2><p className="mt-1 text-sm text-muted-foreground">{routeSystem.systemName}</p></div>
-            <button type="button" onClick={() => setRouteSystem(null)} className="rounded-lg border border-border px-3 py-2 text-xs text-foreground">{t('rahcomCancel')}</button>
+            <button type="button" onClick={() => setRouteSystem(null)} aria-label={t('rahcomCancel')} title={t('rahcomCancel')} className="rounded-lg border border-border p-1.5 text-foreground"><X size={16} aria-hidden="true" /></button>
           </div>
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid grid-cols-4 gap-2">
             {([
-              ['osm', t('rahcomRouteOpenStreetMap')], ['google', t('rahcomRouteGoogleMaps')],
-              ['neshan', t('rahcomRouteNeshan')], ['balad', t('rahcomRouteBalad')],
-            ] as const).map(([provider, label]) => <a key={provider} href={routeUrl(provider, routeSystem, location)} target="_blank" rel="noreferrer" onClick={() => setRouteSystem(null)} className="flex min-h-11 items-center justify-between rounded-xl border border-border px-4 text-sm font-medium text-foreground hover:border-primary/50 hover:bg-accent">
-              {label}<ExternalLink size={16} className="text-muted-foreground" />
+              ['osm', t('rahcomRouteOpenStreetMap'), MapIcon], ['google', t('rahcomRouteGoogleMaps'), MapPinned],
+              ['neshan', t('rahcomRouteNeshan'), Compass], ['balad', t('rahcomRouteBalad'), Navigation],
+            ] as const).map(([provider, label, RouteIcon]) => <a key={provider} href={routeUrl(provider, routeSystem, location)} target="_blank" rel="noreferrer" aria-label={label} title={label} onClick={() => setRouteSystem(null)} className="flex size-10 items-center justify-center rounded-lg border border-border text-foreground hover:border-primary/50 hover:bg-accent">
+              <RouteIcon size={18} aria-hidden="true" /><span className="sr-only">{label}</span>
             </a>)}
           </div>
         </section>

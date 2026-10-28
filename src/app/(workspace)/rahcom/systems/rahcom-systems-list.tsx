@@ -26,7 +26,7 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
   return `https://balad.ir/directions/driving?destination=${encodeURIComponent(`${lng},${lat}`)}#16/${lat}/${lng}`;
 }
 
-export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }) {
+export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' }: { canManage?: boolean; selectedProvince?: string }) {
   const { locale } = usePreferences();
   const router = useRouter();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
@@ -61,14 +61,14 @@ export function RahcomSystemsList({ canManage = false }: { canManage?: boolean }
 
   useEffect(() => {
     let active = true;
-    rahcomApi.systems()
+    rahcomApi.systems(selectedProvince === 'all' ? undefined : selectedProvince)
       .then((result) => { if (active) { setSystems(result); setError(''); } })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [systemsRevision, t]);
+  }, [selectedProvince, systemsRevision, t]);
 
   useEffect(() => {
     let active = true;

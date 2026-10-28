@@ -18,7 +18,7 @@ function uploadedAt(value: string) {
   return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23', timeZone: 'Asia/Tehran' }).format(new Date(value));
 }
 
-export function RahcomDailyTraffic({ canManage = false }: { canManage?: boolean }) {
+export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canManage?: boolean; provinceFilter?: string }) {
   const router = useRouter();
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
@@ -93,16 +93,16 @@ export function RahcomDailyTraffic({ canManage = false }: { canManage?: boolean 
   }, [loadSolarSnapshot]);
 
   useEffect(() => {
-    if (!trafficSnapshot || !canManage) { setSystemsByCode({}); setSystemsIndexLoaded(false); return; }
+    if (!trafficSnapshot) { setSystemsByCode({}); setSystemsIndexLoaded(false); return; }
     let active = true;
-    void rahcomApi.systems().then((systems) => {
+    void rahcomApi.systems((provinceFilter ?? selectedProvince) === 'all' ? undefined : (provinceFilter ?? selectedProvince)).then((systems) => {
       if (active) {
         setSystemsByCode(Object.fromEntries(systems.map((system) => [system.systemCode.trim().toUpperCase(), system])));
         setSystemsIndexLoaded(true);
       }
     }).catch(() => { if (active) { setSystemsByCode({}); setSystemsIndexLoaded(true); } });
     return () => { active = false; };
-  }, [canManage, trafficSnapshot?.id]);
+  }, [provinceFilter, selectedProvince, trafficSnapshot?.id]);
 
   const totals = useMemo(() => ({
     emails: items.filter((item) => item.activityType === 'EMAIL_SENT').reduce((sum, item) => sum + item.quantity, 0),
@@ -113,8 +113,19 @@ export function RahcomDailyTraffic({ canManage = false }: { canManage?: boolean 
   const trafficRows = trafficSnapshot?.rows ?? [];
   const normalizedTrafficHeaders = (trafficSnapshot?.headers ?? []).map(normalizeHeader);
   const trafficProvinceIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('استان') || header.includes('province'));
-  const selectedProvinceName = iranProvinces.find(([id]) => id === selectedProvince)?.[1] ?? selectedProvince;
-  const provinceTrafficRows = useMemo(() => trafficProvinceIndex < 0 ? trafficRows : trafficRows.filter((row) => normalizeHeader(row[trafficProvinceIndex] ?? '').includes(normalizeHeader(selectedProvinceName))), [selectedProvinceName, trafficProvinceIndex, trafficRows]);
+  const provinceForView = provinceFilter ?? selectedProvince;
+  const selectedProvinceName = iranProvinces.find(([id]) => id === provinceForView)?.[1] ?? provinceForView;
+  const provinceTrafficRows = useMemo(() => {
+    const province = provinceForView;
+    if (province === 'all') return trafficRows;
+    const codes = new Set(Object.keys(systemsByCode));
+    const codeIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('کدسامانه') || header.includes('systemcode') || header === 'code');
+    return trafficRows.filter((row) => {
+      const provinceMatches = trafficProvinceIndex >= 0 && normalizeHeader(row[trafficProvinceIndex] ?? '').includes(normalizeHeader(selectedProvinceName));
+      const codeMatches = codeIndex >= 0 && codes.has((row[codeIndex] ?? '').trim().toUpperCase());
+      return provinceMatches || codeMatches;
+    });
+  }, [normalizedTrafficHeaders, provinceForView, selectedProvinceName, systemsByCode, trafficProvinceIndex, trafficRows]);
   const filteredTrafficRows = useMemo(() => {
     const query = trafficSearch.trim().toLocaleLowerCase(locale);
     if (!query) return provinceTrafficRows;

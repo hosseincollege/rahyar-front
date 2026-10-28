@@ -52,10 +52,11 @@ export function latestRahcomSolarSnapshotForToday(snapshots: RahcomSolarSnapshot
 
 export function failedRahcomSystemCodes(snapshot: RahcomSolarSnapshot | null) {
   if (!snapshot) return new Set<string>();
+  const selectedColumns = new Set((snapshot.equipmentColumns ?? []).map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column.toUpperCase()));
   const entries = filterRahcomLtePairs([
     ...parseRahcomSolarList(snapshot.downText, 'down'),
     ...parseRahcomSolarList(snapshot.unreachableText, 'unreachable'),
-  ]);
+  ]).filter(({ equipment }) => selectedColumns.has(equipment.toUpperCase()) || (/^LTE-[12]$/i.test(equipment) && selectedColumns.has('LTE')));
   return new Set(entries.map(({ site }) => site));
 }
 
