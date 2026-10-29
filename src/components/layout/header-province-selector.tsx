@@ -5,7 +5,7 @@ import { Check, MapPinned } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces } from '@/lib/api/rahcom/rahcom-api';
-import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
+import { getCurrentOrganizationId, getCurrentUser } from '@/lib/api/shared/auth-api';
 import { settingsApi, type BranchItem } from '@/app/(workspace)/settings/settings-api';
 
 function storageKey(userId?: string) {
@@ -22,12 +22,21 @@ function provinceIdForBranch(branch: Pick<BranchItem, 'code' | 'name'>) {
 
 export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: string; embedded?: boolean }) {
   const { locale } = usePreferences();
+  const currentUser = getCurrentUser();
+  const isDemoUser = currentUser?.username?.trim().toLowerCase() === 'demo'
+    || currentUser?.role?.trim().toUpperCase() === 'DEMO_USER';
   const [province, setProvince] = useState('isfahan');
   const [offices, setOffices] = useState<Array<{ id: string; name: string }>>([]);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const label = uiMessage(locale, 'rahcomProvince');
+  const allProvincesLabel = uiMessage(locale, 'rahcomAllProvinces');
+  const selectedProvinceName = province === 'all'
+    ? allProvincesLabel
+    : offices.find(({ id }) => id === province)?.name
+      ?? iranProvinces.find(([id]) => id === province)?.[1]
+      ?? allProvincesLabel;
 
   useEffect(() => {
     if (!open) return;
@@ -54,28 +63,43 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
 
     void settingsApi.getBranches(organizationId).then((branches) => {
       if (!active) return;
-      const available = branches
+      const branchProvinces = branches
         .filter((branch) => branch.isActive !== false)
         .map((branch) => ({ id: provinceIdForBranch(branch), name: branch.name }))
         .filter((branch): branch is { id: string; name: string } => Boolean(branch.id))
         .sort((a, b) => iranProvinces.findIndex(([id]) => id === a.id) - iranProvinces.findIndex(([id]) => id === b.id));
+      const isfahan = iranProvinces.find(([id]) => id === 'isfahan');
+      const available = isDemoUser && isfahan
+        ? [branchProvinces.find(({ id }) => id === 'isfahan') ?? { id: isfahan[0], name: isfahan[1] }]
+        : branchProvinces;
       setOffices(available);
       const saved = window.localStorage.getItem(storageKey(userId));
-      const initial = available.some(({ id }) => id === saved)
+      const initial = isDemoUser && available.some(({ id }) => id === 'isfahan')
+        ? 'isfahan'
+        : available.some(({ id }) => id === saved)
         ? saved!
         : available.some(({ id }) => id === 'isfahan') ? 'isfahan' : available[0]?.id ?? 'all';
       setProvince(initial);
+      if (isDemoUser && initial === 'isfahan') {
+        window.localStorage.setItem(storageKey(userId), initial);
+        window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: initial } }));
+      }
       setLoaded(true);
     }).catch(() => {
       if (active) {
         setOffices([]);
-        setProvince('all');
+        const fallback = isDemoUser ? 'isfahan' : 'all';
+        setProvince(fallback);
+        if (isDemoUser) {
+          window.localStorage.setItem(storageKey(userId), fallback);
+          window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: fallback } }));
+        }
         setLoaded(true);
       }
     });
 
     return () => { active = false; };
-  }, [userId]);
+  }, [isDemoUser, userId]);
 
   function selectProvince(value: string) {
     setProvince(value);
@@ -85,6 +109,14 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   }
 
   if (!loaded) return null;
+  if (isDemoUser) {
+    return (
+      <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] sm:max-w-52 sm:px-3 sm:text-sm">
+        <MapPinned size={17} aria-hidden="true" />
+        <span className="truncate">{selectedProvinceName}</span>
+      </div>
+    );
+  }
   if (embedded) {
     return (
       <label dir={getLocaleDirection(locale)} className="pointer-events-auto block shrink-0">
@@ -98,8 +130,9 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   }
   return (
     <div ref={dropdownRef} dir={getLocaleDirection(locale)} className="pointer-events-auto relative shrink-0">
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={label} aria-haspopup="menu" aria-expanded={open} aria-controls="header-province-selector-menu" title={label} className={`flex size-9 items-center justify-center rounded-xl border text-[var(--foreground)] transition-colors ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={`${label}: ${selectedProvinceName}`} aria-haspopup="menu" aria-expanded={open} aria-controls="header-province-selector-menu" title={`${label}: ${selectedProvinceName}`} className={`flex h-9 max-w-44 items-center justify-center gap-2 rounded-xl border px-2 text-xs text-[var(--foreground)] transition-colors sm:max-w-52 sm:px-3 sm:text-sm ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
         <MapPinned size={17} aria-hidden="true" />
+        <span className="truncate">{selectedProvinceName}</span>
       </button>
       {open && <div id="header-province-selector-menu" role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`absolute ${getLocaleDirection(locale) === 'rtl' ? 'end-0' : 'start-0'} top-full z-[70] mt-2 max-h-[min(65vh,24rem)] w-[min(18rem,calc(100vw-1rem))] space-y-1 overflow-y-auto rounded-xl border border-[var(--border)] p-2 shadow-xl`}>
         {[
