@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Upload } from 'lucide-react';
+import { Clock3 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
-import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket, type RahcomMemberProvince } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 
 type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt'>;
@@ -30,8 +30,7 @@ export function RahcomTickets() {
   const [selectedFileName, setSelectedFileName] = useState('');
   const [error, setError] = useState('');
   const [access, setAccess] = useState<RahcomAccess | null>(null);
-  const [assignments, setAssignments] = useState<RahcomMemberProvince[]>([]);
-  const [savingMemberId, setSavingMemberId] = useState('');
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const importedRequestId = useRef(0);
 
   const loadImported = useCallback(async (province: string) => {
@@ -61,9 +60,6 @@ export function RahcomTickets() {
       if (!active) return;
       setAccess(result);
       if (!result.isAdmin && result.province) setSelectedProvince(result.province);
-      if (result.canManageAssignments) {
-        void rahcomApi.memberProvinces().then((rows) => { if (active) setAssignments(rows); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : ''); });
-      }
     }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : ''); });
     return () => { active = false; };
   }, []);
@@ -75,6 +71,12 @@ export function RahcomTickets() {
     void loadImported(selectedProvince).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : ''); });
     return () => { active = false; importedRequestId.current++; };
   }, [access, loadImported, selectedProvince]);
+
+  useEffect(() => {
+    const openUpload = () => { if (access?.canManageAssignments && !importing) uploadInputRef.current?.click(); };
+    window.addEventListener('rahyar:tickets-upload-click', openUpload);
+    return () => window.removeEventListener('rahyar:tickets-upload-click', openUpload);
+  }, [access?.canManageAssignments, importing]);
 
   const visibleTickets = useMemo(() => (importedTickets ?? []).filter((ticket) =>
     !systemFilter || ticket.systemCode.trim().toLocaleLowerCase(locale) === systemFilter.trim()
@@ -119,21 +121,20 @@ export function RahcomTickets() {
     }
   };
 
-  const changeAssignment = async (memberId: string, province: string) => {
-    setSavingMemberId(memberId);
-    try {
-      await rahcomApi.setMemberProvince(memberId, province || null);
-      setAssignments((current) => current.map((member) => member.id === memberId ? { ...member, province: province || null } : member));
-    } catch (reason) { setError(reason instanceof Error ? reason.message : ''); }
-    finally { setSavingMemberId(''); }
+  const formatImportedAt = (value: string) => {
+    const timestamp = new Date(value);
+    if (Number.isNaN(timestamp.getTime())) return '—';
+    return new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR-u-ca-persian' : locale, {
+      dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23', timeZone: 'Asia/Tehran',
+    }).format(timestamp);
   };
 
   return <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-foreground">{uiMessage(locale, 'rahcomTickets')}</h2><div className="flex flex-wrap items-center gap-2">{access?.canManageAssignments && <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground hover:border-primary"><Upload size={16} />{uiMessage(locale, importing ? 'rolesUploading' : 'rahcomUploadExcel')}<input type="file" disabled={importing} accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void handleExcelUpload(file); }} /></label>}</div></div>
+    <input ref={uploadInputRef} type="file" disabled={importing} accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void handleExcelUpload(file); }} />
+    <div className="flex flex-wrap items-center gap-3"><h2 className="text-lg font-bold text-foreground">{uiMessage(locale, 'rahcomTickets')}</h2>{importing && <span role="status" className="text-sm text-muted-foreground">{uiMessage(locale, 'rolesUploading')}</span>}</div>
     {!importedTickets && !error && <p role="status" className="p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
     {selectedFileName && <p className="text-xs text-muted-foreground" dir="auto">{selectedFileName} · {new Intl.NumberFormat(locale).format(visibleTickets.length)} {uiMessage(locale, 'supportTicketCount')}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {visibleTickets.length ? <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[980px] text-sm"><thead className="bg-muted/50"><tr>{[['rahcomTicketNumber','TicketCode'],['rahcomProvince','Province'],['rahcomSystemCode','System'],['rahcomTicketSubject','Summary'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','Status'],['rahcomTicketPriority','Priority'],['rahcomTicketSupportTeam','SupportTeam'],['rahcomTicketCreatedOn','Created On']].map(([key]) => <th key={key} className="p-3 text-start">{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead><tbody>{visibleTickets.map((ticket) => <tr key={ticket.id} className="border-t border-border"><td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td><td className="whitespace-nowrap p-3">{provinceName(ticket.province, locale)}</td><td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td><td className="min-w-64 p-3">{ticket.summary || '—'}</td><td className="p-3">{ticket.customer || '—'}</td><td className="p-3 font-mono" dir="ltr">{ticket.equipment || '—'}</td><td className="p-3">{ticket.type || '—'}</td><td className="p-3">{ticket.status || '—'}</td><td className="p-3">{ticket.priority || '—'}</td><td className="p-3">{ticket.supportTeam || '—'}</td><td className="whitespace-nowrap p-3" dir="auto">{ticket.createdOn || '—'}</td></tr>)}</tbody></table></div> : importedTickets && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
-    {access?.canManageAssignments && <section className="space-y-3 border-t border-border pt-4"><h3 className="font-semibold text-foreground">{uiMessage(locale, 'rahcomProvinceAssignment')}</h3><div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[520px] text-sm"><thead className="bg-muted/50"><tr><th className="p-3 text-start">{uiMessage(locale, 'usersDetailName')}</th><th className="p-3 text-start">{uiMessage(locale, 'usersDetailUsername')}</th><th className="p-3 text-start">{uiMessage(locale, 'rahcomProvince')}</th></tr></thead><tbody>{assignments.map((member) => <tr key={member.id} className="border-t border-border"><td className="p-3">{member.name}</td><td dir="ltr" className="p-3 text-start">{member.username}</td><td className="p-3"><select aria-label={`${uiMessage(locale, 'rahcomProvince')}: ${member.name}`} disabled={savingMemberId === member.id} value={member.province ?? ''} onChange={(event) => void changeAssignment(member.id, event.target.value)} className="min-h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="">{uiMessage(locale, 'rahcomUnassignedProvince')}</option>{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></td></tr>)}</tbody></table></div></section>}
+    {visibleTickets.length ? <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[1060px] text-sm"><thead className="bg-muted/50"><tr>{[['rahcomTicketNumber','TicketCode'],['rahcomProvince','Province'],['rahcomSystemCode','System'],['rahcomTicketSubject','Summary'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At']].map(([key]) => <th key={key} className="p-3 text-start">{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead><tbody>{visibleTickets.map((ticket) => <tr key={ticket.id} className="border-t border-border"><td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td><td className="whitespace-nowrap p-3">{provinceName(ticket.province, locale)}</td><td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td><td className="min-w-64 p-3">{ticket.summary || '—'}</td><td className="p-3">{ticket.customer || '—'}</td><td className="p-3 font-mono" dir="ltr">{ticket.equipment || '—'}</td><td className="p-3">{ticket.type || '—'}</td><td className="p-3">{ticket.status || '—'}</td><td className="p-3">{ticket.priority || '—'}</td><td className="p-3">{ticket.supportTeam || '—'}</td><td className="whitespace-nowrap p-3" dir="auto">{ticket.createdOn || '—'}</td><td className="whitespace-nowrap p-3"><span className="inline-flex items-center gap-1.5"><Clock3 size={14} className="text-muted-foreground" />{formatImportedAt(ticket.importedAt)}</span></td></tr>)}</tbody></table></div> : importedTickets && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
   </section>;
 }

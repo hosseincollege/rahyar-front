@@ -1,0 +1,42 @@
+مستند As-Built ماژول رهکام
+بازبینی: ۳۱ اکتبر ۲۰۲۶
+
+هدف
+رهکام برای مدیریت سامانه‌های میدانی و مشاهده/ثبت اطلاعات عملیاتی آن‌هاست. فهرست و نقشه براساس داده‌های مجاز کاربر کار می‌کنند؛ داده‌های حساس یا عملیات نوشتن باید از API و مجوزهای بک‌اند عبور کنند.
+
+صفحه‌ها و مسیرهای رابط
+src/app/(workspace)/rahcom/page.tsx : صفحه ورودی رهکام و خلاصه‌های مرتبط.
+src/app/(workspace)/rahcom/map/open-street-map.tsx : نقشه، نشانگرهای سامانه، محدوده و کنترل‌های نقشه.
+src/app/(workspace)/rahcom/systems/rahcom-systems-list.tsx : فهرست محورها و کد سامانه‌ها، جست‌وجو، و پنجره جزئیات سامانه.
+src/app/(workspace)/rahcom/daily-traffic/rahcom-daily-traffic.tsx : مشاهده تردد روزانه و فیلتر رکوردهای بارگذاری‌شده.
+src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx : ثبت/مرور گزارش سولار، فیلتر وضعیت، مقایسه گزارش‌ها، مدیریت فهرست ویژه و خروجی.
+src/app/(workspace)/rahcom/tickets/rahcom-tickets.tsx : مشاهده تیکت‌های واردشده.
+src/app/(workspace)/rahcom/actions/rahcom-actions.tsx : ثبت و مرور اقدامات و فعالیت‌ها.
+src/app/(workspace)/rahcom/_shared/rahcom-system-history.tsx : تاریخچه فعالیت یک سامانه.
+src/app/(workspace)/rahcom/_shared/rahcom-axes-manager.tsx : مدیریت محورهای قابل استفاده.
+
+API و مدل‌ها
+src/lib/api/rahcom/rahcom-api.ts توابع کلاینت و نوع‌های مشترک را نگه می‌دارد.
+rahyar-back/src/rahcom/rahcom.controller.ts نقاط پایانی HTTP را تعریف می‌کند و RahcomService منطق دامنه را اجرا می‌کند.
+rahyar-back/src/rahcom/dto/rahcom.dto.ts شکل و اعتبار ورودی‌ها را تعریف می‌کند.
+مدل‌های RahcomSystem، RahcomAxis، RahcomActivity، RahcomSolarSnapshot، RahcomSolarSpecialSystem، RahcomTrafficSnapshot و RahcomImportedTicket در rahyar-back/prisma/schema/rahcom.prisma هستند.
+
+نمونه جریان گزارش سولار
+۱. گزارش شامل محدوده استان، زمان ثبت، متن وضعیت‌ها و ستون‌های تجهیزات است.
+۲. رابط اطلاعات را با rahcomApi می‌فرستد.
+۳. بک‌اند دسترسی و استان را بررسی و snapshot را ذخیره می‌کند.
+۴. فهرست ویژه سولار جداگانه و در محدوده سازمان/استان ذخیره می‌شود.
+۵. رابط می‌تواند گزارش‌های ذخیره‌شده را نمایش دهد، مقایسه کند و بر اساس فیلترهای فعال فهرست را محدود سازد.
+
+نمونه جریان انتخاب سامانه
+جست‌وجوی تاپ‌هدر رکورد را پیدا می‌کند و مسیر فهرست سامانه‌ها را باز می‌کند؛ شناسه رکورد به‌صورت گذرا در sessionStorage نگهداری می‌شود تا همان پنجره جزئیات فهرست باز شود. این داده موقت است و منبع اصلی اطلاعات همچنان API است.
+
+محورهای عملیاتی
+محورهای ثابت/عملیاتی استان در src/provinces/ نگهداری می‌شوند تا از داده‌های پایگاه داده مستقل و قابل بازیابی باشند. محورهای فهرست تردد، در صورت انتخاب آن منبع، از snapshot و ستون‌های فایل استخراج می‌شوند. منبع محور باید در UI مشخص و قابل تغییر باشد.
+
+نکات توسعه
+- هر endpoint جدید را در controller، service، DTO و کلاینت API هماهنگ اضافه کنید.
+- بررسی سازمان، استان و مجوز را در بک‌اند انجام دهید.
+- برای متن UI از uiMessage و دیکشنری‌های زبان استفاده کنید.
+- تعریف محور جدید باید در فایل استان درست قرار گیرد و نام‌گذاری/ترتیب موجود را حفظ کند.
+- رفتار نقشه و فهرست تا حد ممکن از مدل RahcomSystem مشترک استفاده کند تا نمایش اطلاعات یک سامانه ناسازگار نشود.

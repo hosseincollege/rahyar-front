@@ -791,8 +791,8 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 }
 
 .rahcom-map-system-popup .leaflet-popup-content {
-  width: min(17rem, calc(100vw - 3rem)) !important;
-  max-height: min(42vh, 18rem);
+  width: min(22.5rem, calc(100vw - 3rem)) !important;
+  max-height: min(90vh, 52rem);
   margin: 0;
   overflow: auto;
 }

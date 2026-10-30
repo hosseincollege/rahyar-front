@@ -24,8 +24,6 @@ import {
   Eye,
   FileJson,
   Layers,
-  MapPin,
-  Phone,
   Plus,
   RefreshCw,
   Trash2,
@@ -786,23 +784,17 @@ export function OrganizationStructurePage() {
           <div className="flex items-center gap-2">
             <Building size={18} className="text-blue-600" />
             <h3 className="text-sm font-bold text-[var(--foreground)]">
-              {selectedBranch ? `${uiMessage(locale, 'organizationProvince')} ${selectedBranch.name}` : uiMessage(locale, 'organizationProvinces')}
+              {uiMessage(locale, 'organizationProvinces')}
             </h3>
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-              {selectedBranch ? visibleDepartments.length : branches.length}
+              {branches.length}
             </span>
           </div>
 
-          {canEditStructure && (
-            <button
-              type="button"
-              onClick={openBranchModal}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
-            >
-              <Plus size={14} />
-              افزودن شعبه
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {selectedBranch && <button type="button" onClick={() => setSelectedBranchId(null)} className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">نمایش همه استان‌ها</button>}
+            {canEditStructure && <button type="button" onClick={openBranchModal} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"><Plus size={14} />افزودن شعبه</button>}
+          </div>
         </div>
 
         {isLoading ? (
@@ -813,94 +805,38 @@ export function OrganizationStructurePage() {
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-muted-foreground">
             هنوز شعبه‌ای ثبت نشده است.
           </div>
-        ) : selectedBranch ? (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="min-w-0">
-                <p className="text-lg font-bold text-[var(--foreground)]">{uiMessage(locale, 'organizationProvince')} {selectedBranch.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{visibleDepartments.length} {uiMessage(locale, 'organizationUnitCount')}</p>
-              </div>
-              <button type="button" onClick={() => { setSelectedBranchId(null); window.history.replaceState(null, '', '/settings/organization'); }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium hover:bg-muted">{uiMessage(locale, 'organizationProvinceBack')}</button>
-            </div>
-            {selectedBranch.address && selectedBranch.address.trim() !== selectedBranch.name.trim() && (
-              <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{selectedBranch.address}</p>
-            )}
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="mb-3 flex items-center justify-between"><h4 className="font-semibold">{uiMessage(locale, 'organizationProvinceStaff')}</h4><span className="rounded-full bg-muted px-2 py-1 text-xs tabular-nums">{provinceEmployees.length}</span></div>
-              {isLoadingProvinceEmployees ? <p className="text-sm text-muted-foreground">{uiMessage(locale, 'organizationLoadingStaff')}</p> : provinceEmployees.length ? <ul className="grid gap-2 sm:grid-cols-2">{provinceEmployees.map((employee) => <li key={employee.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2"><span className="truncate text-sm">{employee.firstName} {employee.lastName}<span className="ms-2 text-xs text-muted-foreground">{employee.jobTitle || employee.employeeCode}</span></span></li>)}</ul> : <p className="text-sm text-muted-foreground">{uiMessage(locale, 'organizationNoProvinceStaff')}</p>}
-            </section>
-          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {alphabeticalBranches.map((branch, provinceIndex) => {
-              const isDeleting = deletingBranchId === branch.id;
+          <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {alphabeticalBranches.map((branch, index) => {
+              if (selectedBranch && selectedBranch.id !== branch.id) return null;
+              const isSelected = selectedBranchId === branch.id;
 
               return (
-                <article
-                  key={branch.id}
-                  id={`branch-${branch.id}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-sm"
-                >
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Building size={16} className="text-blue-600" />
-
-                      <Link
-                        href={`/settings/organization#branch-${encodeURIComponent(branch.id)}`}
-                        onClick={() =>
-                          setSelectedBranchId((current) =>
-                            current === branch.id ? null : branch.id,
-                          )
-                        }
-                        className={`text-sm font-bold underline-offset-4 hover:text-blue-600 hover:underline ${
-                          selectedBranchId === branch.id
-                            ? 'text-blue-600 underline'
-                            : 'text-[var(--foreground)]'
-                        }`}
-                      >
-                        <span className="me-2 inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs tabular-nums text-primary">{new Intl.NumberFormat(locale).format(provinceIndex + 1)}</span>{uiMessage(locale, 'organizationProvince')} {branch.name}
-                      </Link>
-
-
-                      {branch.isHeadquarters && (
-                        <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
-                          دفتر مرکزی
-                        </span>
-                      )}
-
-                      <span
-                        className={
-                          branch.isActive
-                            ? 'rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                            : 'rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                        }
-                      >
-                        {branch.isActive ? 'فعال' : 'غیرفعال'}
-                      </span>
-                    </div>
-
-                    {branch.phone && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Phone size={12} />
-                        <span>{branch.phone}</span>
-                      </div>
-                    )}
-
-                    {branch.address && branch.address.trim() !== branch.name.trim() && (
-                      <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                        <MapPin size={12} className="mt-0.5 shrink-0" />
-                        <span>{branch.address}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {canEditStructure && <div className="flex shrink-0 items-center gap-1">
-                    <button type="button" disabled={Boolean(deletingBranchId) || isSavingBranch} onClick={() => openBranchEdit(branch)} aria-label={`${uiMessage(locale, 'accountEdit')}: ${branch.name}`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"><Edit3 size={16} /></button>
-                    <button type="button" disabled={Boolean(deletingBranchId) || isSavingBranch} onClick={() => void handleDeleteBranch(branch)} aria-label={`حذف شعبه ${branch.name}`} className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/30">{isDeleting ? <span className="text-[10px]">حذف...</span> : <Trash2 size={16} />}</button>
-                  </div>}
-                </article>
+                <div key={branch.id} id={`branch-${branch.id}`} className={`inline-flex rounded-lg border px-1 py-0.5 transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-[var(--border)] bg-[var(--surface)]'}`}>
+                  <button
+                    type="button"
+                    aria-expanded={isSelected}
+                    onClick={() => setSelectedBranchId((current) => current === branch.id ? null : branch.id)}
+                    className="inline-flex min-h-8 items-center rounded-md px-2 text-start text-sm font-semibold text-foreground transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <span className="whitespace-nowrap">{(index + 1).toLocaleString('fa-IR')} - {branch.name}</span>
+                  </button>
+                </div>
               );
             })}
+          </div>
+          {selectedBranch && <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-bold">{selectedBranch.name}</h4>
+              {canEditStructure && <div className="flex items-center gap-1">
+                <button type="button" disabled={Boolean(deletingBranchId) || isSavingBranch} onClick={() => openBranchEdit(selectedBranch)} aria-label={`${uiMessage(locale, 'accountEdit')}: ${selectedBranch.name}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"><Edit3 size={14} /></button>
+                <button type="button" disabled={Boolean(deletingBranchId) || isSavingBranch} onClick={() => void handleDeleteBranch(selectedBranch)} aria-label={`حذف شعبه ${selectedBranch.name}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50">{deletingBranchId === selectedBranch.id ? <span className="text-[10px]">حذف...</span> : <Trash2 size={14} />}</button>
+              </div>}
+            </div>
+            <div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold">{uiMessage(locale, 'organizationProvinceStaff')}</h4><span className="rounded-full bg-muted px-2 py-0.5 text-[11px] tabular-nums">{provinceEmployees.length}</span></div>
+            {isLoadingProvinceEmployees ? <p className="text-xs text-muted-foreground">{uiMessage(locale, 'organizationLoadingStaff')}</p> : provinceEmployees.length ? <ul className="flex flex-wrap gap-1.5">{provinceEmployees.map((employee) => <li key={employee.id} className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1"><span className="truncate text-xs">{employee.firstName} {employee.lastName}</span><span className="truncate text-[11px] text-muted-foreground">{employee.jobTitle || employee.employeeCode}</span></li>)}</ul> : <p className="text-xs text-muted-foreground">{uiMessage(locale, 'organizationNoProvinceStaff')}</p>}
+          </div>}
           </div>
         )}
       </div>
@@ -924,15 +860,6 @@ export function OrganizationStructurePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {selectedBranch && (
-              <button
-                type="button"
-                onClick={() => setSelectedBranchId(null)}
-                className="rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-              >
-                نمایش همه
-              </button>
-            )}
             {canEditStructure && (
               <button
                 type="button"

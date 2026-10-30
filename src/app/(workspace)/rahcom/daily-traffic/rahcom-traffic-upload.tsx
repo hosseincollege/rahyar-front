@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, FileUp, LoaderCircle } from 'lucide-react';
+import { FileSpreadsheet, FileUp, LoaderCircle, X } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
@@ -17,16 +17,11 @@ export function RahcomTrafficUpload() {
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [accessLoading, setAccessLoading] = useState(true);
-  const [snapshot, setSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [upload, setUpload] = useState<TrafficUpload | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-
-  const loadSnapshot = useCallback(async () => {
-    try { setSnapshot(await rahcomApi.trafficSnapshot()); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : t('rahcomTrafficLoadFailed')); }
-  }, [t]);
 
   useEffect(() => {
     let active = true;
@@ -37,12 +32,6 @@ export function RahcomTrafficUpload() {
     }).catch(() => { if (active) setIsAdmin(false); }).finally(() => { if (active) setAccessLoading(false); });
     return () => { active = false; };
   }, []);
-
-  useEffect(() => { if (isAdmin) void loadSnapshot(); }, [isAdmin, loadSnapshot]);
-  useEffect(() => {
-    window.addEventListener('rahyar:traffic-snapshot-changed', loadSnapshot);
-    return () => window.removeEventListener('rahyar:traffic-snapshot-changed', loadSnapshot);
-  }, [loadSnapshot]);
 
   async function readFile(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
@@ -77,7 +66,7 @@ export function RahcomTrafficUpload() {
     if (!upload) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      setSnapshot(await rahcomApi.createTrafficSnapshot(upload));
+      await rahcomApi.createTrafficSnapshot(upload);
       const result = await rahcomApi.applyTrafficAxes();
       setMessage(`${t('rahcomTrafficAxesApplied')}: ${result.updatedSystems.toLocaleString('fa-IR')} · ${t('rahcomTrafficAxesUnmatched')}: ${result.unmatchedSystems.toLocaleString('fa-IR')} · ${t('rahcomTrafficAxesGroups')}: ${result.axisGroups.toLocaleString('fa-IR')}`);
       setUpload(null);
@@ -87,16 +76,20 @@ export function RahcomTrafficUpload() {
 
   if (accessLoading || !isAdmin) return null;
 
-  return <section dir="rtl" aria-label={t('rahcomTrafficList')} className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <header><h2 className="font-bold text-foreground">{t('rahcomTrafficList')}</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">{t('rahcomTrafficNationalDailyHint')}</p></header>
-      {snapshot && <p className="text-sm text-muted-foreground">{t('rahcomTrafficCurrentFile')}: {snapshot.fileName} · {snapshot.sheetName} · {snapshot.rowCount.toLocaleString('fa-IR')} {t('rahcomTrafficRows')}</p>}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border p-3">
+  return <>
+    <button type="button" aria-label={t('rahcomTrafficChooseFile')} title={t('rahcomTrafficChooseFile')} onClick={() => { setError(''); setMessage(''); setIsOpen(true); }} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition hover:bg-muted"><FileUp size={17} aria-hidden="true" /></button>
+    {isOpen && <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setIsOpen(false); }}>
+      <section dir="rtl" role="dialog" aria-modal="true" aria-label={t('rahcomTrafficChooseFile')} className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-4 shadow-2xl">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold text-foreground">{t('rahcomTrafficChooseFile')}</h2>
+          <button type="button" disabled={busy} onClick={() => setIsOpen(false)} aria-label={t('closeSidebar')} className="rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-50"><X size={17} /></button>
+        </div>
         <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-accent"><FileUp size={16} />{t('rahcomTrafficChooseFile')}<input type="file" accept=".xlsx,.xls" onChange={(event) => void readFile(event)} className="sr-only" /></label>
-        {upload && <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{upload.fileName} · {upload.rows.length.toLocaleString('fa-IR')} {t('rahcomTrafficRows')}</span>}
-        <p className="w-full text-xs text-muted-foreground">{t('rahcomTrafficUploadHint')}</p>
-        {upload && <button type="button" disabled={busy} onClick={() => void save()} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{busy ? <LoaderCircle size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}{t('rahcomTrafficRegister')}</button>}
-      </div>
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {message && <p role="status" className="text-sm text-primary">{message}</p>}
-  </section>;
+        {upload && <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-xs"><span className="min-w-0 truncate text-foreground">{upload.fileName}</span><span className="shrink-0 text-muted-foreground">{upload.rows.length.toLocaleString('fa-IR')} {t('rahcomTrafficRows')}</span></div>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {message && <p role="status" className="text-xs text-primary">{message}</p>}
+        {upload && <button type="button" disabled={busy} onClick={() => void save()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{busy ? <LoaderCircle size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}{t('rahcomTrafficRegister')}</button>}
+      </section>
+    </div>}
+  </>;
 }

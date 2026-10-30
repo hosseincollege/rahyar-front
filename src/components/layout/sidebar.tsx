@@ -65,9 +65,9 @@ const navigation: NavigationItem[] = [
     href: '/settings',
     sub: [
       { titleKey: 'sidebarGeneral', href: '/settings/general' },
+      { titleKey: 'settingsOrganizationWorkspace', href: '/settings/company', activeHrefs: ['/settings/company', '/settings/organization', '/settings/projects', '/settings/roles', '/settings/accounts'] },
       { titleKey: 'settingsDisplayManagement', href: '/settings/modules' },
       { titleKey: 'sidebarAnnouncementManagement', href: '/settings/announcements' },
-      { titleKey: 'settingsOrganizationWorkspace', href: '/settings/company', activeHrefs: ['/settings/company', '/settings/organization', '/settings/projects', '/settings/roles', '/settings/accounts'] },
     ],
   },
   {

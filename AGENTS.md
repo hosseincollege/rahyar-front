@@ -83,3 +83,13 @@ Whenever assigned a task:
 - Preserve Rahyar organization identity as رهیار and administrator-customized organization details and logo.
 - Keep global search in the authenticated top header between assistant/action icons and centered company identity; keep it out of Tools tabs and usable on narrow screens.
 - The user will move project folders. Do not move or rename directories.
+
+## Shared Rahyar and ERP administration UI
+
+- For shared administration experiences, especially Settings, module display management, TopHeader, and shell controls, inspect both Rahyar and ERP when changing either one and implement the compatible improvement in both products.
+- Adapt each implementation to that product's modules, permissions, translations, and architecture. Do not blindly copy product-specific pages or code.
+- Keep business features, APIs, data, identity, integrations, environments, and deployments product-specific. This shared-UI rule is an explicit exception to the default product separation above.
+
+## Project documentation
+- Keep `docs/as-built/` current as features, modules, APIs, data models, and workflows change. Record implemented behavior and relevant source paths; distinguish proposed work from implemented behavior.
+- Keep `docs/presentation/` useful for the user's course presentation. Update its technical descriptions when the system architecture or demonstrated workflows change.
