@@ -1,12 +1,12 @@
 ﻿'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Download, LoaderCircle, Pencil, Search, Save, Trash2, X } from 'lucide-react';
+import { ClipboardList, Download, LoaderCircle, Pencil, Search, Save, Trash2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, rahcomSolarSnapshotNumber, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { rahcomOperationalAxis } from '@/lib/api/rahcom/rahcom-axes';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
@@ -332,9 +332,9 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
   return <div className="space-y-3"><div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><label className="inline-flex h-9 min-w-48 items-center gap-2 rounded-lg border border-border bg-background px-3 text-muted-foreground"><Search size={16} /><input aria-label={t('solarSearch')} placeholder={t('solarSearch')} value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label><span className="text-xs text-muted-foreground">{sites.length.toLocaleString(locale)} {t('rahcomSystemsOnMap')}</span><button type="button" onClick={downloadExcel} className="ms-auto inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 font-medium text-foreground hover:border-primary hover:text-primary"><Download size={16} />{t('solarDownloadExcel')}</button></div><div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-    <th className="p-3 text-center">{t('rahcomRowNumber')}</th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th>
+    <th className="p-3 text-center">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-start">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
-    {showIncidents && <th className="p-3 text-start">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
+    <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
       const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
@@ -350,12 +350,12 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       }, []);
       return <tr key={site} className="border-t border-border hover:bg-muted/20">
         <td className="p-3 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
+        {showIncidents && <td className="max-w-64 whitespace-nowrap p-3">{incidentText}</td>}
         <td className="p-3 font-mono" dir="ltr">{site}</td>
         <td className="p-3">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
         <td className="p-3 font-mono" dir="ltr">{axisCode ? <span className="inline-flex rounded-md border px-2 py-1 font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisCode}</span> : '—'}</td>
         <td className="p-3">{axisName ? <span className="inline-flex rounded-md border px-2 py-1 font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisName}</span> : '—'}</td>
         {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center">{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className="inline-flex items-center gap-1.5" dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
-        {showIncidents && <td className="max-w-64 whitespace-nowrap p-3">{incidentText}</td>}
         <td className="p-3 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
         <td className="p-3 whitespace-nowrap">{solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '—' : '—'}</td>
         <td className="max-w-72 p-3 text-xs"><time className="mb-1 block text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{historyChanges.length === 0 ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <div className="flex flex-col gap-1">{historyChanges.map(({ equipment, from, to }) => <span key={equipment} dir="auto"><bdi dir="ltr">{equipment}</bdi>: {from ? statusText(from) + ' → ' : ''}{statusText(to)}</span>)}</div>}</td>
@@ -366,11 +366,11 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
 
 function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]) {
   return new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR-u-ca-persian' : locale, {
-    dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23', timeZone: 'Asia/Tehran',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Tehran',
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents, incidentSource, axisSource }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar' }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents, incidentSource, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void }) {
   const { locale } = usePreferences();
   const { dateText } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -382,13 +382,10 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const [customEquipment, setCustomEquipment] = useState<string[]>([]);
   const [snapshots, setSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
-  const [snapshotProvinceState, setSnapshotProvinceState] = useState({
-    selection: selectedProvince,
-    province: selectedProvince === 'all' ? 'isfahan' : selectedProvince,
-  });
-  const snapshotProvince = snapshotProvinceState.selection === selectedProvince
-    ? snapshotProvinceState.province
-    : selectedProvince === 'all' ? 'isfahan' : selectedProvince;
+  const [editingSnapshotProvince, setEditingSnapshotProvince] = useState<string | null>(null);
+  const snapshotProvince = editingSnapshotId
+    ? editingSnapshotProvince ?? (selectedProvince === 'all' ? '' : selectedProvince)
+    : selectedProvince === 'all' ? '' : selectedProvince;
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -397,6 +394,10 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const entries = useMemo(() => [...parseList(downText, 'down'), ...parseList(unreachableText, 'unreachable')], [downText, unreachableText]);
   const columns = useMemo(() => [...commonEquipment, ...[...customEquipment].sort()].filter((item) => selectedEquipment.includes(item)), [customEquipment, selectedEquipment]);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
+  const selectedSnapshot = snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? snapshots[0] ?? null;
+  const selectedSnapshotNumber = selectedSnapshot ? rahcomSolarSnapshotNumber(selectedSnapshot, snapshots) : 0;
+  const selectedSnapshotColumns = selectedSnapshot?.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column).filter((column, index, all) => all.indexOf(column) === index) ?? [];
+  const selectedSnapshotEntries = selectedSnapshot ? [...parseList(selectedSnapshot.downText, 'down'), ...parseList(selectedSnapshot.unreachableText, 'unreachable')] : [];
 
   useEffect(() => {
     if (formOpen) {
@@ -407,11 +408,15 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   }, [dateText, formOpen, selectedProvince]);
   useEffect(() => {
     let active = true;
-    void Promise.all([rahcomApi.solarSnapshots(selectedProvince), rahcomApi.systems(selectedProvince), rahcomApi.trafficSnapshot(selectedProvince)]).then(([solar, systemRows, traffic]) => { if (active) { setSnapshots(solar); setSystems(systemRows); setTrafficSnapshot(traffic); } })
+    setLoading(true);
+    void Promise.all([rahcomApi.solarSnapshots(selectedProvince), rahcomApi.systems(selectedProvince), rahcomApi.trafficSnapshot(selectedProvince)]).then(([solar, systemRows, traffic]) => { if (active) { setSnapshots([...solar].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime() || new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime())); setSystems(systemRows); setTrafficSnapshot(traffic); } })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : t('solarLoadFailed')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [t, selectedProvince]);
+  useEffect(() => {
+    if (!loading) onSolarSnapshotsChange(snapshots);
+  }, [loading, onSolarSnapshotsChange, snapshots]);
   useEffect(() => {
     const found = [...new Set(entries.map((entry) => entry.equipment))]
       .filter((item) => !/^LTE-[12]$/i.test(item) && !commonEquipment.includes(item) && !customEquipment.includes(item));
@@ -422,6 +427,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   }, [customEquipment, entries]);
 
   async function saveSnapshot() {
+    if (!snapshotProvince) { setError(t('solarChooseProvinceFromHeader')); return; }
     if (!downText.trim() && !unreachableText.trim()) { setError(t('solarPasteListsFirst')); return; }
     if (columns.length === 0) { setError(t('solarSelectEquipment')); return; }
     const capturedAt = captureTimestamp(capturedDate, capturedTime);
@@ -435,14 +441,33 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
       const snapshot = editingSnapshotId
         ? await rahcomApi.updateSolarSnapshot(editingSnapshotId, payload)
         : await rahcomApi.createSolarSnapshot(payload);
-      setSnapshots((current) => [snapshot, ...current.filter((item) => item.id !== snapshot.id)].sort((left, right) => new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime()));
+      setSnapshots((current) => [snapshot, ...current.filter((item) => item.id !== snapshot.id)].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime() || new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime()));
+      onSnapshotSelect(snapshot.id);
       setDownText('');
       setUnreachableText('');
       setEditingSnapshotId(null);
+      setEditingSnapshotProvince(null);
       onFormOpenChange(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('solarSaveFailed'));
     } finally { setSaving(false); }
+  }
+
+  function fillDemoData() {
+    if (!snapshotProvince) { setError(t('solarChooseProvinceFromHeader')); return; }
+    const codes = [...new Set(systems
+      .filter((system) => system.province === snapshotProvince)
+      .map((system) => system.systemCode.trim().toUpperCase())
+      .filter(Boolean))].slice(0, 8);
+    if (!codes.length) { setError(t('solarDemoNeedsSystems')); return; }
+    const downCodes = codes.slice(0, Math.max(1, Math.ceil(codes.length / 2)));
+    const unreachableCodes = codes.slice(downCodes.length);
+    const makeLines = (items: string[], equipment: string) => items.map((code) => `Rahcom (${equipment}-${code})(DEMO)(DEMO)`).join('\n');
+    setDownText(`DownDown\n${makeLines(downCodes, 'CAM-1')}${downCodes.length ? `\n${makeLines(downCodes, 'RTR-1')}` : ''}`);
+    setUnreachableText(`UnreachableUnreachable\n${makeLines(unreachableCodes.length ? unreachableCodes : downCodes.slice(0, 1), 'RAD-1')}`);
+    setSelectedEquipment((current) => [...new Set([...current, 'CAM-1', 'RTR-1', 'RAD-1'])]);
+    setEditingColumns(false);
+    setError('');
   }
 
   function editSnapshot(snapshot: RahcomSolarSnapshot) {
@@ -451,7 +476,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     setUnreachableText(snapshot.unreachableText);
     setCapturedDate(timestamp.date);
     setCapturedTime(timestamp.time);
-    setSnapshotProvinceState({ selection: selectedProvince, province: snapshot.province ?? 'isfahan' });
+    setEditingSnapshotProvince(snapshot.province ?? '');
     const selected = snapshot.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column);
     setSelectedEquipment([...new Set(selected)]);
     setCustomEquipment((current) => [...new Set([...current, ...selected.filter((item) => !commonEquipment.includes(item))])]);
@@ -474,24 +499,25 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
 
   return <section className="space-y-5">
     {formOpen && canManage && <>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t(editingSnapshotId ? 'solarEditSnapshot' : 'solarAddSnapshot')}</h2><button type="button" onClick={() => void fillDemoData()} disabled={saving || loading || !canManage} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><ClipboardList size={16} />{t('solarFillDemoData')}</button></div>
     <div className="grid gap-4 md:grid-cols-2">
       <label className="space-y-2 rounded-2xl border border-border bg-card p-4"><span className="block font-semibold">{t('solarDownList')}</span><textarea value={downText} onChange={(e) => setDownText(e.target.value)} placeholder={'DOWN\nRahcom (LTE-1-...) (...) (...)'} className="min-h-48 w-full rounded-xl border border-border bg-background p-3 font-mono text-sm" dir="auto" /></label>
       <label className="space-y-2 rounded-2xl border border-border bg-card p-4"><span className="block font-semibold">{t('solarUnreachableList')}</span><textarea value={unreachableText} onChange={(e) => setUnreachableText(e.target.value)} placeholder={'Unreachable\nRahcom (CAM-1-...) (...) (...)'} className="min-h-48 w-full rounded-xl border border-border bg-background p-3 font-mono text-sm" dir="auto" /></label>
     </div>
 
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
-      <div><div className="flex items-center justify-between gap-3"><h2 className="font-semibold">{t('solarVisibleColumns')}</h2><button type="button" onClick={() => setEditingColumns((open) => !open)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground">{t(editingColumns ? 'solarDoneEditingColumns' : 'solarEditColumns')}</button></div>{editingColumns && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{[...commonEquipment, ...[...customEquipment].sort()].map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedEquipment.includes(item)} onChange={(event) => setSelectedEquipment((current) => event.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div>}</div>
-      <div className="flex flex-wrap items-end gap-3">{canManage ? <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={snapshotProvince} onChange={(event) => setSnapshotProvinceState({ selection: selectedProvince, province: event.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label> : <span className="self-center text-xs text-muted-foreground">{t('rahcomProvince')}: {iranProvinces.find(([id]) => id === snapshotProvince)?.[1] ?? snapshotProvince}</span>}<span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {capturedDate}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
+      <div><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t('solarVisibleColumns')}</h2><button type="button" onClick={() => setEditingColumns((open) => !open)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground">{t(editingColumns ? 'solarDoneEditingColumns' : 'solarEditColumns')}</button></div>{editingColumns && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{[...commonEquipment, ...[...customEquipment].sort()].map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedEquipment.includes(item)} onChange={(event) => setSelectedEquipment((current) => event.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div>}</div>
+      <div className="flex flex-wrap items-end gap-3"><span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {capturedDate}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving || !snapshotProvince} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {!snapshotProvince && <p role="status" className="text-xs text-muted-foreground">{t('solarChooseProvinceFromHeader')}</p>}
     </div>
 
     {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} /></div>}
     </>}
 
-    <div className="space-y-3"><h2 className="text-lg font-bold">{t('solarHistory')}</h2>{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : snapshots.length === 0 ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : snapshots.map((snapshot) => {
-      const columns = snapshot.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column).filter((column, columnIndex, all) => all.indexOf(column) === columnIndex);
-      const entries = [...parseList(snapshot.downText, 'down'), ...parseList(snapshot.unreachableText, 'unreachable')];
-      return <details key={snapshot.id} className="group rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold"><span className="flex items-center gap-2"><Check size={16} className="text-primary" />{formatCapturedAt(snapshot.capturedAt, locale)}<span className="ms-2 flex items-center gap-1 text-xs font-normal text-muted-foreground">{t('solarExpandSnapshot')}<ChevronDown size={15} className="transition-transform group-open:rotate-180" /></span></span></summary>{canManage && <div className="mt-2 flex items-center gap-1"><button type="button" aria-label={`${t('solarEditSnapshot')} ${formatCapturedAt(snapshot.capturedAt, locale)}`} title={t('solarEditSnapshot')} onClick={() => editSnapshot(snapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-primary"><Pencil size={15} /></button><button type="button" aria-label={`${t('solarDeleteSnapshot')} ${formatCapturedAt(snapshot.capturedAt, locale)}`} title={t('solarDeleteSnapshot')} onClick={() => void deleteSnapshot(snapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-destructive"><Trash2 size={15} /></button></div>}<div className="mt-4 space-y-4"><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshot.province ?? 'all'} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} currentSnapshot={snapshot} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} /></div></details>;
-    })}</div>
+    <div className="space-y-3">{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"><span className="text-sm font-semibold tabular-nums">{new Intl.NumberFormat(locale).format(selectedSnapshotNumber)} - {formatCapturedAt(selectedSnapshot.capturedAt, locale)}</span>{canManage && <div className="flex items-center gap-1"><button type="button" aria-label={`${t('solarEditSnapshot')} ${formatCapturedAt(selectedSnapshot.capturedAt, locale)}`} title={t('solarEditSnapshot')} onClick={() => editSnapshot(selectedSnapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-primary"><Pencil size={15} /></button><button type="button" aria-label={`${t('solarDeleteSnapshot')} ${formatCapturedAt(selectedSnapshot.capturedAt, locale)}`} title={t('solarDeleteSnapshot')} onClick={() => void deleteSnapshot(selectedSnapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-destructive"><Trash2 size={15} /></button></div>}</div>
+      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? 'all'} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} />
+    </>}</div>
   </section>;
 }

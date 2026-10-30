@@ -5,3 +5,15 @@ The solar daily status table displays a real em dash (—) for empty equipment a
 Implementation: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
 
 The solar toolbar keeps the add-status action beside its map-style icon filters. Incident source can switch between the daily traffic list and Rahyar system records; the incident visibility icon hides incident-marked systems by default and reveals the selected source when enabled. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly. The table shows one incident column for the selected source.
+
+New-status form updates
+
+The status entry form includes a “fill with test data” action. It builds sample DOWN and Unreachable rows from real system codes already loaded for the selected province, then leaves persistence to the existing Save Status action. This keeps test data organization- and province-scoped and saves through the Rahyar API/database; it does not store snapshots in browser localStorage.
+
+The form no longer asks for a second province selection. New snapshots use the province selected in the top header. When the header is set to All, save is disabled until a single province is selected there. Editing an existing snapshot retains its original province. Equipment parsing recognizes equipment IDs such as CAM-1 and RTR-1 in generated demo rows.
+
+On the solar-daily page, the capture date and all toolbar icons now share one horizontal row. Narrow screens can scroll the row horizontally without wrapping the controls.
+
+Snapshot selection and numbering
+
+The solar-daily header and the map share the same snapshot selector. Its native arrow is hidden and each item shows its per-day sequence number and capture time (the date remains in the shared page header). The newest-created record is listed first. Sequence numbers reset for each Tehran calendar date and province. The solar-daily page now displays only the selected snapshot table; edit/delete actions apply to that selected record rather than expanding a history card for every record. When incident visibility is enabled, the incident column appears directly after the row number and before the system code; the column and incident-only rows are both omitted when it is disabled.

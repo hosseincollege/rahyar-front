@@ -12,6 +12,7 @@ export function parseRahcomSolarList(text: string, state: RahcomSolarState): Rah
     if (match) {
       const equipment = match[1].match(/^(LTE-[12])(?:-|$)/i)?.[1]
         ?? match[1].match(/^(.+?)-ESF/i)?.[1]
+        ?? match[1].match(/^([A-Z]+-\d+)(?:-|$)/i)?.[1]
         ?? match[1].split('-')[0];
       const site = line.match(/\d{3}[A-Z]\d{5}/i)?.[0];
       const province = /(?:^|-)ESF(?:-|$)|ISFAHAN/i.test(match[1]) ? 'isfahan' : undefined;
@@ -41,6 +42,14 @@ export function tehranDateKey(value: Date | string = new Date()) {
   }).formatToParts(new Date(value));
   const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function rahcomSolarSnapshotNumber(snapshot: RahcomSolarSnapshot, snapshots: RahcomSolarSnapshot[]) {
+  const sameDay = snapshots.filter((item) => item.province === snapshot.province && tehranDateKey(item.capturedAt) === tehranDateKey(snapshot.capturedAt))
+    .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+      || new Date(left.capturedAt).getTime() - new Date(right.capturedAt).getTime());
+  const index = sameDay.findIndex((item) => item.id === snapshot.id);
+  return index >= 0 ? index + 1 : sameDay.length + 1;
 }
 
 export function latestRahcomSolarSnapshotForToday(snapshots: RahcomSolarSnapshot[], today = tehranDateKey()) {
