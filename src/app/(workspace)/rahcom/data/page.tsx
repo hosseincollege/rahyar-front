@@ -7,6 +7,7 @@ import { usePreferences, getLocaleDirection } from '@/components/preferences-pro
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { getCurrentUser } from '@/lib/api/shared/auth-api';
 
 type Editable = Pick<RahcomSystem, 'systemName' | 'systemCode' | 'axis' | 'axisCode' | 'latitude' | 'longitude' | 'details' | 'electricityBillId' | 'simIp' | 'radarIp' | 'cameraIp' | 'pcIp' | 'routerIp' | 'laptopIp'>;
 const headerAliases: Record<string, keyof Editable> = {
@@ -69,11 +70,22 @@ export default function RahcomDataPage() {
     return () => window.removeEventListener('rahyar:systems-changed', onSystemsChanged);
   }, [load]);
   useEffect(() => {
+    const userId = getCurrentUser()?.id;
+    const selectedKey = `rahyar-selected-province:${userId || 'current'}`;
     const frame = window.requestAnimationFrame(() => {
       const saved = window.localStorage.getItem('rahyar-rahcom-upload-province');
-      if (saved && iranProvinces.some(([id]) => id === saved)) setProvince(saved);
+      const active = window.localStorage.getItem(selectedKey);
+      const initial = active && iranProvinces.some(([id]) => id === active)
+        ? active
+        : saved && iranProvinces.some(([id]) => id === saved) ? saved : 'isfahan';
+      setProvince(initial);
     });
-    return () => window.cancelAnimationFrame(frame);
+    const onProvinceChange = (event: Event) => {
+      const value = (event as CustomEvent<{ province?: string }>).detail?.province;
+      if (value && iranProvinces.some(([id]) => id === value)) setProvince(value);
+    };
+    window.addEventListener('rahyar:province-change', onProvinceChange);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('rahyar:province-change', onProvinceChange); };
   }, []);
   async function upload(file?: File) {
     if (!file || !province) return;

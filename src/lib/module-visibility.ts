@@ -2,30 +2,21 @@ import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
 
-export const MODULE_VISIBILITY_KEY = 'erp-module-visibility-v2';
-export const HEADER_CONTROL_IDS = ['missionTools', 'accountSwitcher', 'provinceSelector'] as const;
-export type HeaderControlId = (typeof HEADER_CONTROL_IDS)[number];
-export const OPTIONAL_MODULE_IDS = [
-  'accounting',
-  'commerce',
-  'human-resources',
-  'support',
-  'statistics',
-] as const;
+export const MODULE_VISIBILITY_KEY = 'rahyar-module-visibility-v1';
+export type HeaderControlId = 'missionTools' | 'accountSwitcher' | 'provinceSelector';
+export const HEADER_CONTROL_IDS: readonly HeaderControlId[] = ['missionTools', 'accountSwitcher', 'provinceSelector'];
+export const OPTIONAL_MODULE_IDS = [] as const;
 
 let visibilityWriteQueue: Promise<void> = Promise.resolve();
 
-export const NAVIGATION_MODULE_IDS = [
-  'dashboard', 'rahcom', 'accounting', 'commerce', 'human-resources',
-  'support', 'statistics', 'settings', 'development',
-] as const;
-export type NavigationModuleId = (typeof NAVIGATION_MODULE_IDS)[number];
+export type NavigationModuleId = 'rahcom' | 'settings' | 'development';
+export const NAVIGATION_MODULE_IDS: readonly NavigationModuleId[] = ['rahcom', 'settings', 'development'];
 
 export type OptionalModuleId = (typeof OPTIONAL_MODULE_IDS)[number];
 
-function visibilityStorageKey(isReducedEdition: boolean) {
+function visibilityStorageKey(_isReducedEdition: boolean) {
   const organizationId = getCurrentOrganizationId() || 'current';
-  return `${MODULE_VISIBILITY_KEY}-${isReducedEdition ? 'rahyar' : 'erp'}-${organizationId}`;
+  return `${MODULE_VISIBILITY_KEY}-${organizationId}`;
 }
 export type ModuleVisibility = Partial<Record<OptionalModuleId, boolean>> & {
   navigationModules?: Partial<Record<NavigationModuleId, boolean>>;
@@ -38,8 +29,8 @@ function readSavedVisibility(isReducedEdition: boolean): ModuleVisibility {
   return JSON.parse(raw || '{}') as ModuleVisibility;
 }
 
-export function defaultModuleVisibility(isReducedEdition: boolean): Record<OptionalModuleId, boolean> {
-  return Object.fromEntries(OPTIONAL_MODULE_IDS.map((id) => [id, !isReducedEdition])) as Record<OptionalModuleId, boolean>;
+export function defaultModuleVisibility(_isReducedEdition: boolean): Record<OptionalModuleId, boolean> {
+  return {};
 }
 
 export function readModuleVisibility(isReducedEdition: boolean): Record<OptionalModuleId, boolean> {
@@ -63,6 +54,7 @@ export function readShellVisibility(isReducedEdition: boolean): ModuleVisibility
     const headerControls = {
       ...defaults,
       ...saved.headerControls,
+      provinceSelector: isReducedEdition && saved.headerControls?.provinceSelector !== false,
       missionTools: typeof legacyMissionTools?.missionTools === 'boolean'
         ? legacyMissionTools.missionTools
         : legacyMissionTools?.missionForm !== false || legacyMissionTools?.missionCommand !== false || legacyMissionTools?.missionAI !== false,
@@ -77,7 +69,7 @@ export function readShellVisibility(isReducedEdition: boolean): ModuleVisibility
 
 function saveVisibilityCache(values: ModuleVisibility, isReducedEdition: boolean) {
   window.localStorage.setItem(visibilityStorageKey(isReducedEdition), JSON.stringify(values));
-  window.dispatchEvent(new Event('erp-module-visibility-change'));
+  window.dispatchEvent(new Event('rahyar-module-visibility-change'));
 }
 
 export async function loadOrganizationModuleVisibility(isReducedEdition: boolean) {

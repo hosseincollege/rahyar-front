@@ -13,8 +13,6 @@ export type ProjectItem = {
   _count?: { tickets: number; members?: number };
 };
 
-export type SupportProjectItem = ProjectItem & { supportRole: 'MANAGER' | 'MEMBER' | 'VIEWER' | 'ADMIN' };
-
 export type ProjectDraft = Pick<ProjectItem, 'code' | 'name'> &
   Partial<Pick<ProjectItem, 'description' | 'status'>>;
 
@@ -27,8 +25,6 @@ export type ProjectImportRecord = {
 
 export const projectsApi = {
   getAll: () => apiClient.get<ProjectItem[]>('/projects'),
-  getSupportProjects: () => apiClient.get<SupportProjectItem[]>('/projects/support/accessible'),
-  getRahcomProject: () => apiClient.get<ProjectItem>('/projects/rahcom'),
   create: (project: ProjectDraft) => apiClient.post<ProjectItem>('/projects', project),
   update: (id: string, project: Partial<ProjectDraft>) =>
     apiClient.patch<ProjectItem>(`/projects/${encodeURIComponent(id)}`, project),

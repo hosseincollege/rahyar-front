@@ -1,7 +1,7 @@
 /**
  * @file frontend/src/app/(workspace)/layout.tsx
- * @description اجازه دسترسی مشاهده‌ای به کاربر مهمان و محافظت از مسیرهای workspace در ERP Pro.
- * @project ERP Pro
+ * @description Rahyar application frontend
+ * @project Rahyar
  * @layer Frontend
  */
 
@@ -81,7 +81,7 @@ export default function WorkspaceLayout({
       if (modulePath && !readModuleVisibility(isReducedEdition)[modulePath]) {
         setIsCheckingAuth(true)
         setIsAllowed(false)
-        router.replace('/dashboard')
+        router.replace('/rahcom')
         return
       }
 

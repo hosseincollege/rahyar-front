@@ -16,8 +16,7 @@ export function VisitorStatsOverview() {
   const load = useCallback(async () => {
     setFailed(false);
     try {
-      const next = await visitorStatsApi.get();
-      setStats(next);
+      setStats(await visitorStatsApi.get());
     } catch {
       setFailed(true);
     } finally {
@@ -42,9 +41,7 @@ export function VisitorStatsOverview() {
   return (
     <section dir={getLocaleDirection(locale)} className="rounded-2xl border border-border bg-card p-4 sm:p-5">
       <header className="mb-4 flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Eye size={18} />
-        </span>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Eye size={18} /></span>
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-bold text-foreground">{t('dashboardVisitorsTitle')}</h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('dashboardVisitorsDescription')}</p>

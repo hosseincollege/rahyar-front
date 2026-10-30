@@ -13,7 +13,7 @@ import { formatRahcomCoordinates, rahcomApi, type RahcomSolarSnapshot, type Rahc
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { canonicalRahcomAxis, rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
-import { failedRahcomSystemCodes, isRahcomIncidentValue, latestRahcomSolarSnapshotForToday, tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { failedRahcomSystemKeys, rahcomSystemKey, rahcomProvinceFromLabel, isRahcomIncidentValue, latestRahcomSolarSnapshotForToday, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 type Point = { lat: number; lng: number };
@@ -138,23 +138,33 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   }, [systems]);
   const axisOptions = useMemo(() => [...axisLabelByCode.values()].sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })), [axisLabelByCode]);
   const todaySolarSnapshot = useMemo(() => latestRahcomSolarSnapshotForToday(solarSnapshots, date || todayDateKey), [solarSnapshots, date, todayDateKey]);
-  const solarStatusCodes = useMemo(() => failedRahcomSystemCodes(todaySolarSnapshot), [todaySolarSnapshot]);
+  const solarStatusCodes = useMemo(() => failedRahcomSystemKeys(solarSnapshots, systems, date || todayDateKey), [solarSnapshots, systems, date, todayDateKey]);
   const incidentCodes = useMemo(() => {
     const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\u200c_./-]/g, '');
     const headers = trafficSnapshot?.headers ?? [];
     const codeIndex = headers.findIndex((value) => { const key = normalize(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
     const incidentIndexes = headers.flatMap((value, index) => { const key = normalize(value); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', '\u062a\u0639\u0631\u06cc\u0636', '\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc', 'theft', 'damage', 'widening', 'relocation'].some((term) => key.includes(normalize(term))) ? [index] : []; });
     if (codeIndex < 0 || incidentIndexes.length === 0) return new Set<string>();
-    return new Set((trafficSnapshot?.rows ?? []).filter((row) => {
-      return incidentIndexes.some((index) => isRahcomIncidentValue(row[index]));
-    }).map((row) => (row[codeIndex] ?? '').trim().toUpperCase()).filter(Boolean));
-  }, [trafficSnapshot]);
-  const systemIncidentCodes = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => system.systemCode.trim().toUpperCase())), [systems]);
+    const provinceIndex = headers.findIndex((value) => /province|\u0627\u0633\u062a\u0627\u0646/i.test(value));
+    const keys = new Set<string>();
+    for (const row of trafficSnapshot?.rows ?? []) {
+      if (!incidentIndexes.some((index) => isRahcomIncidentValue(row[index]))) continue;
+      const code = (row[codeIndex] ?? '').trim().toUpperCase();
+      const rawProvince = provinceIndex >= 0 ? row[provinceIndex]?.trim() : '';
+      const rowProvince = rawProvince ? rahcomProvinceFromLabel(rawProvince) : null;
+      if (rawProvince && !rowProvince) continue;
+      const matches = systems.filter((system) => system.systemCode.trim().toUpperCase() === code && (!rowProvince || system.province === rowProvince));
+      if (!rowProvince && matches.length !== 1) continue;
+      for (const system of matches) keys.add(rahcomSystemKey(system.province, code));
+    }
+    return keys;
+  }, [trafficSnapshot, systems]);
+  const systemIncidentCodes = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => rahcomSystemKey(system.province, system.systemCode))), [systems]);
   const visibleSystems = useMemo(() => systems.filter((system) =>
-    !solarDownFilter || solarStatusCodes.has(system.systemCode.trim().toUpperCase()),
+    !solarDownFilter || solarStatusCodes.has(rahcomSystemKey(system.province, system.systemCode)),
   ), [solarDownFilter, solarStatusCodes, systems]);
   const displayedSystems = useMemo(() => visibleSystems.filter((system) => {
-    const systemCode = system.systemCode.trim().toUpperCase();
+    const systemCode = rahcomSystemKey(system.province, system.systemCode);
     const hasTrafficIncident = incidentCodes.has(systemCode);
     const hasSystemIncident = systemIncidentCodes.has(systemCode);
     return (!hasTrafficIncident && !hasSystemIncident)
@@ -208,11 +218,11 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
 
   useEffect(() => {
     let active = true;
-    const refreshTraffic = () => { void rahcomApi.trafficSnapshot().then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
+    const refreshTraffic = () => { void rahcomApi.trafficSnapshot(province).then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
     refreshTraffic();
     window.addEventListener('rahyar:traffic-snapshot-changed', refreshTraffic);
     return () => { active = false; window.removeEventListener('rahyar:traffic-snapshot-changed', refreshTraffic); };
-  }, []);
+  }, [province]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -234,7 +244,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   useEffect(() => {
     let active = true;
     const refreshSnapshots = () => {
-      void rahcomApi.solarSnapshots().then((snapshots) => { if (active) { setSolarSnapshots(snapshots); setSolarSnapshotsLoaded(true); } })
+      void rahcomApi.solarSnapshots(province).then((snapshots) => { if (active) { setSolarSnapshots(snapshots); setSolarSnapshotsLoaded(true); } })
         .catch(() => { if (active) { setSolarSnapshots([]); setSolarSnapshotsLoaded(true); } });
     };
     refreshSnapshots();
@@ -243,7 +253,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       active = false;
       window.removeEventListener('rahyar:solar-snapshots-changed', refreshSnapshots);
     };
-  }, []);
+  }, [province]);
 
   useEffect(() => {
     const updateToday = () => setTodayDateKey(tehranDateKey());
@@ -341,7 +351,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
 
   useEffect(() => {
     let active = true;
-    void rahcomApi.systems(province === 'all' ? undefined : province)
+    void rahcomApi.systems(province)
       .then((rows) => { if (active) { setSystems(rows); setSystemsError(''); } })
       .catch((error: unknown) => {
         if (!active) return;
@@ -387,7 +397,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       displayedSystems.forEach((system) => {
         const systemAxisCode = system.axisCode?.trim() ?? '';
         const markerColor = systemAxisCode ? rahcomAxisColor(axisLabelByCode.get(systemAxisCode) ?? systemAxisCode, axisOptions) : '#64748b';
-        const systemCode = system.systemCode.trim().toUpperCase();
+        const systemCode = rahcomSystemKey(system.province, system.systemCode);
         const systemIcon = divIcon({
           className: '', iconSize: [19, 24], iconAnchor: [9.5, 23],
           html: `<svg aria-hidden="true" width="19" height="24" viewBox="0 0 24 30" style="display:block;filter:drop-shadow(0 1px 2px #0008)"><path d="M12 29S1 17 1 12a11 11 0 1 1 22 0c0 5-11 17-11 17Z" fill="${markerColor}" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="#fff" fill-opacity=".92"/></svg>`,
@@ -544,7 +554,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       const focusSystemId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
       if (focusSystemId) {
         const focusedRecord = visibleSystems.find((system) => system.id === focusSystemId);
-        const marker = focusedRecord ? systemMarkers.current.get(focusedRecord.systemCode.trim().toUpperCase()) : undefined;
+        const marker = focusedRecord ? systemMarkers.current.get(rahcomSystemKey(focusedRecord.province, focusedRecord.systemCode)) : undefined;
         if (marker && systemsLayer.current?.hasLayer(marker)) {
           mapRef.current?.setView(marker.getLatLng(), 15, { animate: false });
           marker.openPopup();

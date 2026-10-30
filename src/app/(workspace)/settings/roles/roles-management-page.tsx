@@ -74,34 +74,16 @@ function serializeRoles(roles: EditableRole[]) {
 }
 
 const PERMISSION_OPTIONS: { key: string; label: UiMessage }[] = [
-  { key: "dashboard.view", label: "permissionView" },
   { key: "users.read", label: "permissionView" },
   { key: "users.write", label: "permissionManage" },
   { key: "roles.read", label: "permissionView" },
   { key: "roles.write", label: "permissionManage" },
   { key: "settings.read", label: "permissionView" },
   { key: "settings.write", label: "permissionManage" },
-  { key: "accounting.read", label: "permissionView" },
-  { key: "accounting.write", label: "permissionManage" },
-  { key: "hr.read", label: "permissionView" },
-  { key: "hr.write", label: "permissionManage" },
-  { key: "hr.employees.read", label: "permissionView" },
-  { key: "hr.employees.write", label: "permissionManage" },
-  { key: "hr.leaves.read", label: "permissionView" },
-  { key: "hr.leaves.write", label: "permissionManage" },
-  { key: "hr.leaves.approve", label: "permissionManage" },
-  { key: "hr.attendance.read", label: "permissionView" },
-  { key: "hr.attendance.write", label: "permissionManage" },
-  { key: "hr.payroll.read", label: "permissionView" },
-  { key: "hr.payroll.write", label: "permissionManage" },
-  { key: "inventory.read", label: "permissionView" },
-  { key: "inventory.write", label: "permissionManage" },
-  { key: "reports.sales.read", label: "permissionView" },
   { key: "announcements.write", label: "permissionManage" },
 ];
 
 const PERMISSION_GROUPS: { label: UiMessage; permissionKeys: string[] }[] = [
-  { label: "permissionGroupDashboard", permissionKeys: ["dashboard.view"] },
   {
     label: "permissionGroupUsers",
     permissionKeys: ["users.read", "users.write"],
@@ -115,34 +97,6 @@ const PERMISSION_GROUPS: { label: UiMessage; permissionKeys: string[] }[] = [
     permissionKeys: ["settings.read", "settings.write"],
   },
   {
-    label: "permissionGroupFinance",
-    permissionKeys: ["accounting.read", "accounting.write"],
-  },
-  {
-    label: "permissionGroupHr",
-    permissionKeys: [
-      "hr.read",
-      "hr.write",
-      "hr.employees.read",
-      "hr.employees.write",
-      "hr.leaves.read",
-      "hr.leaves.write",
-      "hr.leaves.approve",
-      "hr.attendance.read",
-      "hr.attendance.write",
-      "hr.payroll.read",
-      "hr.payroll.write",
-    ],
-  },
-  {
-    label: "permissionGroupInventory",
-    permissionKeys: ["inventory.read", "inventory.write"],
-  },
-  {
-    label: "permissionGroupSalesReports",
-    permissionKeys: ["reports.sales.read"],
-  },
-  {
     label: "permissionGroupAnnouncements",
     permissionKeys: ["announcements.write"],
   },
@@ -153,7 +107,7 @@ function createNewRole(name: string): EditableRole {
     localId: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     name,
     description: "",
-    permissions: ["dashboard.view"],
+    permissions: [],
   };
 }
 
@@ -172,7 +126,7 @@ function normalizeRole(role: RoleItem): EditableRole {
     key: value.key,
     name: value.name ?? "",
     description: value.description ?? "",
-    permissions: Array.isArray(value.permissions) ? value.permissions : [],
+    permissions: Array.isArray(value.permissions) ? value.permissions.filter((key) => PERMISSION_OPTIONS.some((option) => option.key === key)) : [],
     userCount: value.userCount,
     isSystemRole: Boolean((value as { isSystemRole?: boolean }).isSystemRole),
   };

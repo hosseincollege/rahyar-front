@@ -16,7 +16,7 @@ export type ImpersonationContext =
     };
 
 type AccessTokenResponse = { access_token: string };
-export type TestDataModuleKey = 'accounting' | 'commerce' | 'human-resources' | 'statistics' | 'settings' | 'support' | 'rahcom';
+export type TestDataModuleKey = 'settings' | 'rahcom';
 export type TestDataModuleStatus = {
   moduleKey: TestDataModuleKey;
   applied: boolean;
@@ -26,10 +26,10 @@ export type TestDataModuleStatus = {
 };
 
 export type SiteVisitsRange = '7d' | '30d' | '90d' | 'all';
-export type SiteVisitSummary = { onlineVisitors: number; uniqueIps: number; sessions: number; pageViews: number };
-export type SiteVisitor = { ipAddress: string; visits: number; pageViews: number; durationSeconds: number; modules: string[]; lastSeenAt: string | null; online: boolean };
+export type SiteVisitSummary = { onlineVisitors: number; uniqueIps: number; devices: number; sessions: number; pageViews: number };
+export type SiteVisitor = { id: string; visitorId: string | null; label: string | null; userAgent: string | null; ipAddress: string; ipAddresses: string[]; visits: number; pageViews: number; durationSeconds: number; modules: string[]; lastSeenAt: string | null; online: boolean };
 export type SiteVisitorPageView = { path: string; moduleKey: string; enteredAt: string; leftAt: string | null; durationSeconds: number };
-export type SiteVisitorSession = { id: string; startedAt: string; lastSeenAt: string; endedAt: string | null; pageViews: SiteVisitorPageView[] };
+export type SiteVisitorSession = { id: string; ipAddress: string; startedAt: string; lastSeenAt: string; endedAt: string | null; pageViews: SiteVisitorPageView[] };
 
 const HEADER_SWITCHER_EVENT = 'development-header-switcher-setting-changed';
 const HEADER_SWITCHER_KEY_PREFIX = 'development-header-account-switcher:';
@@ -83,8 +83,11 @@ export const developmentApi = {
     const params = new URLSearchParams({ range, page: String(page), search });
     return apiClient.get<{ available: boolean; summary: SiteVisitSummary | null; visitors: SiteVisitor[]; page: number; pageSize: number; totalVisitors: number }>(`/development/site-visits?${params}`);
   },
-  getSiteVisitorDetails(ipAddress: string, range: SiteVisitsRange) {
+  getSiteVisitorDetails(visitorKey: string, range: SiteVisitsRange) {
     const params = new URLSearchParams({ range });
-    return apiClient.get<{ available: boolean; sessions: SiteVisitorSession[] }>(`/development/site-visits/${encodeURIComponent(ipAddress)}?${params}`);
+    return apiClient.get<{ available: boolean; sessions: SiteVisitorSession[] }>(`/development/site-visits/${encodeURIComponent(visitorKey)}?${params}`);
+  },
+  labelSiteVisitorDevice(visitorId: string, label: string) {
+    return apiClient.put<{ available: boolean; visitorId: string; label: string | null }>(`/development/site-visits/devices/${encodeURIComponent(visitorId)}/label`, { label });
   },
 };

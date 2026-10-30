@@ -1,9 +1,9 @@
 /**
  * @file src/app/page.tsx
- * @description صفحه اصلی ERP Pro.
+ * @description Rahyar application frontend
  *
  * اگر کاربر لاگین نباشد، لندینگ عمومی نمایش داده می‌شود.
- * اگر کاربر لاگین باشد، به داشبورد داخل ورک‌اسپیس (/dashboard) هدایت می‌شود.
+ * اگر کاربر لاگین باشد، به ماژول رهکام (/rahcom) هدایت می‌شود.
  */
 
 'use client';
@@ -26,7 +26,7 @@ export default function HomePage() {
       setIsAuthenticated(auth);
 
       if (auth) {
-        router.replace('/dashboard');
+        router.replace('/rahcom');
       }
     };
 

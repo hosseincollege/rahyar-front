@@ -1,6 +1,6 @@
 /**
  * @file frontend/src/app/layout.tsx
- * @description فایل اصلی لایوت ریشه ERP Pro
+ * @description Rahyar application frontend
  */
 
 import type { Metadata, Viewport } from "next";

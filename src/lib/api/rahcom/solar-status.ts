@@ -1,4 +1,4 @@
-import type { RahcomSolarSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, type RahcomSolarSnapshot, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 
 export type RahcomSolarState = 'down' | 'unreachable';
 export type RahcomSolarEntry = { site: string; equipment: string; state: RahcomSolarState; province?: string };
@@ -48,6 +48,36 @@ export function latestRahcomSolarSnapshotForToday(snapshots: RahcomSolarSnapshot
     .filter((snapshot) => tehranDateKey(snapshot.capturedAt) === today)
     .sort((left, right) => new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime()
       || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0] ?? null;
+}
+
+/** Keep each province's latest observation; a newer province must not hide another. */
+export function latestRahcomSolarSnapshotsByProvince(snapshots: RahcomSolarSnapshot[], today = tehranDateKey()) {
+  const latest = new Map<string | null, RahcomSolarSnapshot>();
+  for (const snapshot of [...snapshots].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt) || b.createdAt.localeCompare(a.createdAt))) {
+    if (tehranDateKey(snapshot.capturedAt) === today && !latest.has(snapshot.province)) latest.set(snapshot.province, snapshot);
+  }
+  return [...latest.values()];
+}
+
+export function rahcomSystemKey(province: string, code: string) {
+  return `${province}:${code.trim().toUpperCase()}`;
+}
+
+export function rahcomProvinceFromLabel(value: string) {
+  const normalize = (text: string) => text.normalize('NFKC').toLowerCase().replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/^(?:استان\s*|province\s*:?\s*)/i, '').replace(/[\s\u200c_-]/g, '');
+  return iranProvinces.find(([id, label]) => normalize(id) === normalize(value) || normalize(label) === normalize(value))?.[0] ?? null;
+}
+
+export function failedRahcomSystemKeys(snapshots: RahcomSolarSnapshot[], systems: RahcomSystem[], day: string) {
+  const failed = new Set<string>();
+  for (const snapshot of latestRahcomSolarSnapshotsByProvince(snapshots, day)) {
+    for (const code of failedRahcomSystemCodes(snapshot)) {
+      const matches = systems.filter((system) => system.systemCode.trim().toUpperCase() === code && (!snapshot.province || system.province === snapshot.province));
+      if (!snapshot.province && matches.length !== 1) continue;
+      for (const system of matches) failed.add(rahcomSystemKey(system.province, code));
+    }
+  }
+  return failed;
 }
 
 export function failedRahcomSystemCodes(snapshot: RahcomSolarSnapshot | null) {

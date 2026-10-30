@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, RefreshCw, Search, Users } from 'lucide-react';
+import { Activity, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, Pencil, RefreshCw, Save, Search, Users, X } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/app/(workspace)/development/development-api';
 import { ApiError } from '@/lib/api-client';
@@ -21,7 +21,7 @@ export default function SiteVisitsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [visitors, setVisitors] = useState<SiteVisitor[]>([]);
-  const [summary, setSummary] = useState<{ onlineVisitors: number; uniqueIps: number; sessions: number; pageViews: number } | null>(null);
+  const [summary, setSummary] = useState<{ onlineVisitors: number; uniqueIps: number; devices: number; sessions: number; pageViews: number } | null>(null);
   const [total, setTotal] = useState(0);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,22 +30,39 @@ export default function SiteVisitsPage() {
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SiteVisitorSession[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [deviceLabel, setDeviceLabel] = useState('');
+  const [labelSaving, setLabelSaving] = useState(false);
+  const [labelSavedId, setLabelSavedId] = useState<string | null>(null);
+  const [labelFailed, setLabelFailed] = useState(false);
+  const [clockNow, setClockNow] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true); setFailed(false); setDenied(false);
     try {
       const result = await developmentApi.getSiteVisits(range, page, search);
-      setAvailable(result.available); setVisitors(result.visitors); setSummary(result.summary); setTotal(result.totalVisitors);
+      setAvailable(result.available); setVisitors(result.visitors); setSummary(result.summary); setTotal(result.totalVisitors); setClockNow(Date.now());
     } catch (error) {
       setDenied(error instanceof ApiError && error.status === 403); setFailed(!(error instanceof ApiError && error.status === 403));
     } finally { setLoading(false); }
   }, [range, page, search]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); }, [load]);
   useEffect(() => {
-    if (!selectedIp) { setSessions([]); return; }
-    let active = true; setDetailsLoading(true);
-    developmentApi.getSiteVisitorDetails(selectedIp, range).then((result) => { if (active) setSessions(result.sessions); }).catch(() => { if (active) setSessions([]); }).finally(() => { if (active) setDetailsLoading(false); });
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!selectedIp) return;
+    let active = true;
+    void (async () => {
+      await Promise.resolve();
+      if (!active) return;
+      setDetailsLoading(true);
+      try { const result = await developmentApi.getSiteVisitorDetails(selectedIp, range); if (active) setSessions(result.sessions); }
+      catch { if (active) setSessions([]); }
+      finally { if (active) setDetailsLoading(false); }
+    })();
     return () => { active = false; };
   }, [selectedIp, range]);
 
@@ -58,8 +75,27 @@ export default function SiteVisitsPage() {
   const date = (value: string | null) => value ? new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—';
   const rangeLabels: Array<[SiteVisitsRange, UiMessage]> = [['7d', 'siteVisitsRange7d'], ['30d', 'siteVisitsRange30d'], ['90d', 'siteVisitsRange90d'], ['all', 'siteVisitsRangeAll']];
   const stats: Array<[UiMessage, number, typeof Users]> = summary ? [
-    ['siteVisitsOnline', summary.onlineVisitors, Users], ['siteVisitsUniqueIps', summary.uniqueIps, Eye], ['siteVisitsSessions', summary.sessions, Activity], ['siteVisitsPageViews', summary.pageViews, Clock3],
+    ['siteVisitsOnline', summary.onlineVisitors, Users], ['siteVisitsUniqueDevices', summary.devices, Activity], ['siteVisitsUniqueIps', summary.uniqueIps, Eye], ['siteVisitsSessions', summary.sessions, Activity], ['siteVisitsPageViews', summary.pageViews, Clock3],
   ] : [];
+
+  const describeDevice = (userAgent: string | null) => {
+    if (!userAgent) return t('siteVisitsDeviceUnknown');
+    const browser = /Edg\//.test(userAgent) ? 'Edge' : /OPR\//.test(userAgent) ? 'Opera' : /Firefox\//.test(userAgent) ? 'Firefox' : /SamsungBrowser\//.test(userAgent) ? 'Samsung Internet' : /Chrome\//.test(userAgent) ? 'Chrome' : /Safari\//.test(userAgent) ? 'Safari' : t('siteVisitsDeviceUnknown');
+    const os = /iPhone/.test(userAgent) ? 'iPhone' : /iPad/.test(userAgent) ? 'iPad' : /Android/.test(userAgent) ? 'Android' : /Windows/.test(userAgent) ? 'Windows' : /Mac OS X/.test(userAgent) ? 'macOS' : /Linux/.test(userAgent) ? 'Linux' : '';
+    return [os, browser].filter(Boolean).join(' · ') || t('siteVisitsDeviceUnknown');
+  };
+
+  const saveDeviceLabel = async (visitor: SiteVisitor) => {
+    if (!visitor.visitorId) return;
+    setLabelSaving(true); setLabelFailed(false); setLabelSavedId(null);
+    try {
+      await developmentApi.labelSiteVisitorDevice(visitor.visitorId, deviceLabel);
+      setVisitors((current) => current.map((item) => item.id === visitor.id ? { ...item, label: deviceLabel.trim() || null } : item));
+      setEditingDeviceId(null); setLabelSavedId(visitor.id);
+      window.setTimeout(() => setLabelSavedId((current) => current === visitor.id ? null : current), 2500);
+    } catch { setLabelFailed(true); }
+    finally { setLabelSaving(false); }
+  };
 
   return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl space-y-5">
     <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-start">
@@ -72,24 +108,26 @@ export default function SiteVisitsPage() {
     : failed ? <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{t('siteVisitsLoadFailed')} <button className="ms-2 underline" onClick={() => void load()}>{t('siteVisitsRetry')}</button></div>
     : available === false ? <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm leading-6 text-foreground">{t('siteVisitsVercelOnly')}</p>
     : <>
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">{stats.map(([label, value, Icon]) => <article key={label} className="rounded-2xl border border-border bg-card p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Icon size={16} className="text-primary" />{t(label)}</div><p className="mt-2 text-2xl font-bold tabular-nums">{loading ? '—' : value.toLocaleString(locale)}</p></article>)}</section>
+      <p className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-6 text-foreground">{t('siteVisitsIpExplanation')}</p>
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">{stats.map(([label, value, Icon]) => <article key={label} className="rounded-2xl border border-border bg-card p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Icon size={16} className="text-primary" />{t(label)}</div><p className="mt-2 text-2xl font-bold tabular-nums">{loading ? '—' : value.toLocaleString(locale)}</p></article>)}</section>
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center">
           <label className="relative min-w-0 flex-1"><Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={t('siteVisitsSearch')} className="h-10 w-full rounded-lg border border-border bg-background ps-9 pe-3 text-sm outline-none focus:border-primary" dir="ltr" /></label>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground"><span className="shrink-0">{t('siteVisitsRange')}</span><select value={range} onChange={(event) => { setRange(event.target.value as SiteVisitsRange); setPage(1); setSelectedIp(null); }} className="h-10 min-w-32 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{rangeLabels.map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground"><span className="shrink-0">{t('siteVisitsRange')}</span><select value={range} onChange={(event) => { setRange(event.target.value as SiteVisitsRange); setPage(1); setSelectedIp(null); setSessions([]); }} className="h-10 min-w-32 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{rangeLabels.map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
         </div>
         {loading ? <p className="p-6 text-center text-sm text-muted-foreground">{t('siteVisitsLoading')}</p>
         : visitors.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">{t('siteVisitsNoVisitors')}</p>
-        : <div className="divide-y divide-border">{visitors.map((visitor) => <article key={visitor.ipAddress}>
+        : <div className="divide-y divide-border">{visitors.map((visitor) => <article key={visitor.id}>
           <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-[minmax(8rem,1.2fr)_repeat(4,minmax(5rem,1fr))_auto] sm:items-center">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p dir="ltr" className="truncate text-sm font-semibold tabular-nums text-start">{visitor.ipAddress}</p>{visitor.online && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{t('siteVisitsOnline')}</span>}</div><p className="mt-1 text-xs text-muted-foreground">{t('siteVisitsLastSeen')}: {date(visitor.lastSeenAt)}</p></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-semibold text-start">{visitor.label || describeDevice(visitor.userAgent)}</p>{visitor.online && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{t('siteVisitsOnline')}</span>}</div><p className="mt-1 truncate font-mono text-xs text-muted-foreground" dir="ltr">{visitor.ipAddresses.slice(0, 3).join(' · ') || visitor.ipAddress}{visitor.ipAddresses.length > 3 ? ` · +${visitor.ipAddresses.length - 3}` : ''}</p><p className="mt-1 text-xs text-muted-foreground">{t('siteVisitsLastSeen')}: {date(visitor.lastSeenAt)}</p>{labelSavedId === visitor.id && <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{t('siteVisitsLabelSaved')}</p>}</div>
             <div className="text-xs"><span className="text-muted-foreground">{t('siteVisitsVisits')}: </span><strong>{visitor.visits.toLocaleString(locale)}</strong></div>
             <div className="text-xs"><span className="text-muted-foreground">{t('siteVisitsPageViews')}: </span><strong>{visitor.pageViews.toLocaleString(locale)}</strong></div>
             <div className="text-xs"><span className="text-muted-foreground">{t('siteVisitsTimeOnSite')}: </span><strong>{duration(visitor.durationSeconds)}</strong></div>
             <div className="flex flex-wrap gap-1">{visitor.modules.slice(0, 3).map((module) => <span key={module} className="rounded-full bg-muted px-2 py-1 text-[11px]">{t(moduleLabels[module] ?? 'sidebarDevelopment')}</span>)}{visitor.modules.length > 3 && <span className="text-xs text-muted-foreground">+{visitor.modules.length - 3}</span>}</div>
-            <button type="button" onClick={() => setSelectedIp((current) => current === visitor.ipAddress ? null : visitor.ipAddress)} className="flex h-9 items-center justify-center gap-1 rounded-lg border border-border px-3 text-xs font-medium hover:bg-muted">{t(selectedIp === visitor.ipAddress ? 'siteVisitsHideDetails' : 'siteVisitsDetails')}<ChevronDown size={14} className={selectedIp === visitor.ipAddress ? 'rotate-180' : ''} /></button>
+            <div className="flex flex-wrap gap-2"><button type="button" disabled={!visitor.visitorId} onClick={() => { setEditingDeviceId((id) => id === visitor.id ? null : visitor.id); setDeviceLabel(visitor.label ?? ''); setLabelFailed(false); }} className="flex h-9 items-center justify-center gap-1 rounded-lg border border-border px-3 text-xs font-medium hover:bg-muted disabled:opacity-40"><Pencil size={13}/>{t(visitor.label ? 'siteVisitsEditLabel' : 'siteVisitsDeviceLabel')}</button><button type="button" onClick={() => { const next = selectedIp === visitor.id ? null : visitor.id; setSelectedIp(next); setSessions([]); setDetailsLoading(Boolean(next)); }} className="flex h-9 items-center justify-center gap-1 rounded-lg border border-border px-3 text-xs font-medium hover:bg-muted">{t(selectedIp === visitor.id ? 'siteVisitsHideDetails' : 'siteVisitsDetails')}<ChevronDown size={14} className={selectedIp === visitor.id ? 'rotate-180' : ''} /></button></div>
           </div>
-          {selectedIp === visitor.ipAddress && <div className="space-y-3 border-t border-border bg-muted/20 p-4">{detailsLoading ? <p className="text-sm text-muted-foreground">{t('siteVisitsLoading')}</p> : sessions.length === 0 ? <p className="text-sm text-muted-foreground">{t('siteVisitsNoVisitors')}</p> : sessions.map((session) => <SessionDetails key={session.id} session={session} t={t} date={date} duration={duration} />)}</div>}
+          {editingDeviceId === visitor.id && <form onSubmit={(event) => { event.preventDefault(); void saveDeviceLabel(visitor); }} className="flex flex-col gap-2 border-t border-border bg-muted/20 p-4 sm:flex-row sm:items-center"><label className="min-w-0 flex-1"><span className="mb-1 block text-xs text-muted-foreground">{t('siteVisitsDeviceLabel')}</span><input autoFocus maxLength={80} value={deviceLabel} onChange={(event) => setDeviceLabel(event.target.value)} placeholder={t('siteVisitsLabelPlaceholder')} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" /></label>{labelFailed && <p role="alert" className="text-xs text-destructive">{t('siteVisitsLabelSaveFailed')}</p>}<div className="flex gap-2"><button type="button" onClick={() => setEditingDeviceId(null)} className="inline-flex h-10 items-center gap-1 rounded-lg border border-border px-3 text-sm"><X size={15}/>{t('siteVisitsCancelLabel')}</button><button type="submit" disabled={labelSaving} className="inline-flex h-10 items-center gap-1 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{labelSaving ? <Check size={15}/> : <Save size={15} />}{t('siteVisitsSaveLabel')}</button></div></form>}
+          {selectedIp === visitor.id && <div className="space-y-3 border-t border-border bg-muted/20 p-4">{detailsLoading ? <p className="text-sm text-muted-foreground">{t('siteVisitsLoading')}</p> : sessions.length === 0 ? <p className="text-sm text-muted-foreground">{t('siteVisitsNoVisitors')}</p> : sessions.map((session) => <SessionDetails key={session.id} session={session} currentTime={clockNow} t={t} date={date} duration={duration} />)}</div>}
         </article>)}</div>}
         {!loading && total > 25 && <footer className="flex items-center justify-between border-t border-border p-3"><button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm disabled:opacity-40"><ChevronLeft size={16} />{t('siteVisitsPrevious')}</button><span className="text-xs text-muted-foreground">{t('siteVisitsPageLabel')} {page} / {Math.ceil(total / 25)}</span><button type="button" disabled={page >= Math.ceil(total / 25)} onClick={() => setPage((value) => value + 1)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm disabled:opacity-40">{t('siteVisitsNext')}<ChevronRight size={16} /></button></footer>}
       </section>
@@ -97,9 +135,9 @@ export default function SiteVisitsPage() {
   </main>;
 }
 
-function SessionDetails({ session, t, date, duration }: { session: SiteVisitorSession; t: (key: UiMessage) => string; date: (value: string | null) => string; duration: (seconds: number) => string }) {
-  const active = !session.endedAt && Date.now() - new Date(session.lastSeenAt).getTime() < 5 * 60_000;
-  return <section className="rounded-xl border border-border bg-background p-3 sm:p-4"><header className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold">{t('siteVisitsSessionStarted')}: {date(session.startedAt)}</p><span className="rounded-full bg-muted px-2 py-1 text-[11px]">{active ? t('siteVisitsSessionActive') : t('siteVisitsSessionEnded')}</span></header>
+function SessionDetails({ session, currentTime, t, date, duration }: { session: SiteVisitorSession; currentTime: number; t: (key: UiMessage) => string; date: (value: string | null) => string; duration: (seconds: number) => string }) {
+  const active = !session.endedAt && currentTime > 0 && currentTime - new Date(session.lastSeenAt).getTime() < 5 * 60_000;
+  return <section className="rounded-xl border border-border bg-background p-3 sm:p-4"><header className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold">{t('siteVisitsSessionStarted')}: {date(session.startedAt)}</p><div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{t('siteVisitsSessionIp')}:</span><code dir="ltr" className="font-mono text-xs">{session.ipAddress}</code><span className="rounded-full bg-muted px-2 py-1 text-[11px]">{active ? t('siteVisitsSessionActive') : t('siteVisitsSessionEnded')}</span></div></header>
     {session.pageViews.length === 0 ? <p className="mt-3 text-xs text-muted-foreground">{t('siteVisitsNoVisitors')}</p> : <div className="mt-3 space-y-2">{session.pageViews.map((view, index) => <div key={`${view.path}-${view.enteredAt}-${index}`} className="grid gap-1 rounded-lg bg-muted/40 p-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"><div className="min-w-0"><p className="truncate font-medium" dir="ltr">{view.path}</p><p className="mt-1 text-muted-foreground">{t(moduleLabels[view.moduleKey] ?? 'sidebarDevelopment')}</p></div><span className="text-muted-foreground">{date(view.enteredAt)}</span><span className="font-medium">{duration(view.durationSeconds)}</span></div>)}</div>}
   </section>;
 }

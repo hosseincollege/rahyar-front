@@ -21,7 +21,7 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { uiMessage } from '@/lib/ui-messages';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi, type UserItem } from '@/app/(workspace)/settings/settings-api';
+import { settingsApi, type UserItem, type BranchItem, type DepartmentItem, type RoleItem } from '@/app/(workspace)/settings/settings-api';
 
 import { UserFormModal, type UserFormData } from './user-form-modal';
 import { parseUsersToItems, usersImportSample } from './users-json';
@@ -62,6 +62,9 @@ export function UserAccountsPage() {
   const direction = getLocaleDirection(locale);
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const [departments, setDepartments] = useState<DepartmentItem[]>([]);
+  const [roles, setRoles] = useState<RoleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [canManage, setCanManage] = useState(false);
@@ -99,15 +102,21 @@ export function UserAccountsPage() {
         return;
       }
 
-      const [response, access] = await Promise.all([
+      const [response, access, branchOptions, departmentOptions, roleOptions] = await Promise.all([
         settingsApi.getUsers(organizationId),
         settingsApi.getOrganizationAccess(organizationId),
+        settingsApi.getBranches(organizationId),
+        settingsApi.getDepartments(organizationId),
+        settingsApi.getRoles(organizationId),
       ]);
       if (!access.canView) {
         throw new Error('مجوز مشاهده کاربران این سازمان را ندارید.');
       }
       setCanManage(access.canEdit);
       setUsers(response ?? []);
+      setBranches(branchOptions ?? []);
+      setDepartments(departmentOptions ?? []);
+      setRoles(roleOptions ?? []);
       const requestedUserId = window.location.hash.startsWith('#user-')
         ? decodeURIComponent(window.location.hash.slice('#user-'.length))
         : null;
@@ -167,6 +176,8 @@ export function UserAccountsPage() {
       isSystemUser: Boolean(user.isSystemUser),
       role: user.role ?? user.roleKey ?? 'USER',
       department: user.department ?? '',
+      branchId: user.branchId ?? '',
+      departmentId: user.departmentId ?? '',
       isActive: user.isActive ?? user.status === 'ACTIVE',
     });
     setIsUserModalOpen(true);
@@ -225,6 +236,8 @@ export function UserAccountsPage() {
             role,
             roleKey: role,
             department: department || undefined,
+            branchId: data.branchId || null,
+            departmentId: data.departmentId || null,
             isActive: data.isActive,
             status: data.isActive ? 'ACTIVE' : 'DISABLED',
             ...(password ? { password } : {}),
@@ -247,6 +260,8 @@ export function UserAccountsPage() {
           roleKey: role,
           roles: [],
           department: department || undefined,
+          branchId: data.branchId || null,
+          departmentId: data.departmentId || null,
           isActive: data.isActive,
         };
         updatedUsers = [newUser, ...users];
@@ -370,9 +385,9 @@ export function UserAccountsPage() {
         return;
       }
 
-      const updatedUsers = users.filter((item) => item.id !== user.id);
-      const savedUsers = await settingsApi.saveUsers(updatedUsers, organizationId);
-      setUsers(savedUsers ?? updatedUsers);
+      if (!user.id) return;
+      const savedUsers = await settingsApi.removeUser(organizationId, user.id);
+      setUsers(savedUsers);
       setSuccessMessage('کاربر با موفقیت حذف شد.');
     } catch (error) {
       setErrorMessage(getErrorMessage(error, 'حذف کاربر با خطا مواجه شد.'));
@@ -530,7 +545,7 @@ export function UserAccountsPage() {
                           {user.role || user.roleKey || 'بدون نقش'}
                         </span>
                       </td>
-                      <td className="px-5 py-4">{user.department || '—'}</td>
+                      <td className="px-5 py-4"><div>{user.department || '—'}</div>{user.branchName && <div className="mt-1 text-xs text-muted-foreground">{message('accountOffice')}: {message('organizationProvince')} {user.branchName}</div>}</td>
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -573,6 +588,7 @@ export function UserAccountsPage() {
                             <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailEmail')}: </span>{user.email || '—'}</p>
                             <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailUsername')}: </span>{user.username}</p>
                             <p><span className="text-muted-foreground">{message('usersDetailRole')}: </span>{user.role || user.roleKey || 'بدون نقش'}</p>
+                            <p><span className="text-muted-foreground">{message('accountOffice')}: </span>{user.branchName ? `${message('organizationProvince')} ${user.branchName}` : '—'}</p>
                             <p><span className="text-muted-foreground">{message('usersDetailDepartment')}: </span>{user.department || '—'}</p>
                             <p><span className="text-muted-foreground">{message('usersDetailStatus')}: </span>{isActive ? message('usersActive') : message('usersInactive')}</p>
                           </div>
@@ -596,6 +612,9 @@ export function UserAccountsPage() {
         initialData={formData}
         onClose={() => setIsUserModalOpen(false)}
         onSave={handleSaveUser}
+        branches={branches}
+        departments={departments}
+        roles={roles}
       />
     </section>
   );

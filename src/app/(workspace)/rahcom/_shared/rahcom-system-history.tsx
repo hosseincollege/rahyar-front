@@ -19,6 +19,13 @@ export function RahcomSystemHistory({ system }: { system: Pick<RahcomSystem, 'id
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [canRecord, setCanRecord] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void rahcomApi.access().then((access) => { if (active) setCanRecord(access.canRecordActivities); }).catch(() => { if (active) setCanRecord(false); });
+    return () => { active = false; };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,7 +58,7 @@ export function RahcomSystemHistory({ system }: { system: Pick<RahcomSystem, 'id
         <div><h3 className="font-semibold text-foreground">{t('rahcomHistory')}</h3><p className="mt-0.5 text-xs text-muted-foreground">{system.systemName} · {system.systemCode}</p></div>
         <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{items.length}</span>
       </div>
-      <details className="overflow-hidden rounded-xl border border-border bg-background/60">
+      {canRecord && <details className="overflow-hidden rounded-xl border border-border bg-background/60">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium text-primary marker:hidden"><Plus size={16}/>{t('rahcomAddHistory')}</summary>
         <div className="grid gap-3 border-t border-border p-3 sm:grid-cols-2">
           <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomAccompaniedBy')}<input value={accompaniedBy} onChange={event => setAccompaniedBy(event.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>
@@ -59,7 +66,7 @@ export function RahcomSystemHistory({ system }: { system: Pick<RahcomSystem, 'id
           <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">{t('rahcomWorkPerformed')}<textarea rows={2} value={description} onChange={event => setDescription(event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" /></label>
           <div className="flex items-center justify-between gap-3 sm:col-span-2">{error && <p role="alert" className="text-xs text-destructive">{error}</p>}<button type="button" disabled={saving || !description.trim() || !date} onClick={() => void addVisit()} className="ms-auto inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50">{saving ? <LoaderCircle size={16} className="animate-spin"/> : <Plus size={16}/>} {t('rahcomAddHistory')}</button></div>
         </div>
-      </details>
+      </details>}
       {error && !loading && <p role="alert" className="rounded-lg bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
       {loading ? <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin"/>…</div> : items.length === 0 ? <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">{t('rahcomNoHistory')}</p> : (
         <ol className="relative space-y-3 border-s border-border ps-4">

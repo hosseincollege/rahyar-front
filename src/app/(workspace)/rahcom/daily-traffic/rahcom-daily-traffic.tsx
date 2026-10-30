@@ -10,7 +10,7 @@ import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomTrafficUpload } from './rahcom-traffic-upload';
-import { latestRahcomSolarSnapshotForToday, parseRahcomSolarList, tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { latestRahcomSolarSnapshotsByProvince, rahcomProvinceFromLabel, rahcomSystemKey, parseRahcomSolarList, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 
 const pageSize = 50;
 const normalizeHeader = (value: string) => value.trim().toLocaleLowerCase('fa').replace(/[\u200c\s]/g, '');
@@ -33,7 +33,7 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
   const [repairProvince, setRepairProvince] = useState('');
   const [systemsByCode, setSystemsByCode] = useState<Record<string, RahcomSystem>>({});
   const [systemsIndexLoaded, setSystemsIndexLoaded] = useState(false);
-  const [solarSnapshot, setSolarSnapshot] = useState<RahcomSolarSnapshot | null>(null);
+  const [solarSnapshot, setSolarSnapshot] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedProvince, setSelectedProvince] = useState('isfahan');
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
 
@@ -57,7 +57,7 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
       setLoading(false);
       return () => { active = false; };
     }
-    void rahcomApi.activities(date)
+    void rahcomApi.activities(date, undefined, provinceFilter && provinceFilter !== 'all' ? provinceFilter : undefined)
       .then((rows) => { if (active) setItems(rows); })
       .catch((reason: unknown) => {
         if (active) {
@@ -67,14 +67,14 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [date, t]);
+  }, [date, provinceFilter, t]);
 
   const loadTrafficSnapshot = useCallback(async () => {
     setTrafficLoading(true);
-    try { setTrafficSnapshot(await rahcomApi.trafficSnapshot()); setTrafficError(''); }
+    try { setTrafficSnapshot(await rahcomApi.trafficSnapshot(provinceFilter ?? selectedProvince)); setTrafficError(''); }
     catch (reason) { setTrafficError(reason instanceof Error ? reason.message : t('rahcomTrafficLoadFailed')); }
     finally { setTrafficLoading(false); }
-  }, [t]);
+  }, [t, provinceFilter, selectedProvince]);
 
   useEffect(() => { void loadTrafficSnapshot(); }, [loadTrafficSnapshot]);
   useEffect(() => {
@@ -83,9 +83,9 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
   }, [loadTrafficSnapshot]);
 
   const loadSolarSnapshot = useCallback(async () => {
-    try { setSolarSnapshot(latestRahcomSolarSnapshotForToday(await rahcomApi.solarSnapshots(), tehranDateKey(date ?? undefined))); }
-    catch { setSolarSnapshot(null); }
-  }, [date]);
+    try { setSolarSnapshot(latestRahcomSolarSnapshotsByProvince(await rahcomApi.solarSnapshots(provinceFilter ?? selectedProvince), tehranDateKey(date ?? undefined))); }
+    catch { setSolarSnapshot([]); }
+  }, [date, provinceFilter, selectedProvince]);
   useEffect(() => { void loadSolarSnapshot(); }, [loadSolarSnapshot]);
   useEffect(() => {
     window.addEventListener('rahyar:solar-snapshots-changed', loadSolarSnapshot);
@@ -95,9 +95,13 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
   useEffect(() => {
     if (!trafficSnapshot) { setSystemsByCode({}); setSystemsIndexLoaded(false); return; }
     let active = true;
-    void rahcomApi.systems((provinceFilter ?? selectedProvince) === 'all' ? undefined : (provinceFilter ?? selectedProvince)).then((systems) => {
+    void rahcomApi.systems((provinceFilter ?? selectedProvince)).then((systems) => {
       if (active) {
-        setSystemsByCode(Object.fromEntries(systems.map((system) => [system.systemCode.trim().toUpperCase(), system])));
+        const index: Record<string, RahcomSystem> = {};
+        const counts = new Map<string, number>();
+        for (const system of systems) { const code = system.systemCode.trim().toUpperCase(); counts.set(code, (counts.get(code) ?? 0) + 1); index[rahcomSystemKey(system.province, code)] = system; }
+        for (const system of systems) { const code = system.systemCode.trim().toUpperCase(); if (counts.get(code) === 1) index[code] = system; }
+        setSystemsByCode(index);
         setSystemsIndexLoaded(true);
       }
     }).catch(() => { if (active) { setSystemsByCode({}); setSystemsIndexLoaded(true); } });
@@ -132,7 +136,7 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
     return provinceTrafficRows.filter((row) => row.join(' ').toLocaleLowerCase(locale).includes(query));
   }, [locale, provinceTrafficRows, trafficSearch]);
   const trafficPageCount = Math.max(1, Math.ceil(filteredTrafficRows.length / pageSize));
-  const visibleTrafficRows = filteredTrafficRows.slice(trafficPage * pageSize, (trafficPage + 1) * pageSize);
+  const visibleTrafficRows = filteredTrafficRows.slice(Math.min(trafficPage, trafficPageCount - 1) * pageSize, (Math.min(trafficPage, trafficPageCount - 1) + 1) * pageSize);
   const solarColumnIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('سولار') || header.includes('solar'));
   const savedDownCount = trafficSnapshot ? trafficRows.filter((row) => /^(down|دان|قطع|قطعی)$/i.test(row[solarColumnIndex] ?? '')).length : 0;
   const savedNoTrafficCount = trafficSnapshot ? trafficRows.filter((row) => /بدون\s*تردد/i.test(row[normalizedTrafficHeaders.findIndex((header) => header.includes('بدونتردد') && header.includes('سهروز'))] ?? '')).length : 0;
@@ -141,23 +145,25 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
   const repairAxisCodeIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('کدمحور'));
   const repairSolarIndex = solarColumnIndex;
   const solarStateByCode = useMemo(() => {
-    const entries = solarSnapshot ? [
-      ...parseRahcomSolarList(solarSnapshot.downText, 'down'),
-      ...parseRahcomSolarList(solarSnapshot.unreachableText, 'unreachable'),
-    ] : [];
     const grouped = new Map<string, Array<{ equipment: string; state: 'down' | 'unreachable' }>>();
-    for (const entry of entries) {
-      const values = grouped.get(entry.site) ?? [];
-      values.push({ equipment: entry.equipment, state: entry.state });
-      grouped.set(entry.site, values);
+    for (const snapshot of solarSnapshot) {
+      for (const entry of [...parseRahcomSolarList(snapshot.downText, 'down'), ...parseRahcomSolarList(snapshot.unreachableText, 'unreachable')]) {
+        const key = rahcomSystemKey(snapshot.province ?? entry.province ?? '', entry.site);
+        const values = grouped.get(key) ?? [];
+        values.push({ equipment: entry.equipment, state: entry.state });
+        grouped.set(key, values);
+      }
     }
     return grouped;
-  }, [solarSnapshot, t]);
+  }, [solarSnapshot]);
   const statusForTrafficRow = (row: string[]) => {
     const code = (row[repairCodeIndex] ?? '').trim().toUpperCase();
-    if (!code) return '—';
-    if (!solarSnapshot) return t('rahcomTrafficSolarSnapshotMissing');
-    const equipmentStatuses = solarStateByCode.get(code) ?? [];
+    if (!code) return '\u2014';
+    const rawProvince = repairProvinceIndex >= 0 ? row[repairProvinceIndex] : '';
+    const rowProvince = rahcomProvinceFromLabel(rawProvince ?? '') ?? (provinceForView !== 'all' ? provinceForView : systemsByCode[code]?.province);
+    const snapshot = solarSnapshot.find((item) => item.province === rowProvince);
+    if (!snapshot || !rowProvince) return t('rahcomTrafficSolarSnapshotMissing');
+    const equipmentStatuses = solarStateByCode.get(rahcomSystemKey(rowProvince, code)) ?? [];
     const labels = new Map(equipmentStatuses.map(({ equipment, state }) => [equipment, state]));
     const failedLte = labels.has('LTE-1') || labels.has('LTE-2');
     const formatStatus = (state?: 'down' | 'unreachable') => state === 'down' ? t('solarStatusDown') : state === 'unreachable' ? t('solarStatusUnreachable') : t('solarStatusNormal');
@@ -176,7 +182,7 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
       const axisCode = repairAxisCodeIndex >= 0 ? (row[repairAxisCodeIndex] ?? '').trim() : '';
       if (!code) continue;
       const items = groups.get(province) ?? [];
-      items.push({ code, axisCode, row, system: systemsByCode[code.toUpperCase()] ?? null });
+      items.push({ code, axisCode, row, system: systemsByCode[rahcomSystemKey(rahcomProvinceFromLabel(province) ?? '', code)] ?? null });
       groups.set(province, items);
     }
     return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right, locale));
@@ -189,7 +195,7 @@ export function RahcomDailyTraffic({ canManage = false, provinceFilter }: { canM
   }
 
   return (
-    <section dir="rtl" className="space-y-4">
+    <section dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'} className="space-y-4">
       {canManage && <RahcomTrafficUpload />}
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <div className="flex items-center gap-3">

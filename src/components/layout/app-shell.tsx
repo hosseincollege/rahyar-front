@@ -1,6 +1,6 @@
 /**
  * @file src/components/layout/app-shell.tsx
- * @description پوسته اصلی صفحات داخلی ERP Pro
+ * @description Rahyar application frontend
  */
 
 'use client';

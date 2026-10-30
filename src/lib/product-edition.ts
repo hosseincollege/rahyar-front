@@ -1,2 +1,2 @@
-/** Product-specific switch intentionally excluded from ERP-to-Rahyar sync. */
+/** Rahyar-specific product configuration, maintained independently from ERP. */
 export const isReducedEdition = true;

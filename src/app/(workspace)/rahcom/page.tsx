@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ClipboardList, Clock3, FileUp, LifeBuoy, List, MapPinned, Sun, Waypoints } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
+import { VisitorStatsOverview } from '@/app/(workspace)/rahcom/visitor-stats-overview';
 
 const sections = [
   { id: 'map', href: '/rahcom/map', title: 'rahcomMap', Icon: MapPinned },
@@ -29,6 +30,8 @@ export default function RahcomPage() {
           <p className="mt-1 text-sm text-muted-foreground">{uiMessage(locale, 'sidebarNoSubmenu')}</p>
         </div>
       </header>
+
+      <VisitorStatsOverview />
 
       <section aria-label={uiMessage(locale, 'sidebarRahkam')} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sections.map(({ id, href, title, Icon }) => (

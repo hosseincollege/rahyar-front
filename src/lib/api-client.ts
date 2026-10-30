@@ -1,6 +1,6 @@
 /**
  * @file src/lib/api-client.ts
- * @description Central HTTP client for ERP Pro frontend with JWT auth, token storage, logout, standardized errors, and status panel logging.
+ * @description Rahyar application frontend
  */
 
 import { levelFromStatus, useStatusStore } from './status-store';

@@ -67,7 +67,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
     try {
       const response = await developmentApi.switchAccount(accountId);
       setAccessToken(response.access_token);
-      window.location.assign('/dashboard');
+      window.location.assign('/rahcom');
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) { setDenied(true); setOpen(false); }
       else setSwitchFailed(true);
@@ -80,7 +80,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
     try {
       const response = await developmentApi.stopImpersonation();
       setAccessToken(response.access_token);
-      window.location.assign('/dashboard');
+      window.location.assign('/rahcom');
     } catch {
       setReturnFailed(true);
       setReturning(false);
@@ -93,7 +93,7 @@ export function HeaderAccountSwitcher({ userId, embedded = false }: { userId?: s
         {embedded ? t('developmentAccountSwitching') : <UsersRound size={17} aria-hidden="true" />}
       </button>
       {open && (
-        <div id="header-account-switcher-menu" role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={embedded ? 'absolute inset-x-0 top-full z-[70] mt-1 max-h-[min(65vh,24rem)] w-full space-y-1 overflow-y-auto rounded-xl border border-[var(--border)] p-2 shadow-xl' : 'absolute end-0 top-full z-[70] mt-2 w-[min(18rem,calc(100vw-1rem))] space-y-1 rounded-xl border border-[var(--border)] p-2 shadow-xl'}>
+        <div id="header-account-switcher-menu" role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={embedded ? 'absolute inset-x-0 top-full z-[70] mt-1 max-h-[min(65vh,24rem)] w-full space-y-1 overflow-y-auto rounded-xl border border-[var(--border)] p-2 shadow-xl' : 'absolute end-0 top-full z-[70] mt-2 w-[min(15rem,calc(100vw-1rem))] space-y-1 rounded-xl border border-[var(--border)] p-2 shadow-xl'}>
           {impersonation?.isImpersonating && (
             <button type="button" role="menuitem" onClick={() => void returnToAdmin()} disabled={returning} className="flex min-h-11 w-full items-center rounded-lg px-3 text-start text-sm font-semibold text-foreground transition-colors hover:bg-[var(--primary-soft)] disabled:cursor-wait disabled:opacity-60">
               {t(returning ? 'developmentReturningToAdmin' : 'developmentReturnToAdmin')}

@@ -6,6 +6,7 @@ import { Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
+import type { BranchItem, DepartmentItem, RoleItem } from '@/app/(workspace)/settings/settings-api';
 
 export type UserFormData = {
   name: string;
@@ -16,6 +17,8 @@ export type UserFormData = {
   isSystemUser: boolean;
   role: string;
   department: string;
+  branchId?: string;
+  departmentId?: string;
   isActive: boolean;
 };
 
@@ -26,6 +29,9 @@ interface UserFormModalProps {
   initialData: UserFormData;
   onClose: () => void;
   onSave: (formData: UserFormData) => Promise<void>;
+  branches?: BranchItem[];
+  departments?: DepartmentItem[];
+  roles?: RoleItem[];
 }
 
 export function UserFormModal({
@@ -35,6 +41,9 @@ export function UserFormModal({
   initialData,
   onClose,
   onSave,
+  branches = [],
+  departments = [],
+  roles = [],
 }: UserFormModalProps) {
   const { locale } = usePreferences();
   const [formData, setFormData] = useState<UserFormData>(initialData);
@@ -187,30 +196,41 @@ export function UserFormModal({
               <label htmlFor="modal-user-role" className="mb-1.5 block text-sm font-medium">
                 نقش
               </label>
-              <input
+              <select
                 id="modal-user-role"
                 value={formData.role}
                 onChange={(e) => setFormData((cur) => ({ ...cur, role: e.target.value }))}
-                placeholder="USER"
                 required
                 disabled={formData.isSystemUser}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
+              >
+                {roles.map((role) => <option key={role.id} value={role.key}>{role.name}</option>)}
+                {!roles.length && <option value={formData.role}>{formData.role || 'USER'}</option>}
+              </select>
               {formData.isSystemUser && <p className="mt-1 text-xs text-muted-foreground">{uiMessage(locale, 'accountOwnerRoleProtected')}</p>}
             </div>
 
             <div>
               <label htmlFor="modal-user-department" className="mb-1.5 block text-sm font-medium">
-                بخش سازمانی
+                {uiMessage(locale, 'accountOffice')}
               </label>
-              <input
+              <select
                 id="modal-user-department"
-                value={formData.department}
-                onChange={(e) => setFormData((cur) => ({ ...cur, department: e.target.value }))}
-                placeholder="اختیاری"
+                value={formData.branchId ?? ''}
+                onChange={(e) => setFormData((cur) => ({ ...cur, branchId: e.target.value, departmentId: '' }))}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
+              >
+                <option value="">{uiMessage(locale, 'accountNoOffice')}</option>
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{uiMessage(locale, 'organizationProvince')} {branch.name}</option>)}
+              </select>
             </div>
+          </div>
+          <div>
+            <label htmlFor="modal-user-unit" className="mb-1.5 block text-sm font-medium">{uiMessage(locale, 'accountOrgUnit')}</label>
+            <select id="modal-user-unit" value={formData.departmentId ?? ''} onChange={(e) => setFormData((cur) => { const unit = departments.find((item) => item.id === e.target.value); return { ...cur, departmentId: e.target.value, department: unit?.name ?? '', branchId: unit?.branchId ?? cur.branchId }; })} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary">
+              <option value="">{uiMessage(locale, 'accountNoUnit')}</option>
+              {departments.filter((item) => !formData.branchId || item.branchId === formData.branchId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
           </div>
 
           <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">

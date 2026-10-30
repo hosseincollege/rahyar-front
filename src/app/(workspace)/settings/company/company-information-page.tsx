@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
+  ChevronDown,
   Edit3,
   FileCheck,
   FileDown,
@@ -26,7 +27,7 @@ import {
 } from 'lucide-react';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import {
   resolveOrganizationLogoUrl,
@@ -448,7 +449,7 @@ export function CompanyInformationPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div dir={getLocaleDirection(locale)} className="space-y-4">
       {/* پیام Toast */}
       {toast && (
         <div
@@ -464,8 +465,8 @@ export function CompanyInformationPage() {
       )}
 
       {/* بخش ۱: دریافت قالب و ورود اطلاعات؛ فقط برای کاربران دارای مجوز ویرایش */}
-      {canEdit && <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
+      {canEdit && <details className="group rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <FileSpreadsheet className="h-5 w-5" />
@@ -479,8 +480,10 @@ export function CompanyInformationPage() {
               </p>
             </div>
           </div>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
             <button
               type="button"
               onClick={handleDownloadCompanySample}
@@ -510,7 +513,6 @@ export function CompanyInformationPage() {
               className="hidden"
             />
           </div>
-        </div>
 
         {/* وضعیت اعتبارسنجی و اکشن ثبت قطعی فایل */}
         {jsonValidationMessage && (
@@ -559,10 +561,10 @@ export function CompanyInformationPage() {
             )}
           </div>
         )}
-      </div>}
+      </details>}
 
       {/* بخش ۲: فرم و اطلاعات هویتی و ثبتی شرکت */}
-      <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
+      <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -628,7 +630,7 @@ export function CompanyInformationPage() {
 
         {/* حالت نمایش (View Mode) */}
         {!isEditing ? (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="rounded-xl border border-border/50 bg-background/50 p-5">
               <h3 className="mb-4 text-xs font-bold text-muted-foreground">
                 مشخصات عمومی و ثبتی
@@ -647,22 +649,22 @@ export function CompanyInformationPage() {
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شناسه یکتا (Slug)</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.slug || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.slug || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شناسه ملی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.nationalId || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.nationalId || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شماره ثبت</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.registrationNumber || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.registrationNumber || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">کد اقتصادی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.economicCode || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.economicCode || '—'}</span>
                 </div>
               </div>
             </div>
@@ -685,7 +687,7 @@ export function CompanyInformationPage() {
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شروع سال مالی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.fiscalYearStart || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.fiscalYearStart || '—'}</span>
                 </div>
               </div>
             </div>
@@ -700,7 +702,7 @@ export function CompanyInformationPage() {
                   <Phone className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">شماره تماس</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.phone || '—'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.phone || '—'}</span>
                   </div>
                 </div>
 
@@ -708,7 +710,7 @@ export function CompanyInformationPage() {
                   <Mail className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">پست الکترونیکی</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.email || '—'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.email || '—'}</span>
                   </div>
                 </div>
 
@@ -716,13 +718,13 @@ export function CompanyInformationPage() {
                   <Globe className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">وب‌سایت</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.website || '—'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.website || '—'}</span>
                   </div>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">کد پستی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-right">{data.postalCode || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.postalCode || '—'}</span>
                 </div>
 
                 <div>
@@ -738,7 +740,7 @@ export function CompanyInformationPage() {
                         className="h-10 w-10 rounded-lg border border-border object-contain"
                       />
                     ) : null}
-                    <span className="block truncate font-mono text-xs text-muted-foreground dir-ltr text-right">
+                    <span className="block truncate font-mono text-xs text-muted-foreground dir-ltr text-end">
                       {data.logoUrl || '—'}
                     </span>
                   </span>

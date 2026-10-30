@@ -209,10 +209,11 @@ function axisTagStyle(value: string) {
   return { color, borderColor: `color-mix(in srgb, ${color} 38%, transparent)`, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` };
 }
 
-function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, showTrafficIncidents, showSystemIncidents }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showTrafficIncidents: boolean; showSystemIncidents: boolean }) {
+function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showTrafficIncidents, showSystemIncidents }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showTrafficIncidents: boolean; showSystemIncidents: boolean }) {
   const [sortBy, setSortBy] = useState<'code' | 'name'>('code');
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
+  const provinceForTable = viewProvince ?? currentSnapshot?.province ?? selectedProvince;
   const normalize = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
     .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_\-./()]/g, '');
   const headers = traffic?.headers ?? emptyTrafficHeaders;
@@ -228,10 +229,12 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   }), [headers]);
   const outageIndex = findHeader((header) => header.includes('\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('\u062a\u0639\u062f\u0627\u062f\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('outagedays'));
   const solarIndex = findHeader((header) => header.includes('\u0633\u0648\u0644\u0627\u0631') || header.includes('solar'));
-  const provinceName = iranProvinces.find(([id]) => id === selectedProvince)?.[1] ?? selectedProvince;
+  const provinceName = iranProvinces.find(([id]) => id === provinceForTable)?.[1] ?? provinceForTable;
   const normalizeProvince = (value: string) => normalize(value).replace(/^استان/, '');
-  const solarProvinceSites = new Set(entries.filter((entry) => selectedProvince === 'all' || entry.province === selectedProvince).map((entry) => entry.site.trim().toUpperCase()));
-  const provinceSystems = systems.filter((system) => selectedProvince === 'all' || solarProvinceSites.has(system.systemCode.trim().toUpperCase()) || normalizeProvince(system.province) === normalizeProvince(selectedProvince) || normalizeProvince(system.province) === normalizeProvince(provinceName));
+  const solarProvinceSites = new Set(entries.filter((entry) => provinceForTable === 'all' || entry.province === provinceForTable).map((entry) => entry.site.trim().toUpperCase()));
+  const codeCounts = new Map<string, number>();
+  for (const system of systems) { const code = system.systemCode.trim().toUpperCase(); codeCounts.set(code, (codeCounts.get(code) ?? 0) + 1); }
+  const provinceSystems = systems.filter((system) => provinceForTable === 'all' ? codeCounts.get(system.systemCode.trim().toUpperCase()) === 1 : normalizeProvince(system.province) === normalizeProvince(provinceForTable) || normalizeProvince(system.province) === normalizeProvince(provinceName));
   const systemsByCode = new Map(provinceSystems.map((system) => [system.systemCode.trim().toUpperCase(), system]));
   const allowedSites = new Set([...systemsByCode.keys(), ...solarProvinceSites]);
   const trafficRowsByCode = new Map((traffic?.rows ?? []).filter((row) => codeIndex >= 0 && allowedSites.has((row[codeIndex] ?? '').trim().toUpperCase())).map((row) => [(row[codeIndex] ?? '').trim().toUpperCase(), row]));
@@ -281,7 +284,8 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     return { site, system, trafficRow, axisCode, axisName, groupKey };
   });
   const sortedRows = [...recordRows].sort((left, right) => (sortBy === 'code' ? left.axisCode : left.axisName).localeCompare(sortBy === 'code' ? right.axisCode : right.axisName, locale, { numeric: true, sensitivity: 'base' }) || left.site.localeCompare(right.site, 'en', { numeric: true, sensitivity: 'base' }));
-  const chronologicalSnapshots = [...snapshots].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
+  const snapshotsForProvince = snapshots.filter((snapshot) => snapshot.province === (currentSnapshot ? currentSnapshot.province : viewProvince ?? selectedProvince));
+  const chronologicalSnapshots = [...snapshotsForProvince].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
   const currentSnapshotIndex = currentSnapshot ? chronologicalSnapshots.findIndex((snapshot) => snapshot.id === currentSnapshot.id) : chronologicalSnapshots.length;
   const previousSnapshot = currentSnapshotIndex > 0 ? chronologicalSnapshots[currentSnapshotIndex - 1] : null;
   const previousStatesBySite = new Map<string, Map<string, 'down' | 'unreachable'>>();
@@ -342,7 +346,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, showTrafficIncidents, showSystemIncidents }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; showTrafficIncidents: boolean; showSystemIncidents: boolean }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showTrafficIncidents, showSystemIncidents }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showTrafficIncidents: boolean; showSystemIncidents: boolean }) {
   const { locale } = usePreferences();
   const { dateText } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -353,6 +357,13 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const [editingColumns, setEditingColumns] = useState(false);
   const [customEquipment, setCustomEquipment] = useState<string[]>([]);
   const [snapshots, setSnapshots] = useState<RahcomSolarSnapshot[]>([]);
+  const [snapshotProvinceState, setSnapshotProvinceState] = useState({
+    selection: selectedProvince,
+    province: selectedProvince === 'all' ? 'isfahan' : selectedProvince,
+  });
+  const snapshotProvince = snapshotProvinceState.selection === selectedProvince
+    ? snapshotProvinceState.province
+    : selectedProvince === 'all' ? 'isfahan' : selectedProvince;
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -368,14 +379,14 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
       setCapturedDate(dateText);
       setCapturedTime(current.time);
     }
-  }, [dateText, formOpen]);
+  }, [dateText, formOpen, selectedProvince]);
   useEffect(() => {
     let active = true;
-    void Promise.all([rahcomApi.solarSnapshots(), rahcomApi.systems(), rahcomApi.trafficSnapshot()]).then(([solar, systemRows, traffic]) => { if (active) { setSnapshots(solar); setSystems(systemRows); setTrafficSnapshot(traffic); } })
+    void Promise.all([rahcomApi.solarSnapshots(selectedProvince), rahcomApi.systems(selectedProvince), rahcomApi.trafficSnapshot(selectedProvince)]).then(([solar, systemRows, traffic]) => { if (active) { setSnapshots(solar); setSystems(systemRows); setTrafficSnapshot(traffic); } })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : t('solarLoadFailed')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [t]);
+  }, [t, selectedProvince]);
   useEffect(() => {
     const found = [...new Set(entries.map((entry) => entry.equipment))]
       .filter((item) => !/^LTE-[12]$/i.test(item) && !commonEquipment.includes(item) && !customEquipment.includes(item));
@@ -393,7 +404,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     setSaving(true); setError('');
     try {
       const snapshot = await rahcomApi.createSolarSnapshot({
-        downText, unreachableText, equipmentColumns: columns,
+        province: snapshotProvince, downText, unreachableText, equipmentColumns: columns,
         capturedAt,
       });
       setSnapshots((current) => [snapshot, ...current]);
@@ -406,7 +417,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   }
 
   return <section className="space-y-5">
-    {formOpen && <>
+    {formOpen && canManage && <>
     <div className="grid gap-4 md:grid-cols-2">
       <label className="space-y-2 rounded-2xl border border-border bg-card p-4"><span className="block font-semibold">{t('solarDownList')}</span><textarea value={downText} onChange={(e) => setDownText(e.target.value)} placeholder={'DOWN\nRahcom (LTE-1-...) (...) (...)'} className="min-h-48 w-full rounded-xl border border-border bg-background p-3 font-mono text-sm" dir="auto" /></label>
       <label className="space-y-2 rounded-2xl border border-border bg-card p-4"><span className="block font-semibold">{t('solarUnreachableList')}</span><textarea value={unreachableText} onChange={(e) => setUnreachableText(e.target.value)} placeholder={'Unreachable\nRahcom (CAM-1-...) (...) (...)'} className="min-h-48 w-full rounded-xl border border-border bg-background p-3 font-mono text-sm" dir="auto" /></label>
@@ -414,17 +425,17 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
 
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <div><div className="flex items-center justify-between gap-3"><h2 className="font-semibold">{t('solarVisibleColumns')}</h2><button type="button" onClick={() => setEditingColumns((open) => !open)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground">{t(editingColumns ? 'solarDoneEditingColumns' : 'solarEditColumns')}</button></div>{editingColumns && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{[...commonEquipment, ...[...customEquipment].sort()].map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedEquipment.includes(item)} onChange={(event) => setSelectedEquipment((current) => event.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div>}</div>
-      <div className="flex flex-wrap items-end gap-3"><span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {capturedDate}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
+      <div className="flex flex-wrap items-end gap-3">{canManage ? <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={snapshotProvince} onChange={(event) => setSnapshotProvinceState({ selection: selectedProvince, province: event.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label> : <span className="self-center text-xs text-muted-foreground">{t('rahcomProvince')}: {iranProvinces.find(([id]) => id === snapshotProvince)?.[1] ?? snapshotProvince}</span>}<span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {capturedDate}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
 
-    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} /></div>}
+    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} /></div>}
     </>}
 
     <div className="space-y-3"><h2 className="text-lg font-bold">{t('solarHistory')}</h2>{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : snapshots.length === 0 ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : snapshots.map((snapshot) => {
       const columns = snapshot.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column).filter((column, columnIndex, all) => all.indexOf(column) === columnIndex);
       const entries = [...parseList(snapshot.downText, 'down'), ...parseList(snapshot.unreachableText, 'unreachable')];
-      return <details key={snapshot.id} className="group rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold"><span className="flex items-center gap-2"><Check size={16} className="text-primary" />{formatCapturedAt(snapshot.capturedAt, locale)}</span><span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{t('solarExpandSnapshot')}<ChevronDown size={16} className="transition-transform group-open:rotate-180" /></span></summary><div className="mt-4 space-y-4"><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} currentSnapshot={snapshot} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} /></div></details>;
+      return <details key={snapshot.id} className="group rounded-2xl border border-border bg-card p-4"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold"><span className="flex items-center gap-2"><Check size={16} className="text-primary" />{formatCapturedAt(snapshot.capturedAt, locale)}</span><span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">{t('solarExpandSnapshot')}<ChevronDown size={16} className="transition-transform group-open:rotate-180" /></span></summary><div className="mt-4 space-y-4"><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshot.province ?? 'all'} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} currentSnapshot={snapshot} showTrafficIncidents={showTrafficIncidents} showSystemIncidents={showSystemIncidents} /></div></details>;
     })}</div>
   </section>;
 }

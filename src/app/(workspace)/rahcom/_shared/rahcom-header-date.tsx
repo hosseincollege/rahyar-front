@@ -60,7 +60,7 @@ export function RahcomHeaderDate() {
   }, [locale]);
   const number = useMemo(() => new Intl.NumberFormat(locale, { useGrouping: false }), [locale]);
   const weekday = date
-    ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Tehran' }).format(new Date(`${date}T12:00:00+03:30`))
+    ? new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'Asia/Tehran' }).format(new Date(`${date}T12:00:00+03:30`))
     : uiMessage(locale, 'rahcomInvalidJalaliDate');
 
   const chooseDay = (day: number) => {
@@ -68,13 +68,13 @@ export function RahcomHeaderDate() {
     setOpen(false);
   };
 
-  return <div ref={wrapperRef} className="ms-auto flex flex-wrap items-center justify-end gap-3">
-    <span className="text-sm font-medium text-muted-foreground">{weekday}</span>
+  return <div ref={wrapperRef} className="flex shrink-0 items-center gap-2">
+    <span className="whitespace-nowrap text-sm font-medium text-muted-foreground">{weekday}</span>
     <div className="relative flex items-center gap-2">
       <label className="block" aria-label={uiMessage(locale, 'rahcomVisitDate')}>
-        <input type="text" inputMode="numeric" dir="ltr" aria-label={uiMessage(locale, 'rahcomVisitDate')} placeholder="1405/07/30" value={dateText} onClick={() => setOpen(true)} onChange={(event) => setDateText(event.target.value)} className="h-10 w-36 rounded-lg border border-border bg-background px-3 text-sm text-foreground" />
+        <input type="text" inputMode="numeric" dir="ltr" aria-label={uiMessage(locale, 'rahcomVisitDate')} placeholder="1405/07/30" value={dateText} onClick={() => setOpen(true)} onChange={(event) => setDateText(event.target.value)} className="h-9 w-28 rounded-lg border border-border bg-background px-2 text-sm text-foreground" />
       </label>
-      <button type="button" aria-label={uiMessage(locale, 'rahcomVisitDate')} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid size-10 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted" title={uiMessage(locale, 'rahcomVisitDate')}>
+      <button type="button" aria-label={uiMessage(locale, 'rahcomVisitDate')} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-background text-foreground hover:bg-muted" title={uiMessage(locale, 'rahcomVisitDate')}>
         <CalendarDays size={18} />
       </button>
       {open && <div role="dialog" aria-label={uiMessage(locale, 'rahcomVisitDate')} className="absolute end-0 top-full z-[1100] isolate mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border p-3 text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10" style={{ backgroundColor: 'var(--card)' }}>

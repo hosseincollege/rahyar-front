@@ -6,17 +6,11 @@ import { usePreferences } from '@/components/preferences-provider';
 import { getLocaleDirection } from '@/languages';
 import { uiMessage } from '@/lib/ui-messages';
 import { isReducedEdition } from '@/lib/product-edition';
-import { HEADER_CONTROL_IDS, NAVIGATION_MODULE_IDS, OPTIONAL_MODULE_IDS, readShellVisibility, saveModuleVisibility, type HeaderControlId, type NavigationModuleId, type OptionalModuleId, type ModuleVisibility } from '@/lib/module-visibility';
+import { HEADER_CONTROL_IDS, NAVIGATION_MODULE_IDS, readShellVisibility, saveModuleVisibility, type HeaderControlId, type NavigationModuleId, type ModuleVisibility } from '@/lib/module-visibility';
 import type { UiMessage } from '@/languages/types';
 
 const moduleTitles: Record<NavigationModuleId, Parameters<typeof uiMessage>[1]> = {
-  dashboard: 'sidebarDashboard',
   rahcom: 'sidebarRahkam',
-  accounting: 'sidebarAccounting',
-  commerce: 'sidebarCommercial',
-  'human-resources': 'sidebarHumanResources',
-  support: 'sidebarSupport',
-  statistics: 'sidebarStatistics',
   settings: 'sidebarSettings',
   development: 'sidebarDevelopment',
 };
@@ -26,13 +20,7 @@ const headerTitles: Record<HeaderControlId, UiMessage> = {
   accountSwitcher: 'settingsHeaderAccountSwitcher', provinceSelector: 'settingsHeaderProvinceSelector',
 };
 const navigationGroups: Array<{ title: UiMessage; items: Array<{ href: string; title: UiMessage }> }> = [
-  { title: 'sidebarDashboard', items: [{ href: '/dashboard/events', title: 'dashboardTools' }, ...([{ id: 'notifications', title: 'notifications' }, { id: 'announcements', title: 'dashboardMessages' }, { id: 'search', title: 'headerSearch' }, { id: 'history', title: 'dashboardHistory' }, { id: 'activity', title: 'dashboardActivities' }, { id: 'help', title: 'dashboardHelp' }] as const).map(({ id, title }) => ({ href: `/dashboard/events?tab=${id}`, title })), { href: '/dashboard/conversations', title: 'dashboardConversation' }, ...([{ id: 'personal', title: 'conversationPersonal' }, { id: 'group', title: 'conversationGroup' }, { id: 'channel', title: 'conversationChannel' }, { id: 'planning', title: 'dashboardPlanning' }] as const).map(({ id, title }) => ({ href: `/dashboard/conversations?tab=${id}`, title })), { href: '/dashboard/profile', title: 'dashboardAccount' }] },
   { title: 'sidebarRahkam', items: [{ href: '/rahcom/map', title: 'rahcomMap' }, { href: '/rahcom/systems', title: 'rahcomSystemsList' }, { href: '/rahcom/daily-traffic', title: 'rahcomDailyTraffic' }, { href: '/rahcom/solar-daily', title: 'rahcomSolarDaily' }, { href: '/rahcom/tickets', title: 'rahcomTickets' }, { href: '/rahcom/aggregate', title: 'rahcomAggregateList' }, { href: '/rahcom/actions', title: 'rahcomActions' }] },
-  { title: 'sidebarAccounting', items: [{ href: '/accounting/accounts', title: 'accountingChartOfAccounts' }, { href: '/accounting/vouchers', title: 'accountingEntriesLedger' }, { href: '/accounting/invoices', title: 'accountingInvoices' }, { href: '/accounting/purchases', title: 'accountingPurchaseInvoices' }, { href: '/accounting/payments', title: 'accountingReceiptsPayments' }, { href: '/accounting/ledger', title: 'sidebarLedger' }, { href: '/accounting/reports', title: 'sidebarFinancialReports' }] },
-  { title: 'sidebarCommercial', items: [{ href: '/commerce/customers', title: 'sidebarCustomers' }, { href: '/commerce/sales', title: 'sidebarSales' }, { href: '/commerce/inventory', title: 'sidebarInventory' }, { href: '/commerce/purchasing', title: 'sidebarPurchases' }] },
-  { title: 'sidebarHumanResources', items: [{ href: '/human-resources/employees', title: 'sidebarEmployeeRecords' }, { href: '/human-resources/attendance', title: 'sidebarAttendance' }, { href: '/human-resources/leaves', title: 'sidebarLeaveRequests' }, { href: '/human-resources/payroll', title: 'sidebarPayroll' }] },
-  { title: 'sidebarStatistics', items: [{ href: '/statistics/reports', title: 'sidebarReports' }, { href: '/statistics/business-intelligence', title: 'sidebarBusinessIntelligence' }] },
-  { title: 'sidebarSupport', items: [{ href: '/support/all', title: 'sidebarAllTickets' }, { href: '/support/new', title: 'supportNewTicket' }] },
   { title: 'sidebarSettings', items: [{ href: '/settings/general', title: 'sidebarGeneral' }, { href: '/settings/modules', title: 'settingsDisplayManagement' }, { href: '/settings/announcements', title: 'sidebarAnnouncementManagement' }, { href: '/settings/company', title: 'settingsOrganizationWorkspace' }] },
   { title: 'sidebarDevelopment', items: [{ href: '/development/site-visits', title: 'developmentSiteVisits' }, { href: '/development/test-data', title: 'sidebarTestData' }] },
 ];
@@ -56,7 +44,7 @@ export default function ModuleSettingsPage() {
 
   const markEdited = () => { setSaveError(''); setSaveSucceeded(false); };
 
-  const update = (id: OptionalModuleId | HeaderControlId, enabled: boolean) => {
+  const update = (id: HeaderControlId, enabled: boolean) => {
     const next: ModuleVisibility = id in (visibility.headerControls ?? {})
       ? { ...visibility, headerControls: { ...visibility.headerControls, [id]: enabled } }
       : { ...visibility, [id]: enabled };
@@ -72,7 +60,6 @@ export default function ModuleSettingsPage() {
     const next: ModuleVisibility = {
       ...visibility,
       navigationModules: { ...visibility.navigationModules, [id]: enabled },
-      ...(OPTIONAL_MODULE_IDS.includes(id as OptionalModuleId) ? { [id]: enabled } : {}),
     };
     markEdited();
     setVisibility(next);
@@ -129,7 +116,7 @@ export default function ModuleSettingsPage() {
       {activeTab === 'modules' ? <section role="tabpanel" className="space-y-3 rounded-2xl border border-border bg-card p-3 sm:p-5">
         {NAVIGATION_MODULE_IDS.map((id) => {
           const group = navigationGroups.find((item) => item.title === moduleTitles[id]);
-          const enabled = OPTIONAL_MODULE_IDS.includes(id as OptionalModuleId) ? visibility[id as OptionalModuleId] !== false : visibility.navigationModules?.[id] !== false;
+          const enabled = visibility.navigationModules?.[id] !== false;
           return <div key={id} className="flex items-start gap-2 rounded-xl border border-border p-3">
             <details className="group min-w-0 flex-1">
               <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2">

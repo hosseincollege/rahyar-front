@@ -13,7 +13,7 @@ import {
   type FormEvent,
 } from 'react';
 import Link from 'next/link';
-import { usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import {
   Building,
@@ -36,6 +36,7 @@ import {
 import {
   settingsApi,
   type BranchItem,
+  type DepartmentEmployeeSummary,
   type DepartmentItem,
 } from '@/app/(workspace)/settings/settings-api';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
@@ -87,8 +88,12 @@ export function OrganizationStructurePage() {
   const [departments, setDepartments] = useState<
     DepartmentWithDisplayFields[]
   >([]);
+  const [provinceEmployees, setProvinceEmployees] = useState<DepartmentEmployeeSummary[]>([]);
+  const [isLoadingProvinceEmployees, setIsLoadingProvinceEmployees] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -218,6 +223,20 @@ export function OrganizationStructurePage() {
     void loadOrganizationStructure();
   }, [loadOrganizationStructure]);
 
+  useEffect(() => {
+    if (!selectedBranchId) { setProvinceEmployees([]); return; }
+    let active = true;
+    setIsLoadingProvinceEmployees(true);
+    settingsApi.getBranchEmployees(selectedBranchId).then((employees) => {
+      if (active) setProvinceEmployees(employees);
+    }).catch(() => {
+      if (active) setProvinceEmployees([]);
+    }).finally(() => {
+      if (active) setIsLoadingProvinceEmployees(false);
+    });
+    return () => { active = false; };
+  }, [selectedBranchId]);
+
   const downloadJsonFile = (data: unknown, fileName: string) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json;charset=utf-8',
@@ -255,7 +274,15 @@ export function OrganizationStructurePage() {
   };
 
   const openBranchModal = () => {
+    setEditingBranchId(null);
     setBranchForm({ ...INITIAL_BRANCH_FORM });
+    setBranchFormError('');
+    setIsBranchModalOpen(true);
+  };
+
+  const openBranchEdit = (branch: BranchItem) => {
+    setEditingBranchId(branch.id);
+    setBranchForm({ name: branch.name, code: branch.code, phone: branch.phone ?? '', address: branch.address ?? '', isActive: branch.isActive, isHeadquarters: branch.isHeadquarters });
     setBranchFormError('');
     setIsBranchModalOpen(true);
   };
@@ -266,11 +293,13 @@ export function OrganizationStructurePage() {
     }
 
     setIsBranchModalOpen(false);
+    setEditingBranchId(null);
     setBranchForm({ ...INITIAL_BRANCH_FORM });
     setBranchFormError('');
   };
 
   const openDepartmentModal = () => {
+    setEditingDepartmentId(null);
     setDepartmentForm({
       ...INITIAL_DEPARTMENT_FORM,
       branchId: selectedBranchId || '',
@@ -285,6 +314,7 @@ export function OrganizationStructurePage() {
     }
 
     setIsDepartmentModalOpen(false);
+    setEditingDepartmentId(null);
     setDepartmentForm({ ...INITIAL_DEPARTMENT_FORM });
     setDepartmentFormErrors({});
   };
@@ -309,7 +339,7 @@ export function OrganizationStructurePage() {
     }
   };
 
-  const handleCreateBranch = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveBranch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const organizationId = getCurrentOrganizationId();
@@ -329,23 +359,29 @@ export function OrganizationStructurePage() {
     setBranchFormError('');
 
     try {
-      const createdBranch = await settingsApi.createBranch({
-        organizationId,
+      const branchPayload = {
         name,
         code,
         phone: branchForm.phone.trim(),
         address: branchForm.address.trim(),
         isActive: branchForm.isActive,
         isHeadquarters: branchForm.isHeadquarters,
-      });
-
-      setBranches((current) => [...current, createdBranch]);
+      };
+      if (editingBranchId) {
+        await settingsApi.updateBranch(editingBranchId, branchPayload);
+        await loadOrganizationStructure();
+        showToast('success', uiMessage(locale, 'organizationBranchUpdated'));
+      } else {
+        const createdBranch = await settingsApi.createBranch({ organizationId, ...branchPayload });
+        setBranches((current) => [...current, createdBranch]);
+        showToast('success', 'شعبه جدید با موفقیت افزوده شد.');
+      }
 
       setIsBranchModalOpen(false);
+      setEditingBranchId(null);
       setBranchForm({ ...INITIAL_BRANCH_FORM });
       setBranchFormError('');
 
-      showToast('success', 'شعبه جدید با موفقیت افزوده شد.');
     } catch (error) {
       console.error('Failed to create branch:', error);
 
@@ -413,7 +449,14 @@ export function OrganizationStructurePage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleCreateDepartment = async (
+  const openDepartmentEdit = (department: DepartmentWithDisplayFields) => {
+    setEditingDepartmentId(department.id);
+    setDepartmentForm({ name: department.name, code: department.code, branchId: department.branchId ?? '' });
+    setDepartmentFormErrors({});
+    setIsDepartmentModalOpen(true);
+  };
+
+  const handleSaveDepartment = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
@@ -436,18 +479,16 @@ export function OrganizationStructurePage() {
     setIsSavingDepartment(true);
 
     try {
-      await settingsApi.createDepartment({
-        organizationId,
-        name: departmentForm.name.trim(),
-        code: departmentForm.code.trim(),
-        branchId: departmentForm.branchId || undefined,
-      });
+      const departmentPayload = { name: departmentForm.name.trim(), code: departmentForm.code.trim(), branchId: departmentForm.branchId || undefined };
+      if (editingDepartmentId) await settingsApi.updateDepartment(editingDepartmentId, departmentPayload);
+      else await settingsApi.createDepartment({ organizationId, ...departmentPayload });
 
       setIsDepartmentModalOpen(false);
+      setEditingDepartmentId(null);
       setDepartmentForm({ ...INITIAL_DEPARTMENT_FORM });
       setDepartmentFormErrors({});
 
-      showToast('success', 'دپارتمان جدید با موفقیت افزوده شد.');
+      showToast('success', editingDepartmentId ? uiMessage(locale, 'organizationDepartmentUpdated') : 'دپارتمان جدید با موفقیت افزوده شد.');
 
       await loadOrganizationStructure();
     } catch (error) {
@@ -602,12 +643,13 @@ export function OrganizationStructurePage() {
   const selectedBranch = branches.find(
     (branch) => branch.id === selectedBranchId,
   );
+  const alphabeticalBranches = [...branches].sort((a, b) => a.name.localeCompare(b.name, 'fa'));
   const visibleDepartments = selectedBranchId
     ? departments.filter((department) => department.branchId === selectedBranchId)
     : departments;
 
   return (
-    <section className="space-y-6">
+    <section dir={getLocaleDirection(locale)} className="space-y-4">
       {toast && (
         <div
           role="status"
@@ -739,15 +781,15 @@ export function OrganizationStructurePage() {
       </div>
 
       {/* Branches Section */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Building size={18} className="text-blue-600" />
             <h3 className="text-sm font-bold text-[var(--foreground)]">
-              {uiMessage(locale, 'accountBranches')}
+              {selectedBranch ? `${uiMessage(locale, 'organizationProvince')} ${selectedBranch.name}` : uiMessage(locale, 'organizationProvinces')}
             </h3>
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-              {branches.length}
+              {selectedBranch ? visibleDepartments.length : branches.length}
             </span>
           </div>
 
@@ -771,16 +813,33 @@ export function OrganizationStructurePage() {
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-muted-foreground">
             هنوز شعبه‌ای ثبت نشده است.
           </div>
+        ) : selectedBranch ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="min-w-0">
+                <p className="text-lg font-bold text-[var(--foreground)]">{uiMessage(locale, 'organizationProvince')} {selectedBranch.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{visibleDepartments.length} {uiMessage(locale, 'organizationUnitCount')}</p>
+              </div>
+              <button type="button" onClick={() => { setSelectedBranchId(null); window.history.replaceState(null, '', '/settings/organization'); }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium hover:bg-muted">{uiMessage(locale, 'organizationProvinceBack')}</button>
+            </div>
+            {selectedBranch.address && selectedBranch.address.trim() !== selectedBranch.name.trim() && (
+              <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{selectedBranch.address}</p>
+            )}
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="mb-3 flex items-center justify-between"><h4 className="font-semibold">{uiMessage(locale, 'organizationProvinceStaff')}</h4><span className="rounded-full bg-muted px-2 py-1 text-xs tabular-nums">{provinceEmployees.length}</span></div>
+              {isLoadingProvinceEmployees ? <p className="text-sm text-muted-foreground">{uiMessage(locale, 'organizationLoadingStaff')}</p> : provinceEmployees.length ? <ul className="grid gap-2 sm:grid-cols-2">{provinceEmployees.map((employee) => <li key={employee.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-[var(--border)] px-3 py-2"><span className="truncate text-sm">{employee.firstName} {employee.lastName}<span className="ms-2 text-xs text-muted-foreground">{employee.jobTitle || employee.employeeCode}</span></span></li>)}</ul> : <p className="text-sm text-muted-foreground">{uiMessage(locale, 'organizationNoProvinceStaff')}</p>}
+            </section>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {branches.map((branch) => {
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {alphabeticalBranches.map((branch, provinceIndex) => {
               const isDeleting = deletingBranchId === branch.id;
 
               return (
                 <article
                   key={branch.id}
                   id={`branch-${branch.id}`}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-sm"
                 >
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -799,12 +858,9 @@ export function OrganizationStructurePage() {
                             : 'text-[var(--foreground)]'
                         }`}
                       >
-                        {branch.name}
+                        <span className="me-2 inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs tabular-nums text-primary">{new Intl.NumberFormat(locale).format(provinceIndex + 1)}</span>{uiMessage(locale, 'organizationProvince')} {branch.name}
                       </Link>
 
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                        {branch.code}
-                      </span>
 
                       {branch.isHeadquarters && (
                         <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
@@ -830,7 +886,7 @@ export function OrganizationStructurePage() {
                       </div>
                     )}
 
-                    {branch.address && (
+                    {branch.address && branch.address.trim() !== branch.name.trim() && (
                       <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
                         <MapPin size={12} className="mt-0.5 shrink-0" />
                         <span>{branch.address}</span>
@@ -838,21 +894,10 @@ export function OrganizationStructurePage() {
                     )}
                   </div>
 
-                  {canEditStructure && (
-                    <button
-                      type="button"
-                      disabled={Boolean(deletingBranchId) || isSavingBranch}
-                      onClick={() => void handleDeleteBranch(branch)}
-                      aria-label={`حذف شعبه ${branch.name}`}
-                      className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/30"
-                    >
-                      {isDeleting ? (
-                        <span className="text-[10px]">حذف...</span>
-                      ) : (
-                        <Trash2 size={16} />
-                      )}
-                    </button>
-                  )}
+                  {canEditStructure && <div className="flex shrink-0 items-center gap-1">
+                    <button type="button" disabled={Boolean(deletingBranchId) || isSavingBranch} onClick={() => openBranchEdit(branch)} aria-label={`${uiMessage(locale, 'accountEdit')}: ${branch.name}`} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"><Edit3 size={16} /></button>
+                    <button type="button" disabled={Boolean(deletingBranchId) || isSavingBranch} onClick={() => void handleDeleteBranch(branch)} aria-label={`حذف شعبه ${branch.name}`} className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/30">{isDeleting ? <span className="text-[10px]">حذف...</span> : <Trash2 size={16} />}</button>
+                  </div>}
                 </article>
               );
             })}
@@ -861,7 +906,7 @@ export function OrganizationStructurePage() {
       </div>
 
       {/* Departments Section */}
-      <div className="space-y-4">
+      {selectedBranch && <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-emerald-600" />
@@ -922,7 +967,7 @@ export function OrganizationStructurePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+              <table className="w-full text-start text-sm">
                 <thead className="border-b border-gray-200 bg-gray-50/50 text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
                   <tr>
                     <th className="px-6 py-4">نام دپارتمان</th>
@@ -930,7 +975,7 @@ export function OrganizationStructurePage() {
                     <th className="px-6 py-4">شعبه</th>
                     <th className="px-6 py-4">اعضا و تیم‌ها</th>
                     {canEditStructure && (
-                      <th className="px-6 py-4 text-left">عملیات</th>
+                      <th className="px-3 py-3 text-end sm:px-5">عملیات</th>
                     )}
                   </tr>
                 </thead>
@@ -985,20 +1030,11 @@ export function OrganizationStructurePage() {
                       </td>
 
                       {canEditStructure && (
-                        <td className="whitespace-nowrap px-6 py-4 text-left">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleDeleteDepartment(department)
-                            }
-                            disabled={deletingDepartmentId === department.id}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-400"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            {deletingDepartmentId === department.id
-                              ? 'در حال حذف...'
-                              : 'حذف'}
-                          </button>
+                        <td className="whitespace-nowrap px-3 py-3 text-end sm:px-5">
+                          <div className="inline-flex items-center gap-1">
+                            <button type="button" onClick={() => openDepartmentEdit(department)} aria-label={`${uiMessage(locale, 'accountEdit')}: ${department.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Edit3 className="h-4 w-4" /></button>
+                            <button type="button" onClick={() => void handleDeleteDepartment(department)} disabled={deletingDepartmentId === department.id} aria-label={`حذف ${department.name}`} className="rounded-lg p-2 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-400 dark:hover:bg-rose-950/30"><Trash2 className="h-4 w-4" /></button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -1008,7 +1044,7 @@ export function OrganizationStructurePage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {selectedDepartmentId && (
         <DepartmentOverviewPanel
@@ -1034,7 +1070,7 @@ export function OrganizationStructurePage() {
                   id="branch-modal-title"
                   className="text-base font-bold text-[var(--foreground)]"
                 >
-                  مشخصات شعبه جدید
+                  {uiMessage(locale, editingBranchId ? 'organizationEditBranch' : 'organizationAddBranch')}
                 </h3>
 
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1053,7 +1089,7 @@ export function OrganizationStructurePage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateBranch} className="space-y-4">
+            <form onSubmit={handleSaveBranch} className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label htmlFor="branch-name" className="text-xs font-medium">
@@ -1193,7 +1229,7 @@ export function OrganizationStructurePage() {
                   disabled={isSavingBranch}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {isSavingBranch ? 'در حال ذخیره...' : 'ثبت شعبه'}
+                  {isSavingBranch ? 'در حال ذخیره...' : uiMessage(locale, editingBranchId ? 'organizationSaveChanges' : 'organizationCreateBranch')}
                 </button>
               </div>
             </form>
@@ -1216,7 +1252,7 @@ export function OrganizationStructurePage() {
                   id="department-modal-title"
                   className="text-base font-bold text-[var(--foreground)]"
                 >
-                  افزودن دپارتمان جدید
+                  {uiMessage(locale, editingDepartmentId ? 'organizationEditDepartment' : 'organizationAddDepartment')}
                 </h3>
 
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1235,7 +1271,7 @@ export function OrganizationStructurePage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateDepartment} className="space-y-4">
+            <form onSubmit={handleSaveDepartment} className="space-y-4">
               <div>
                 <label
                   htmlFor="department-name"
@@ -1337,7 +1373,7 @@ export function OrganizationStructurePage() {
                   disabled={isSavingDepartment}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {isSavingDepartment ? 'در حال ثبت...' : 'ثبت دپارتمان'}
+                  {isSavingDepartment ? 'در حال ثبت...' : uiMessage(locale, editingDepartmentId ? 'organizationSaveChanges' : 'organizationCreateDepartment')}
                 </button>
               </div>
             </form>

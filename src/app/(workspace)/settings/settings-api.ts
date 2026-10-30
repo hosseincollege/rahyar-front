@@ -36,8 +36,6 @@ export interface OrganizationAccess {
   canEdit: boolean;
   canViewRahcom: boolean;
   canManageRahcom: boolean;
-  canViewAccounting: boolean;
-  canViewHumanResources: boolean;
 }
 
 export interface OrganizationBranding {
@@ -115,7 +113,17 @@ export interface BranchItem {
   postalCode?: string;
   isActive: boolean;
   isHeadquarters: boolean;
+  isMain?: boolean;
   organizationId: string;
+}
+
+type BranchApiResponse = Omit<BranchItem, 'isHeadquarters' | 'isMain'> & {
+  isHeadquarters?: boolean;
+  isMain?: boolean;
+};
+
+function normalizeBranch(branch: BranchApiResponse): BranchItem {
+  return { ...branch, isHeadquarters: branch.isHeadquarters ?? branch.isMain ?? false };
 }
 
 export interface DepartmentItem {
@@ -194,6 +202,9 @@ export interface UserItem {
   roles?: UserRoleItem[] | string[];
   roleIds?: string[];
   department?: string;
+  branchId?: string | null;
+  branchName?: string | null;
+  departmentId?: string | null;
   isActive?: boolean;
 }
 
@@ -350,26 +361,32 @@ export const settingsApi = {
 
   async getBranches(orgId: string): Promise<BranchItem[]> {
     const id = assertOrgId(orgId);
-    return apiClient.get<BranchItem[]>(`/settings/branches/${id}`);
+    const branches = await apiClient.get<BranchApiResponse[]>(`/settings/branches/${id}`);
+    return branches.map(normalizeBranch);
   },
 
   async createBranch(data: Omit<BranchItem, 'id'>): Promise<BranchItem> {
     assertOrgId(data.organizationId);
-    return apiClient.post<BranchItem, Omit<BranchItem, 'id'>>(
+    const { isHeadquarters, isMain, ...rest } = data;
+    const payload = { ...rest, isMain: isMain ?? isHeadquarters };
+    const created = await apiClient.post<BranchApiResponse, typeof payload>(
       '/settings/branches',
-      data,
+      payload,
     );
+    return normalizeBranch(created);
   },
 
   async updateBranch(
     id: string,
     data: Partial<BranchItem>,
   ): Promise<BranchItem> {
-    const { organizationId: _ignored, ...payload } = data;
-    return apiClient.put<BranchItem, Partial<BranchItem>>(
+    const { organizationId: _ignored, isHeadquarters, isMain, ...rest } = data;
+    const payload = { ...rest, ...((isHeadquarters !== undefined || isMain !== undefined) ? { isMain: isMain ?? isHeadquarters } : {}) };
+    const updated = await apiClient.put<BranchApiResponse, typeof payload>(
       `/settings/branches/${encodeURIComponent(id)}`,
       payload,
     );
+    return normalizeBranch(updated);
   },
 
   async deleteBranch(id: string): Promise<void> {
@@ -385,6 +402,10 @@ export const settingsApi = {
     return apiClient.get<DepartmentOverview>(
       `/settings/departments/${encodeURIComponent(id)}/overview`,
     );
+  },
+
+  async getBranchEmployees(id: string): Promise<DepartmentEmployeeSummary[]> {
+    return apiClient.get<DepartmentEmployeeSummary[]>(`/settings/branches/${encodeURIComponent(id)}/employees`);
   },
 
   async getAvailableDepartmentEmployees(
@@ -502,6 +523,15 @@ export const settingsApi = {
     return apiClient.put<UserItem[], UserItem[]>(
       `/settings/users/${id}`,
       users,
+    );
+  },
+
+  async removeUser(orgId: string, userId: string): Promise<UserItem[]> {
+    const organization = assertOrgId(orgId);
+    const user = encodeURIComponent(userId.trim());
+    if (!user) throw new Error();
+    return apiClient.delete<UserItem[]>(
+      `/settings/users/${organization}/${user}`,
     );
   },
 
