@@ -1,0 +1,7 @@
+Rahcom Daily Traffic Excel Import
+
+The daily traffic upload button opens the operating-system file picker directly. Selecting a valid workbook reads the first sheet whose headers contain a system-code column and a province column, saves the snapshot, and applies its axis data. Header normalization supports Persian and English labels, including «کد سامانه» / systemCode and «استان» / province. Upload status and errors appear beside the toolbar button.
+
+The sample workbook «لیست تردد05.08.02.xlsx» is recognized on its «محور بندی» sheet (2,310 rows including the header). It is a national list; province values remain in the imported data and the page filters the displayed records using the selected province.
+
+Implementation: src/app/(workspace)/rahcom/daily-traffic/rahcom-traffic-upload.tsx

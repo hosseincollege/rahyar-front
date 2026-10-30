@@ -1,0 +1,5 @@
+﻿Daily traffic Excel import
+
+For a live demonstration, open Rahcom > Daily Traffic and click the upload icon. The operating-system file picker opens immediately. Choose an .xlsx or .xls workbook; there is no extra in-app dialog or separate confirmation button. The page detects the sheet that has both a system code and province column, then uploads the snapshot and applies the axis data automatically.
+
+The provided workbook is supported: its «محور بندی» sheet contains the required «کد سامانه» and «استان» columns and 2,310 data rows. The unrelated «RP» sheet is skipped. Province information is retained in the imported rows, while the page displays data for the province selected in the top header.

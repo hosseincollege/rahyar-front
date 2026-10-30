@@ -1,0 +1,7 @@
+Rahcom Systems Excel Import
+
+The systems import maps common English and Persian headers. The system code field accepts code, systemCode, sitecode, or stationcode; site names include stationname; coordinates accept lat/latitude and long/longitude/lng/lon. The province is taken from the selected top-header province. Axis, axis code, details, and equipment address fields are imported when present. Rows without a system code or valid coordinates are skipped; a blank site name falls back to the system code.
+
+The supplied Ips Sobyar - با کد محور.xlsx workbook has 162 data rows. With its current contents, 136 rows have a system code and valid coordinates and can be imported. The remaining rows have blank codes or missing/invalid coordinates.
+
+Implementation: src/app/(workspace)/rahcom/systems/rahcom-systems-list.tsx

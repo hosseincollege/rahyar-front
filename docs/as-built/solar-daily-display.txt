@@ -1,0 +1,7 @@
+Rahyar Solar Daily Display
+
+The solar daily status table displays a real em dash (—) for empty equipment and data cells. This avoids the mojibake placeholder that previously appeared across LTE and other equipment columns in the right-to-left table. Incident separators and history arrows also use their intended Unicode characters.
+
+Implementation: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
+
+The solar toolbar keeps the add-status action beside its map-style icon filters. Incident source can switch between the daily traffic list and Rahyar system records; the incident visibility icon hides incident-marked systems by default and reveals the selected source when enabled. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly. The table shows one incident column for the selected source.
