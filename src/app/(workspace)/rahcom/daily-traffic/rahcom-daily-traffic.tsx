@@ -45,10 +45,10 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, onSh
 
   const loadTrafficSnapshot = useCallback(async () => {
     setTrafficLoading(true);
-    try { setTrafficSnapshot(await rahcomApi.trafficSnapshot(provinceFilter ?? selectedProvince)); setTrafficError(''); }
+    try { setTrafficSnapshot(await rahcomApi.trafficSnapshot(provinceFilter ?? selectedProvince, date ?? undefined)); setTrafficError(''); }
     catch (reason) { setTrafficError(reason instanceof Error ? reason.message : t('rahcomTrafficLoadFailed')); }
     finally { setTrafficLoading(false); }
-  }, [t, provinceFilter, selectedProvince]);
+  }, [t, provinceFilter, selectedProvince, date]);
 
   useEffect(() => { void loadTrafficSnapshot(); }, [loadTrafficSnapshot]);
   useEffect(() => {
@@ -57,7 +57,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, onSh
   }, [loadTrafficSnapshot]);
 
   const loadSolarSnapshot = useCallback(async () => {
-    try { setSolarSnapshot(latestRahcomSolarSnapshotsByProvince(await rahcomApi.solarSnapshots(provinceFilter ?? selectedProvince), tehranDateKey(date ?? undefined))); }
+    try { setSolarSnapshot(latestRahcomSolarSnapshotsByProvince(await rahcomApi.solarSnapshots(provinceFilter ?? selectedProvince, date ?? undefined), tehranDateKey(date ?? undefined))); }
     catch { setSolarSnapshot([]); }
   }, [date, provinceFilter, selectedProvince]);
   useEffect(() => { void loadSolarSnapshot(); }, [loadSolarSnapshot]);

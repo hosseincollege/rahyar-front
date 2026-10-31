@@ -1,4 +1,5 @@
 import { iranProvinces, type RahcomSolarSnapshot, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { jalaliDateToGregorian } from '@/lib/api/rahcom/jalali-date';
 
 export type RahcomSolarState = 'down' | 'unreachable';
 export type RahcomSolarEntry = { site: string; equipment: string; state: RahcomSolarState; province?: string };
@@ -42,6 +43,24 @@ export function tehranDateKey(value: Date | string = new Date()) {
   }).formatToParts(new Date(value));
   const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+/** Use the ticket's creation date when present, falling back to its import day. */
+export function rahcomTicketDateKey(createdOn: string, importedAt: string) {
+  const normalized = createdOn.normalize('NFKC').replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).trim();
+  const match = normalized.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (match) {
+    const year = Number(match[1]);
+    if (year >= 1300 && year <= 1600) {
+      const gregorian = jalaliDateToGregorian(`${match[1]}/${match[2]}/${match[3]}`);
+      if (gregorian) return gregorian;
+    } else {
+      const dateKey = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+      if (!Number.isNaN(new Date(`${dateKey}T12:00:00Z`).getTime())) return dateKey;
+    }
+  }
+  return tehranDateKey(importedAt);
 }
 
 export function rahcomSolarSnapshotNumber(snapshot: RahcomSolarSnapshot, snapshots: RahcomSolarSnapshot[]) {

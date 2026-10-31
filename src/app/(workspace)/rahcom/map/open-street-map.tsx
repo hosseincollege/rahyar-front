@@ -170,7 +170,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   const activeAxisBySystem = axisSource === 'traffic' ? trafficAxisBySystem : rahyarAxisBySystem;
   const axisOptions = useMemo(() => [...new Set(activeAxisBySystem.values())].sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })), [activeAxisBySystem]);
   const todaySolarSnapshot = useMemo(() => latestRahcomSolarSnapshotForToday(solarSnapshots, date || todayDateKey), [solarSnapshots, date, todayDateKey]);
-  const selectedSolarSnapshot = solarSnapshots.find((snapshot) => snapshot.id === selectedSolarSnapshotId) ?? todaySolarSnapshot ?? solarSnapshots[0] ?? null;
+  const selectedSolarSnapshot = solarSnapshots.find((snapshot) => snapshot.id === selectedSolarSnapshotId && tehranDateKey(snapshot.capturedAt) === (date || todayDateKey)) ?? todaySolarSnapshot;
   const solarStatusCodes = useMemo(() => selectedSolarSnapshot
     ? failedRahcomSystemKeys([selectedSolarSnapshot], systems, tehranDateKey(selectedSolarSnapshot.capturedAt))
     : new Set<string>(), [selectedSolarSnapshot, systems]);
@@ -251,11 +251,11 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
 
   useEffect(() => {
     let active = true;
-    const refreshTraffic = () => { void rahcomApi.trafficSnapshot(province).then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
+    const refreshTraffic = () => { void rahcomApi.trafficSnapshot(province, date || undefined).then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
     refreshTraffic();
     window.addEventListener('rahyar:traffic-snapshot-changed', refreshTraffic);
     return () => { active = false; window.removeEventListener('rahyar:traffic-snapshot-changed', refreshTraffic); };
-  }, [province]);
+  }, [province, date]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -277,7 +277,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
   useEffect(() => {
     let active = true;
     const refreshSnapshots = () => {
-      void rahcomApi.solarSnapshots(province).then((snapshots) => { if (active) { setSolarSnapshots(snapshots); setSolarSnapshotsLoaded(true); } })
+      void rahcomApi.solarSnapshots(province, date || undefined).then((snapshots) => { if (active) { setSolarSnapshots(snapshots); setSolarSnapshotsLoaded(true); } })
         .catch(() => { if (active) { setSolarSnapshots([]); setSolarSnapshotsLoaded(true); } });
     };
     refreshSnapshots();
@@ -286,7 +286,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, solarDownFilte
       active = false;
       window.removeEventListener('rahyar:solar-snapshots-changed', refreshSnapshots);
     };
-  }, [province]);
+  }, [province, date]);
 
   useEffect(() => {
     const updateToday = () => setTodayDateKey(tehranDateKey());

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomImportedTicket, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, tehranDateKey, latestRahcomSolarSnapshotsByProvince } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, tehranDateKey, latestRahcomSolarSnapshotsByProvince, rahcomTicketDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 
@@ -43,13 +43,13 @@ export function RahcomAggregateList() {
     let active = true;
     setLoading(true);
     setError('');
-    Promise.all([rahcomApi.systems(selectedProvince), rahcomApi.solarSnapshots(selectedProvince), rahcomApi.trafficSnapshot(selectedProvince), rahcomApi.importedTickets(selectedProvince)])
+    Promise.all([rahcomApi.systems(selectedProvince), rahcomApi.solarSnapshots(selectedProvince, date ?? undefined), rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined), rahcomApi.importedTickets(selectedProvince, date ?? undefined)])
       .then(([systemRows, solarRows, trafficRow, ticketRows]) => {
         if (!active) return;
         const safeSystems = Array.isArray(systemRows) ? systemRows.filter(Boolean) : [];
         const safeSolarRows = Array.isArray(solarRows) ? solarRows.filter((item) => item && typeof item === 'object') : [];
         setSystems(safeSystems);
-        setTickets(Array.isArray(ticketRows) ? ticketRows.filter(Boolean) : []);
+        setTickets(Array.isArray(ticketRows) ? ticketRows.filter((ticket) => ticket && rahcomTicketDateKey(ticket.createdOn, ticket.importedAt) === tehranDateKey(date ?? undefined)) : []);
         setSolar(latestRahcomSolarSnapshotsByProvince(safeSolarRows, tehranDateKey(date ?? undefined)));
         setTraffic(trafficRow && typeof trafficRow === 'object' ? {
           ...trafficRow,

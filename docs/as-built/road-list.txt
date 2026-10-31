@@ -1,0 +1,25 @@
+Rahcom road maintenance list
+
+Implemented behavior
+- Rahcom > My Road Maintenance List is available at /rahcom/road-list and follows the shared Rahcom date selector.
+- Authorized Rahcom users can view the most recently uploaded workbook for their assigned province. Organization administrators can choose a province and upload an .xlsx or .xls workbook.
+- The importer finds a header row containing an استان / province column, keeps workbook column names and cell values, and shows the saved rows in a paginated table.
+- Each upload is stored for the selected date. Re-uploading replaces that organization's list for the same province and date while retaining lists from other dates.
+- The API rejects files without a province column, unsupported province values, or rows whose province differs from the selected province. Demo accounts cannot read or upload road lists.
+
+Persistence and API
+- Prisma model: RahcomRoadList in rahyar-back/prisma/schema/rahcom.prisma.
+- Migrations: rahyar-back/prisma/migrations/20261031150000_add_rahcom_road_lists/migration.sql and rahyar-back/prisma/migrations/20261031180000_scope_rahcom_road_lists_by_date/migration.sql.
+- GET /rahcom/road-list?province={province}&date={yyyy-mm-dd} returns that day's list for the authorized province.
+- PUT /rahcom/road-list stores or replaces the current organization/province/date list.
+- The frontend parses workbooks in the browser with SheetJS and sends headers and rows to the Rahyar API.
+
+Source paths
+- rahyar-front/src/app/(workspace)/rahcom/road-list/
+- rahyar-front/src/lib/api/rahcom/rahcom-api.ts
+- rahyar-front/src/components/layout/sidebar.tsx
+- rahyar-front/src/languages/messages/
+- rahyar-front/docs/templates/لیست-راهداری-نمونه.xlsx
+- rahyar-back/src/rahcom/rahcom.controller.ts
+- rahyar-back/src/rahcom/rahcom.service.ts
+- rahyar-back/src/rahcom/dto/rahcom.dto.ts

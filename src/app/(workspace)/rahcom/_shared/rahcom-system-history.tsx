@@ -29,10 +29,10 @@ export function RahcomSystemHistory({ system }: { system: Pick<RahcomSystem, 'id
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setItems(await rahcomApi.systemActivities(system.id)); setError(''); }
+    try { setItems(await rahcomApi.systemActivities(system.id, date ?? undefined)); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : t('rahcomHistoryLoadError')); }
     finally { setLoading(false); }
-  }, [system.id, t]);
+  }, [date, system.id, t]);
 
   useEffect(() => { const frame = window.requestAnimationFrame(() => { void load(); }); return () => window.cancelAnimationFrame(frame); }, [load]);
   useEffect(() => {

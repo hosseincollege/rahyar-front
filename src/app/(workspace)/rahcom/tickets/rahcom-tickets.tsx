@@ -8,6 +8,8 @@ import { usePreferences } from '@/components/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
+import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
+import { rahcomTicketDateKey } from '@/lib/api/rahcom/solar-status';
 
 type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt'>;
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_-]/g, '');
@@ -20,6 +22,7 @@ const provinceName = (province: string | null, locale: Parameters<typeof uiMessa
 
 export function RahcomTickets() {
   const { locale } = usePreferences();
+  const { date } = useRahcomDate();
   const searchParams = useSearchParams();
   const systemFilter = searchParams.get('system')?.toLocaleLowerCase(locale) ?? '';
   const userId = getCurrentUser()?.id;
@@ -79,8 +82,8 @@ export function RahcomTickets() {
   }, [access?.canManageAssignments, importing]);
 
   const visibleTickets = useMemo(() => (importedTickets ?? []).filter((ticket) =>
-    !systemFilter || ticket.systemCode.trim().toLocaleLowerCase(locale) === systemFilter.trim()
-  ), [importedTickets, locale, systemFilter]);
+    rahcomTicketDateKey(ticket.createdOn, ticket.importedAt) === date && (!systemFilter || ticket.systemCode.trim().toLocaleLowerCase(locale) === systemFilter.trim())
+  ), [importedTickets, locale, systemFilter, date]);
 
   const handleExcelUpload = async (file?: File) => {
     if (!file || importing) return;

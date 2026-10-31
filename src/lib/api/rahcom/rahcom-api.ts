@@ -52,12 +52,16 @@ export type RahcomSolarSnapshot = {
 };
 export type RahcomSolarSpecialSystem = { id: string; province: string; systemCode: string; category: 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | 'WIDENING_RELOCATION' };
 export type RahcomTrafficSnapshot = {
-  id: string; fileName: string; sheetName: string; headers: string[];
+  id: string; fileName: string; sheetName: string; snapshotDate: string; headers: string[];
   rows: string[][]; rowCount: number; createdAt: string;
+};
+export type RahcomRoadListSnapshot = {
+  id: string; province: string; fileName: string; sheetName: string; headers: string[];
+  rows: string[][]; rowCount: number; importedAt: string; listDate: string;
 };
 export type RahcomTrafficSystemHistory = Pick<RahcomTrafficSnapshot, 'id' | 'fileName' | 'sheetName' | 'rowCount' | 'createdAt' | 'headers'> & { row: string[] };
 export type RahcomImportedTicket = {
-  id: string; ticketCode: string; systemCode: string; province: string | null; summary: string; customer: string; equipment: string;
+  id: string; ticketCode: string; systemCode: string; province: string | null; listDate: string; summary: string; customer: string; equipment: string;
   type: string; status: string; priority: string; supportTeam: string; createdOn: string; sourceFileName: string; importedAt: string;
 };
 export type RahcomMemberProvince = { id: string; userId: string; username: string; name: string; province: string | null };
@@ -86,25 +90,27 @@ export const rahcomApi = {
   deleteAxis: (id: string) => afterAxesMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/axes/${encodeURIComponent(id)}`)),
   mergeAxes: (sourceId: string, targetAxisId: string) => afterAxesMutation(apiClient.post<{ merged: boolean }>(`/rahcom/axes/${encodeURIComponent(sourceId)}/merge`, { targetAxisId })),
   systems: (province?: string) => apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems'),
-  solarSnapshots: (province?: string) => apiClient.get<RahcomSolarSnapshot[]>(province ? `/rahcom/solar-snapshots?province=${encodeURIComponent(province)}` : '/rahcom/solar-snapshots'),
+  solarSnapshots: (province?: string, date?: string) => apiClient.get<RahcomSolarSnapshot[]>(`/rahcom/solar-snapshots?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   createSolarSnapshot: (data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),
   updateSolarSnapshot: (id: string, data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.put<RahcomSolarSnapshot>(`/rahcom/solar-snapshots/${encodeURIComponent(id)}`, data)),
   deleteSolarSnapshot: (id: string) => afterSolarSnapshotMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/solar-snapshots/${encodeURIComponent(id)}`)),
   solarSpecialSystems: (province: string) => apiClient.get<RahcomSolarSpecialSystem[]>(`/rahcom/solar-special-systems?province=${encodeURIComponent(province)}`),
   replaceSolarSpecialSystems: (province: string, systems: Array<Pick<RahcomSolarSpecialSystem, 'systemCode' | 'category'>>) => afterSolarSnapshotMutation(apiClient.put<RahcomSolarSpecialSystem[]>('/rahcom/solar-special-systems', { province, systems })),
-  trafficSnapshot: (province?: string) => apiClient.get<RahcomTrafficSnapshot | null>(province ? `/rahcom/traffic-snapshot?province=${encodeURIComponent(province)}` : '/rahcom/traffic-snapshot'),
+  trafficSnapshot: (province?: string, date?: string) => apiClient.get<RahcomTrafficSnapshot | null>(`/rahcom/traffic-snapshot?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   trafficSystemHistory: (systemCode: string) => apiClient.get<RahcomTrafficSystemHistory[]>(`/rahcom/traffic-snapshot/history?systemCode=${encodeURIComponent(systemCode)}`),
-  importedTickets: (province?: string) => apiClient.get<RahcomImportedTicket[]>(province ? `/rahcom/tickets?province=${encodeURIComponent(province)}` : '/rahcom/tickets'),
-  importTickets: (sourceFileName: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt'>>) => apiClient.post<{ imported: number }, { sourceFileName: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, tickets }),
-  createTrafficSnapshot: (data: Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'>) => afterTrafficSnapshotMutation(apiClient.post<RahcomTrafficSnapshot>('/rahcom/traffic-snapshots', data)),
-  applyTrafficAxes: () => afterAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>('/rahcom/traffic-snapshot/apply-axes', {})),
+  importedTickets: (province?: string, date?: string) => apiClient.get<RahcomImportedTicket[]>(`/rahcom/tickets?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
+  importTickets: (sourceFileName: string, province: string, listDate: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate'>>) => apiClient.post<{ imported: number }, { sourceFileName: string; province: string; listDate: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, province, listDate, tickets }),
+  createTrafficSnapshot: (data: Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'> & { snapshotDate: string }) => afterTrafficSnapshotMutation(apiClient.post<RahcomTrafficSnapshot>('/rahcom/traffic-snapshots', data)),
+  roadList: (province: string, date: string) => apiClient.get<RahcomRoadListSnapshot | null>(`/rahcom/road-list?province=${encodeURIComponent(province)}&date=${encodeURIComponent(date)}`),
+  replaceRoadList: (data: Pick<RahcomRoadListSnapshot, 'province' | 'listDate' | 'fileName' | 'sheetName' | 'headers' | 'rows'>) => apiClient.put<RahcomRoadListSnapshot>('/rahcom/road-list', data),
+  applyTrafficAxes: (date: string) => afterAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>(`/rahcom/traffic-snapshot/apply-axes?date=${encodeURIComponent(date)}`, {})),
   importSystems: (province: string, systems: Array<Record<string, unknown>>) => afterSystemsMutation(apiClient.post<{ imported: number }>('/rahcom/systems/import', { province, systems })),
   updateSystem: (id: string, data: Partial<RahcomSystem>) => afterSystemsMutation(apiClient.put<RahcomSystem>(`/rahcom/systems/${id}`, data)),
   deleteSystem: (id: string) => afterSystemsMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/systems/${id}`)),
   deleteSystems: (input: { province?: string; ids?: string[] }) => afterSystemsMutation(apiClient.deleteWithBody<{ deleted: number }, { ids: string[] }>(`/rahcom/systems${input.province ? `?province=${encodeURIComponent(input.province)}` : ''}`, { ids: input.ids ?? [] })),
   activities: (date: string, range?: { from: string; to: string }, province?: string) => apiClient.get<RahcomActivity[]>(`/rahcom/activities?${new URLSearchParams({ ...(range ? { from: range.from, to: range.to } : { date }), ...(province ? { province } : {}) }).toString()}`),
   addActivity: (data: { date: string; activityType: RahcomActivity['activityType']; quantity: number; description: string; systemId?: string; accompaniedBy?: string; handedOverTo?: string; province?: string }) => afterActivityMutation(apiClient.post<RahcomActivity>('/rahcom/activities', data)),
-  systemActivities: (systemId: string) => apiClient.get<RahcomActivity[]>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities`),
+  systemActivities: (systemId: string, date?: string) => apiClient.get<RahcomActivity[]>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities${date ? `?date=${encodeURIComponent(date)}` : ''}`),
   addSystemActivity: (systemId: string, data: { date: string; description: string; accompaniedBy: string; handedOverTo: string }) => afterActivityMutation(apiClient.post<RahcomActivity>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities`, data)),
   deleteActivity: (id: string) => afterActivityMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/activities/${id}`)),
 };

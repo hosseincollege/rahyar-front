@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import {
   getCurrentOrganizationId,
   getCurrentUser,
@@ -45,7 +46,7 @@ import { uiMessage } from '@/lib/ui-messages';
 import { readShellVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
 import { saveSearchHistory } from '@/lib/search-history';
-import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { searchRahcomSystems } from '@/lib/rahcom-system-search';
 import { HeaderAccountSwitcher } from './header-account-switcher';
 import { HeaderProvinceSelector } from './header-province-selector';
@@ -87,6 +88,7 @@ export function TopHeader({
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [headerSystems, setHeaderSystems] = useState<RahcomSystem[] | null>(null);
   const [headerSearchResults, setHeaderSearchResults] = useState<RahcomSystem[]>([]);
+  const [headerSelectedSystem, setHeaderSelectedSystem] = useState<RahcomSystem | null>(null);
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
   const [headerSearchLoading, setHeaderSearchLoading] = useState(false);
   const [headerSearchError, setHeaderSearchError] = useState(false);
@@ -223,17 +225,27 @@ export function TopHeader({
 
   const selectHeaderSystem = (system: RahcomSystem) => {
     saveSearchHistory(headerSearchQuery, isReducedEdition);
-    window.sessionStorage.setItem('rahyar-rahcom-focus-system', system.id);
-    const userId = getCurrentUser()?.id;
-    window.localStorage.setItem(`rahyar-selected-province:${userId || 'current'}`, system.province);
-    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: system.province } }));
     setHeaderSearchQuery('');
     setHeaderSearchOpen(false);
     setMobileToolsOpen(false);
     setMobileTool(null);
-    if (pathname === '/rahcom/systems') window.dispatchEvent(new Event('rahyar:open-system-details'));
-    else router.push('/rahcom/systems');
+    if (pathname === '/rahcom/systems') {
+      window.sessionStorage.setItem('rahyar-rahcom-focus-system', system.id);
+      const userId = getCurrentUser()?.id;
+      window.localStorage.setItem(`rahyar-selected-province:${userId || 'current'}`, system.province);
+      window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: system.province } }));
+      window.dispatchEvent(new Event('rahyar:open-system-details'));
+      return;
+    }
+    setHeaderSelectedSystem(system);
   };
+
+  useEffect(() => {
+    if (!headerSelectedSystem) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setHeaderSelectedSystem(null); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [headerSelectedSystem]);
 
   const renderHeaderSystemSuggestions = (mobile = false) => headerSearchOpen && headerSearchQuery.trim() ? (
     <div role="listbox" aria-label={message('headerSearch')} aria-live="polite" dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`${mobile ? 'relative mt-2 w-full' : 'absolute end-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)]'} z-[120] overflow-hidden rounded-xl border border-[var(--border)] text-[var(--foreground)] shadow-2xl`}>
@@ -644,6 +656,21 @@ export function TopHeader({
         </form>
       </div>
 
+      {headerSelectedSystem && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setHeaderSelectedSystem(null); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="header-search-system-title" dir={direction} className="w-full max-w-md rounded-2xl border border-border bg-card p-4 text-foreground shadow-2xl">
+          <header className="mb-3 flex items-start justify-between gap-3 border-b border-border pb-3">
+            <div className="min-w-0"><h2 id="header-search-system-title" className="truncate text-lg font-bold">{headerSelectedSystem.systemName}</h2><p dir="ltr" className="mt-1 font-mono text-sm text-muted-foreground">{headerSelectedSystem.systemCode}</p></div>
+            <button type="button" onClick={() => setHeaderSelectedSystem(null)} aria-label={message('closeSidebar')} title={message('closeSidebar')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:bg-muted"><X size={17} /></button>
+          </header>
+          <dl className="grid gap-2 text-sm">
+            <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{message('rahcomProvince')}</dt><dd className="text-end">{iranProvinces.find(([id]) => id === headerSelectedSystem.province)?.[1] ?? headerSelectedSystem.province}</dd></div>
+            {(headerSelectedSystem.axisCode || headerSelectedSystem.axis) && <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{message('rahcomAxis')}</dt><dd className="text-end">{[headerSelectedSystem.axisCode, headerSelectedSystem.axis].filter(Boolean).join(' · ')}</dd></div>}
+            <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{message('rahcomCopyCoordinates')}</dt><dd dir="ltr" className="text-end">{formatRahcomCoordinates(headerSelectedSystem.latitude, headerSelectedSystem.longitude)}</dd></div>
+            {headerSelectedSystem.details && <div className="grid gap-1 border-t border-border pt-2"><dt className="text-muted-foreground">{message('rahcomDescription')}</dt><dd className="whitespace-pre-wrap">{headerSelectedSystem.details}</dd></div>}
+            {headerSelectedSystem.incidentDetails && <div className="grid gap-1 border-t border-border pt-2"><dt className="text-muted-foreground">{message('rahcomIncidentFilter')}</dt><dd className="whitespace-pre-wrap">{headerSelectedSystem.incidentDetails}</dd></div>}
+          </dl>
+        </section>
+      </div>, document.body) : null}
 
     </header>
   );

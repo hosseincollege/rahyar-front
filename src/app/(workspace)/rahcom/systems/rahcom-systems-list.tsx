@@ -12,6 +12,7 @@ import type { RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { rahcomProvinceFromLabel, rahcomSystemKey } from '@/lib/api/rahcom/solar-status';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomAxesManager } from '@/app/(workspace)/rahcom/_shared/rahcom-axes-manager';
+import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 function provinceName(provinceId: string) {
   return iranProvinces.find(([id]) => id === provinceId)?.[1] ?? provinceId;
@@ -31,6 +32,7 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
 
 export function RahcomSystemsList({ canManage = false, selectedProvince = 'all', axisSource = 'traffic', onAxisSourceChange }: { canManage?: boolean; selectedProvince?: string; axisSource?: 'traffic' | 'rahyar'; onAxisSourceChange?: (source: 'traffic' | 'rahyar') => void }) {
   const { locale } = usePreferences();
+  const { date } = useRahcomDate();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [axisOptionsByProvince, setAxisOptionsByProvince] = useState<Record<string, string[]>>({});
@@ -93,11 +95,11 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
 
   useEffect(() => {
     let active = true;
-    const load = () => { void rahcomApi.trafficSnapshot(selectedProvince).then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
+    const load = () => { void rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined).then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); }); };
     load();
     window.addEventListener('rahyar:traffic-snapshot-changed', load);
     return () => { active = false; window.removeEventListener('rahyar:traffic-snapshot-changed', load); };
-  }, [selectedProvince, systemsRevision]);
+  }, [date, selectedProvince, systemsRevision]);
 
   useEffect(() => {
     let active = true;

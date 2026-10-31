@@ -8,6 +8,7 @@ import { uiMessage } from '@/lib/ui-messages';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
 import { rahcomApi, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 type TrafficUpload = Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'>;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
@@ -15,6 +16,7 @@ const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLoca
 
 export function RahcomTrafficUpload() {
   const { locale } = usePreferences();
+  const { date } = useRahcomDate();
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -61,8 +63,9 @@ export function RahcomTrafficUpload() {
       }
       if (!upload) throw new Error(t('rahcomTrafficRequiredColumns'));
 
-      await rahcomApi.createTrafficSnapshot(upload);
-      const result = await rahcomApi.applyTrafficAxes();
+      if (!date) throw new Error(t('rahcomTrafficSaveFailed'));
+      await rahcomApi.createTrafficSnapshot({ ...upload, snapshotDate: date });
+      const result = await rahcomApi.applyTrafficAxes(date);
       setMessage(`${t('rahcomTrafficAxesApplied')}: ${result.updatedSystems.toLocaleString(locale)} · ${t('rahcomTrafficAxesUnmatched')}: ${result.unmatchedSystems.toLocaleString(locale)} · ${t('rahcomTrafficAxesGroups')}: ${result.axisGroups.toLocaleString(locale)}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('rahcomTrafficSaveFailed'));

@@ -1,0 +1,5 @@
+Rahcom road maintenance list demo
+
+Open Rahcom > My Road Maintenance List. Choose a province when the administrator's province selector is set to All, then upload the daily .xlsx or .xls workbook. The page detects the sheet header that includes the province column and displays the stored rows. The API verifies that every row belongs to the selected province before saving the list.
+
+The example workbook in docs/templates/لیست-راهداری-نمونه.xlsx is transcribed from a screenshot. Confirm unclear text against the original daily workbook before using it as operational data.

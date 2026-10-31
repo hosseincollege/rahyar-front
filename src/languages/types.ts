@@ -980,6 +980,19 @@ export type UiMessage =
   | "testDataSystems"
   | "testDataActivities"
   | "organizationLoadingStaff"
-  | "organizationProvinces";
+  | "organizationProvinces"
+  | "rahcomRoadList"
+  | "rahcomRoadListDescription"
+  | "rahcomRoadListChooseProvince"
+  | "rahcomRoadListChooseFile"
+  | "rahcomRoadListUploading"
+  | "rahcomRoadListUploadDone"
+  | "rahcomRoadListNoData"
+  | "rahcomRoadListFileTooLarge"
+  | "rahcomRoadListInvalidFile"
+  | "rahcomRoadListLastUpdated"
+  | "rahcomRoadListRows"
+  | "rahcomRoadListPreviousPage"
+  | "rahcomRoadListNextPage";
 
 export type LocaleMessages = Record<UiMessage, string>;
