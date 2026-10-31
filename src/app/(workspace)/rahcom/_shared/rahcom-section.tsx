@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleHelp, ClipboardList, LocateFixed, MapPin, MapPinned, PanelsTopLeft, Pencil, Plus, Scan, Sun, TriangleAlert, Upload, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { OpenStreetMap } from '@/app/(workspace)/rahcom/map/open-street-map';
@@ -78,9 +78,25 @@ function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }: { snap
 
 export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const { locale } = usePreferences();
-  const { date } = useRahcomDate();
-  const [focusProvince, setFocusProvince] = useState(true);
+  const { date, setDateText } = useRahcomDate();
   const [province, setProvince] = useState('isfahan');
+  const loadSectionMarkedDates = useCallback(async (from: string, to: string) => {
+    const range = { from, to };
+    const [solar, tickets, activities, trafficDates] = await Promise.all([
+      section === 'solar-daily' || section === 'aggregate' ? rahcomApi.solarSnapshots(province) : Promise.resolve([]),
+      section === 'tickets' || section === 'aggregate' ? rahcomApi.importedTickets(province) : Promise.resolve([]),
+      section === 'actions' ? rahcomApi.activities(from, range, province) : Promise.resolve([]),
+      section === 'aggregate' ? rahcomApi.trafficSnapshotDates(province, from, to) : Promise.resolve([]),
+    ]);
+    const inRange = (value: string) => value >= from && value <= to;
+    return [...new Set([
+      ...solar.map((item) => tehranDateKey(item.capturedAt)).filter(inRange),
+      ...tickets.map((item) => item.listDate.slice(0, 10)).filter(inRange),
+      ...activities.map((item) => item.activityDate.slice(0, 10)).filter(inRange),
+      ...trafficDates,
+    ])].sort();
+  }, [section, province]);
+  const [focusProvince, setFocusProvince] = useState(true);
   const [mapSystemsCount, setMapSystemsCount] = useState(0);
   const [mapSystemsError, setMapSystemsError] = useState('');
   const [mapLocating, setMapLocating] = useState(false);
@@ -176,7 +192,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <div className={section === 'map' || section === 'solar-daily' ? 'contents' : 'flex flex-wrap items-center gap-2'}>
           {section === 'map' && <RahcomHeaderDate />}
           {section === 'map' && <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(mapSystemsCount)} ${uiMessage(locale, 'rahcomSystemsOnMap')}`} title={uiMessage(locale, 'rahcomSystemsOnMap')} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><MapPin size={16} style={{ color: 'var(--primary)' }} /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(mapSystemsCount)}</strong></span>}
-          {section !== 'map' && <RahcomHeaderDate />}
+          {section !== 'map' && <RahcomHeaderDate loadMarkedDates={['solar-daily', 'tickets', 'aggregate', 'actions'].includes(section) ? loadSectionMarkedDates : undefined} />}
           {section === 'solar-daily' && <button type="button" aria-pressed={solarFormOpen} onClick={() => setSolarFormOpen((open) => !open)} aria-label={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} title={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} style={solarFormOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${solarFormOpen ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}>{solarFormOpen ? <X size={17} /> : <Plus size={17} />}</button>}
           {section === 'tickets' && canManageRahcom && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-upload-click'))} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Upload size={17} /></button>}
           {(section === 'map' || section === 'solar-daily') && <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-border bg-background" role="group" aria-label={uiMessage(locale, 'rahcomIncidentFilter')}>

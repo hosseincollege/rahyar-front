@@ -1,0 +1,5 @@
+﻿Rahcom daily traffic monthly date chips
+
+The daily traffic page queries the authenticated Rahcom API for traffic snapshot dates within the selected Jalali month. It shows each available report date as a compact selectable chip; choosing a date updates the shared Rahcom date and loads that day's traffic snapshot. The API returns organization-scoped dates and applies the user's province authorization. The date range is bounded to one Persian month.
+
+Sources: src/app/(workspace)/rahcom/daily-traffic/rahcom-daily-traffic.tsx, src/lib/api/rahcom/rahcom-api.ts, rahyar-back/src/rahcom/rahcom.controller.ts, rahyar-back/src/rahcom/rahcom.service.ts.

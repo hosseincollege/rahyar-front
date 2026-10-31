@@ -1,0 +1,5 @@
+﻿Rahyar top-header province selection
+
+The top-header selector lists only active branches in the current organization's structure that map to a supported Iranian province. It no longer fills missing organization settings with the full national province list. If no province is configured, the selector displays the existing unassigned-province state and is read-only. Province display names use the canonical name for the mapped province. The settings sidebar and display-management navigation omit announcement management.
+
+Sources: src/components/layout/header-province-selector.tsx, src/components/layout/sidebar.tsx, src/app/(workspace)/settings/modules/page.tsx.

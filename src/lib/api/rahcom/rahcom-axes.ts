@@ -1,8 +1,8 @@
-import { isfahanAxes, isfahanTrafficAxes } from '@/provinces/isfahan';
+import { isfahanAxes } from '@/provinces/isfahan';
 
 const axisPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#d97706', '#0891b2', '#db2777', '#475569'];
 
-export const defaultIsfahanAxes = isfahanTrafficAxes;
+export const defaultIsfahanAxes = isfahanAxes.map(({ name }) => name);
 
 type AxisPoint = readonly [latitude: number, longitude: number];
 const operationalIsfahanAxes = isfahanAxes;

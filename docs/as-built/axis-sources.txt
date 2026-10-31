@@ -1,0 +1,12 @@
+Rahcom axis sources
+
+Rahcom keeps two classifications separate:
+
+- Announced axes are the official axis name and Tehran-assigned code in the uploaded systems workbook. They are stored in `RahcomSystem.announcedAxis` and `RahcomSystem.axisCode`.
+- Operational axes describe Rahyar's planned field corridors. They remain in `RahcomSystem.axis` and `RahcomAxis`, with Isfahan's recovery-safe corridor definitions in `src/provinces/isfahan.ts`.
+
+In the systems workbook, the «محور» column maps to `announcedAxis` and «کد محور» maps to `axisCode`. Importing or applying a daily traffic list updates announced fields only; it does not overwrite operational assignments. The systems list, map, and solar daily list offer separate announced/operational views. Isfahan's announced code/name pairs from the supplied workbook are recorded in `src/provinces/isfahan-announced-axes.ts`.
+
+The additive Prisma migration `20261031200000_separate_announced_axes` adds the announced name field and copies existing named axes with a declared code into it, preserving the prior axis values during migration.
+
+Implementation: `src/app/(workspace)/rahcom/systems/rahcom-systems-list.tsx`, `src/app/(workspace)/rahcom/map/open-street-map.tsx`, `src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx`, `../rahyar-back/src/rahcom/rahcom.service.ts`, and `../rahyar-back/prisma/schema/rahcom.prisma`.

@@ -37,7 +37,7 @@ function startOfPersianWeek(isoDate: string) {
   return shiftIsoDay(isoDate, -((dayOfWeek + 1) % 7));
 }
 
-export function RahcomHeaderDate() {
+export function RahcomHeaderDate({ loadMarkedDates }: { loadMarkedDates?: (from: string, to: string) => Promise<string[]> }) {
   const { locale } = usePreferences();
   const { dateText, setDateText, date } = useRahcomDate();
   const direction = getLocaleDirection(locale);
@@ -47,6 +47,7 @@ export function RahcomHeaderDate() {
   const activeDate = date ?? fallbackDate;
   const selectedDate = date ? persianParts(date) : null;
   const [open, setOpen] = useState(false);
+  const [markedDates, setMarkedDates] = useState<string[]>([]);
   const [weekOpen, setWeekOpen] = useState(false);
   const [weekStart, setWeekStart] = useState(() => startOfPersianWeek(activeDate));
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null);
@@ -96,6 +97,17 @@ export function RahcomHeaderDate() {
     ? Math.round((Date.parse(`${nextFirstDay}T12:00:00Z`) - Date.parse(`${firstDay}T12:00:00Z`)) / 86_400_000)
     : 31;
   const leadingEmptyDays = firstDay ? (new Date(`${firstDay}T12:00:00Z`).getUTCDay() + 1) % 7 : 0;
+  useEffect(() => {
+    if (!open || !loadMarkedDates || !firstDay || !nextFirstDay) { setMarkedDates([]); return; }
+    let active = true;
+    const last = new Date(`${nextFirstDay}T12:00:00Z`); last.setUTCDate(last.getUTCDate() - 1);
+    void loadMarkedDates(firstDay, last.toISOString().slice(0, 10)).then((dates) => { if (active) setMarkedDates(dates); }).catch(() => { if (active) setMarkedDates([]); });
+    return () => { active = false; };
+  }, [open, viewMonth.year, viewMonth.month, loadMarkedDates, firstDay, nextFirstDay]);
+  const markedDayNumbers = useMemo(() => new Set(markedDates.flatMap((isoDate) => {
+    const parts = persianParts(isoDate);
+    return parts.year === viewMonth.year && parts.month === viewMonth.month ? [parts.day] : [];
+  })), [markedDates, viewMonth.year, viewMonth.month]);
   const cells = useMemo(() => [
     ...Array.from({ length: leadingEmptyDays }, (_, index) => `empty-${index}` as const),
     ...Array.from({ length: days }, (_, index) => index + 1),
@@ -140,8 +152,9 @@ export function RahcomHeaderDate() {
           ? <span key={day} aria-hidden="true" />
           : (() => {
             const selected = selectedDate?.year === viewMonth.year && selectedDate.month === viewMonth.month && selectedDate.day === day;
+            const marked = markedDayNumbers.has(day);
             const dayLabel = `${number.format(day)} ${monthLabel}`;
-            return <button key={day} type="button" role="gridcell" aria-label={dayLabel} aria-pressed={selected} onClick={() => chooseDay(day)} className={`grid aspect-square place-items-center rounded-lg text-sm text-foreground hover:bg-primary/10 ${selected ? 'bg-primary text-primary-foreground hover:bg-primary' : ''}`}>{number.format(day)}</button>;
+            return <button key={day} type="button" role="gridcell" aria-label={dayLabel} aria-pressed={selected} onClick={() => chooseDay(day)} style={{ borderStyle: 'solid', borderWidth: marked ? 2 : 0, borderRadius: marked ? '9999px' : '0', borderColor: marked ? 'var(--primary)' : 'transparent', color: marked ? 'var(--primary)' : undefined, backgroundColor: marked ? 'transparent' : undefined }} className={`grid aspect-square place-items-center text-sm font-semibold tabular-nums transition-colors ${marked ? 'rounded-full hover:bg-primary/5' : `rounded-none ${selected ? 'bg-primary text-primary-foreground hover:bg-primary' : 'text-foreground hover:bg-primary/10'}`}`}>{number.format(day)}</button>;
           })())}
       </div>
       </> : <>

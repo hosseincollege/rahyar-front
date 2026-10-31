@@ -9,6 +9,7 @@ import { iranProvinces, rahcomApi, type RahcomActivity, type RahcomSystem } from
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
+import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 export function RahcomActions({ canManage = false, canRecord = false, selectedProvince = 'all' }: { canManage?: boolean; canRecord?: boolean; selectedProvince?: string }) {
   const { locale } = usePreferences();
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -65,9 +66,11 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
   }
 async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm'))) return; try { await rahcomApi.deleteActivity(id); await load(); } catch (e) { setError(e instanceof Error ? e.message : t('rahcomSystemDeleteFailed')); } }
   const labels = { EMAIL_SENT: t('rahcomEmailSent'), SYSTEM_VISIT: t('rahcomSystemVisit'), OTHER: t('rahcomOther') };
+  const latestActivityAt = items.reduce<string | null>((latest, item) => !latest || new Date(item.createdAt) > new Date(latest) ? item.createdAt : latest, null);
   return <section className="space-y-4" dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'}>
     <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t('rahcomActions')}</h2>{date && <span className="text-sm text-muted-foreground">{formatJalaliDate(date)}</span>}{!date && <span className="text-xs text-destructive">{t('rahcomInvalidJalaliDate')}</span>}</div>
+      {items.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={items.length} savedAt={latestActivityAt} />}
       {canRecord && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {selectedProvince === 'all' && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => { setActivityProvinceState({ selection: selectedProvince, province: e.target.value }); setSystemId(''); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
         <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomSystemOptional')}<select value={systemId} onChange={(e) => { setSystemId(e.target.value); setType(e.target.value ? 'SYSTEM_VISIT' : 'EMAIL_SENT'); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="">{t('rahcomSystemOptional')}</option>{availableSystems.map(item => <option key={item.id} value={item.id}>{item.systemName} · {iranProvinces.find(([id]) => id === item.province)?.[1] ?? item.province}</option>)}</select></label>

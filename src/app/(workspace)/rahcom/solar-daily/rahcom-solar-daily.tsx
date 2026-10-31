@@ -9,6 +9,7 @@ import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, 
 import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, rahcomSolarSnapshotNumber, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { rahcomOperationalAxis } from '@/lib/api/rahcom/rahcom-axes';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
+import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 
 const commonEquipment = ['LTE', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2', 'PC', 'RLY', 'RLY-1', 'WL-1', 'WLP2P'];
 const emptyTrafficHeaders: string[] = [];
@@ -289,9 +290,9 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const recordRows = sites.map((site) => {
     const system = systemsByCode.get(site) ?? null;
     const trafficRow = trafficRowsByCode.get(site);
-    const axisCode = axisSource === 'traffic' ? (axisCodeIndex >= 0 ? trafficRow?.[axisCodeIndex]?.trim() : '') || '' : '';
+    const axisCode = axisSource === 'traffic' ? system?.axisCode || ((axisCodeIndex >= 0 ? trafficRow?.[axisCodeIndex]?.trim() : '') || '') : '';
     const axisName = axisSource === 'traffic'
-      ? (axisNameIndex >= 0 ? trafficRow?.[axisNameIndex]?.trim() : '') || ''
+      ? system?.announcedAxis || ((axisNameIndex >= 0 ? trafficRow?.[axisNameIndex]?.trim() : '') || '')
       : system ? rahcomOperationalAxis(system.latitude, system.longitude, system.province) : '';
     const groupKey = axisCode || '__no_axis__';
     return { site, system, trafficRow, axisCode, axisName, groupKey };
@@ -528,6 +529,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     </>}
 
     <div className="space-y-3">{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
+      <RahcomRecordSummary locale={locale} source={t('rahcomSolarDaily')} recordDate={tehranDateKey(selectedSnapshot.capturedAt)} count={selectedSnapshotEntries.length} savedAt={selectedSnapshot.createdAt} />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"><span className="text-sm font-semibold tabular-nums">{new Intl.NumberFormat(locale).format(selectedSnapshotNumber)} - {formatCapturedAt(selectedSnapshot.capturedAt, locale)}</span>{canManage && <div className="flex items-center gap-1"><button type="button" aria-label={`${t('solarEditSnapshot')} ${formatCapturedAt(selectedSnapshot.capturedAt, locale)}`} title={t('solarEditSnapshot')} onClick={() => editSnapshot(selectedSnapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-primary"><Pencil size={15} /></button><button type="button" aria-label={`${t('solarDeleteSnapshot')} ${formatCapturedAt(selectedSnapshot.capturedAt, locale)}`} title={t('solarDeleteSnapshot')} onClick={() => void deleteSnapshot(selectedSnapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-destructive"><Trash2 size={15} /></button></div>}</div>
       <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? 'all'} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} />
     </>}</div>

@@ -10,6 +10,8 @@ import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
+import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 
 const PAGE_SIZE = 100;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
@@ -82,6 +84,8 @@ export function RahcomRoadList() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [province, canView, t, selectedDate]);
+
+  const loadRoadListDates = useCallback((from: string, to: string) => province ? rahcomApi.roadListDates(province, from, to) : Promise.resolve([]), [province]);
 
   async function uploadFile(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
@@ -169,6 +173,7 @@ export function RahcomRoadList() {
 
   return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl space-y-4">
     <header className="flex flex-wrap justify-end gap-3 rounded-2xl border border-border bg-card p-4">
+      <RahcomHeaderDate loadMarkedDates={loadRoadListDates} />
       <div className="flex flex-wrap items-center gap-2">
         {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
@@ -181,13 +186,7 @@ export function RahcomRoadList() {
     {error && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
     {message && <p role="status" className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">{message}</p>}
     {!province ? <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListChooseProvince')}</p> : loading ? <p role="status" className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : error ? null : !snapshot ? <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListNoData')}</p> : <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 text-sm">
-        <div className="min-w-0 truncate text-foreground"><span className="text-muted-foreground">{snapshot.fileName}</span></div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{t('rahcomRoadListRows')}: {new Intl.NumberFormat(locale).format(snapshot.rowCount)}</span>
-          <span>{t('rahcomRoadListLastUpdated')}: {new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tehran' }).format(new Date(snapshot.importedAt))}</span>
-        </div>
-      </div>
+      <div className="border-b border-border p-3"><RahcomRecordSummary locale={locale} source={t('rahcomRoadList')} fileName={snapshot.fileName} recordDate={snapshot.listDate.slice(0, 10)} count={snapshot.rowCount} savedAt={snapshot.importedAt} /></div>
       <div className="max-h-[68vh] overflow-auto">
         <table className="min-w-full border-separate border-spacing-0 text-sm">
           <thead className="sticky top-0 z-10 bg-muted text-start text-xs text-muted-foreground"><tr>

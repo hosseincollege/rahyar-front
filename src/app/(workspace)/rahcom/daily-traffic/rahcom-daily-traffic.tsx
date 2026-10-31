@@ -8,9 +8,9 @@ import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, 
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
+import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { RahcomTrafficUpload } from '@/app/(workspace)/rahcom/daily-traffic/rahcom-traffic-upload';
 import { isRahcomIncidentValue, latestRahcomSolarSnapshotsByProvince, rahcomProvinceFromLabel, rahcomSystemKey, parseRahcomSolarList, tehranDateKey } from '@/lib/api/rahcom/solar-status';
-
 const pageSize = 50;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) >= 0x06f0 ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660)).replace(/[\u200c\s]/g, '');
 const isMarked = (value: string) => {
@@ -55,6 +55,8 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, onSh
     window.addEventListener('rahyar:traffic-snapshot-changed', loadTrafficSnapshot);
     return () => window.removeEventListener('rahyar:traffic-snapshot-changed', loadTrafficSnapshot);
   }, [loadTrafficSnapshot]);
+
+  const loadTrafficDatesForCalendar = useCallback((from: string, to: string) => rahcomApi.trafficSnapshotDates(provinceFilter ?? selectedProvince, from, to), [provinceFilter, selectedProvince]);
 
   const loadSolarSnapshot = useCallback(async () => {
     try { setSolarSnapshot(latestRahcomSolarSnapshotsByProvince(await rahcomApi.solarSnapshots(provinceFilter ?? selectedProvince, date ?? undefined), tehranDateKey(date ?? undefined))); }
@@ -189,7 +191,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, onSh
   return (
     <section dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'} className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3">
-        <RahcomHeaderDate />
+        <RahcomHeaderDate loadMarkedDates={loadTrafficDatesForCalendar} />
         <RahcomTrafficUpload />
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => onShowIncidentsChange?.(!showIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
         <label className="relative block min-w-40 max-w-sm flex-1"><Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={trafficSearch} onChange={(event) => { setTrafficSearch(event.target.value); setTrafficPage(0); }} placeholder={t('rahcomTrafficSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-3 text-sm text-foreground" /></label>
@@ -210,6 +212,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, onSh
       </div>
 
       {trafficLoading ? <div className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin" />{t('rahcomSystemsLoading')}</div> : trafficSnapshot ? <>
+          <RahcomRecordSummary locale={locale} source={t('rahcomDailyTraffic')} fileName={trafficSnapshot.fileName} recordDate={trafficSnapshot.snapshotDate.slice(0, 10)} count={trafficSnapshot.rowCount} savedAt={trafficSnapshot.createdAt} />
           <div className="max-h-[65vh] overflow-auto rounded-xl border border-border"><table className="min-w-max text-xs"><thead className="sticky top-0 bg-muted"><tr><th className="whitespace-nowrap px-3 py-2 text-start font-semibold text-foreground">{t('rahcomTrafficSolarStatus')}</th>{trafficSnapshot.headers.map((header, index) => <th key={`${header}:${index}`} className="max-w-64 whitespace-nowrap px-3 py-2 text-start font-semibold text-foreground">{normalizeHeader(header).includes('سولار') || normalizeHeader(header).includes('solar') ? t('rahcomTrafficImportedStatus') : header}</th>)}</tr></thead><tbody>{visibleTrafficRows.length === 0 ? <tr><td colSpan={trafficSnapshot.headers.length + 1} className="p-4 text-center text-muted-foreground">{t('rahcomTrafficNoMatches')}</td></tr> : visibleTrafficRows.map((row, rowIndex) => <tr key={`${trafficPage}:${rowIndex}`} className="border-t border-border hover:bg-accent/30"><td className="max-w-64 whitespace-nowrap px-3 py-2 font-medium text-foreground">{statusForTrafficRow(row)}</td>{trafficSnapshot.headers.map((_, columnIndex) => <td key={columnIndex} className="max-w-64 truncate whitespace-nowrap px-3 py-2 text-foreground">{row[columnIndex] || '—'}</td>)}</tr>)}</tbody></table></div>
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{filteredTrafficRows.length.toLocaleString('fa-IR')} {t('rahcomTrafficRows')}</span><div className="flex items-center gap-2"><button type="button" disabled={trafficPage <= 0} onClick={() => setTrafficPage((current) => Math.max(0, current - 1))} className="rounded-lg border border-border p-2 disabled:opacity-40" aria-label={t('rahcomPreviousPage')}><ChevronRight size={16} /></button><span>{(trafficPage + 1).toLocaleString('fa-IR')} / {trafficPageCount.toLocaleString('fa-IR')}</span><button type="button" disabled={trafficPage + 1 >= trafficPageCount} onClick={() => setTrafficPage((current) => Math.min(trafficPageCount - 1, current + 1))} className="rounded-lg border border-border p-2 disabled:opacity-40" aria-label={t('rahcomNextPage')}><ChevronLeft size={16} /></button></div></div>
         </> : !trafficError ? <p className="rounded-xl border border-dashed border-border bg-card p-5 text-center text-sm text-muted-foreground">{t('rahcomTrafficNoList')}</p> : <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{trafficError}</p>}

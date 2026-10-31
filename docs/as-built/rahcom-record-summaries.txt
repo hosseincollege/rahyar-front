@@ -1,0 +1,7 @@
+Rahcom record summary bars
+
+Record tables show a compact summary above their data. Excel based traffic, road-list, and ticket pages display the source filename and detected file extension, record date, row count, and actual import timestamp. Solar snapshots and actions display the selected record date, number of entries, and save timestamp. The systems list displays its row count and the latest system update timestamp; its current data model does not retain a source workbook name.
+
+Shared component: src/app/(workspace)/rahcom/_shared/rahcom-record-summary.tsx
+
+Pages: src/app/(workspace)/rahcom/daily-traffic/rahcom-daily-traffic.tsx, road-list/rahcom-road-list.tsx, solar-daily/rahcom-solar-daily.tsx, tickets/rahcom-tickets.tsx, actions/rahcom-actions.tsx, systems/rahcom-systems-list.tsx, and aggregate/rahcom-aggregate-list.tsx.

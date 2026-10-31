@@ -30,9 +30,15 @@ async function afterActivityMutation<T>(request: Promise<T>): Promise<T> {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:activities-changed'));
   return result;
 }
+async function afterTicketsMutation<T>(request: Promise<T>): Promise<T> {
+  const result = await request;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:tickets-changed'));
+  return result;
+}
 
 export type RahcomSystem = {
-  id: string; province: string; systemName: string; systemCode: string; axis: string | null; axisCode: string | null;
+  id: string; province: string; systemName: string; systemCode: string; axis: string | null; axisCode: string | null; announcedAxis: string | null;
+  createdAt: string; updatedAt: string;
   incidentType: 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | 'WIDENING_RELOCATION' | null; incidentDetails: string | null;
   latitude: number; longitude: number; details: string | null;
   electricityBillId: string | null; simIp: string | null; radarIp: string | null;
@@ -97,11 +103,13 @@ export const rahcomApi = {
   solarSpecialSystems: (province: string) => apiClient.get<RahcomSolarSpecialSystem[]>(`/rahcom/solar-special-systems?province=${encodeURIComponent(province)}`),
   replaceSolarSpecialSystems: (province: string, systems: Array<Pick<RahcomSolarSpecialSystem, 'systemCode' | 'category'>>) => afterSolarSnapshotMutation(apiClient.put<RahcomSolarSpecialSystem[]>('/rahcom/solar-special-systems', { province, systems })),
   trafficSnapshot: (province?: string, date?: string) => apiClient.get<RahcomTrafficSnapshot | null>(`/rahcom/traffic-snapshot?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
+  trafficSnapshotDates: (province: string | undefined, from: string, to: string) => apiClient.get<string[]>(`/rahcom/traffic-snapshot/dates?${new URLSearchParams({ ...(province ? { province } : {}), from, to })}`),
   trafficSystemHistory: (systemCode: string) => apiClient.get<RahcomTrafficSystemHistory[]>(`/rahcom/traffic-snapshot/history?systemCode=${encodeURIComponent(systemCode)}`),
   importedTickets: (province?: string, date?: string) => apiClient.get<RahcomImportedTicket[]>(`/rahcom/tickets?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
-  importTickets: (sourceFileName: string, province: string, listDate: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate'>>) => apiClient.post<{ imported: number }, { sourceFileName: string; province: string; listDate: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, province, listDate, tickets }),
+  importTickets: (sourceFileName: string, province: string, listDate: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate'>>) => afterTicketsMutation(apiClient.post<{ imported: number }, { sourceFileName: string; province: string; listDate: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, province, listDate, tickets })),
   createTrafficSnapshot: (data: Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'> & { snapshotDate: string }) => afterTrafficSnapshotMutation(apiClient.post<RahcomTrafficSnapshot>('/rahcom/traffic-snapshots', data)),
   roadList: (province: string, date: string) => apiClient.get<RahcomRoadListSnapshot | null>(`/rahcom/road-list?province=${encodeURIComponent(province)}&date=${encodeURIComponent(date)}`),
+  roadListDates: (province: string, from: string, to: string) => apiClient.get<string[]>(`/rahcom/road-list/dates?${new URLSearchParams({ province, from, to })}`),
   replaceRoadList: (data: Pick<RahcomRoadListSnapshot, 'province' | 'listDate' | 'fileName' | 'sheetName' | 'headers' | 'rows'>) => apiClient.put<RahcomRoadListSnapshot>('/rahcom/road-list', data),
   applyTrafficAxes: (date: string) => afterAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>(`/rahcom/traffic-snapshot/apply-axes?date=${encodeURIComponent(date)}`, {})),
   importSystems: (province: string, systems: Array<Record<string, unknown>>) => afterSystemsMutation(apiClient.post<{ imported: number }>('/rahcom/systems/import', { province, systems })),

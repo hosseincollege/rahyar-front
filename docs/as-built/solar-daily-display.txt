@@ -4,6 +4,8 @@ The solar daily status table displays a real em dash (—) for empty equipment a
 
 Implementation: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
 
+The shared date calendar marks only days that have solar snapshots for the selected province and visible Jalali month. Separate data sources mark their own dates on the tickets, aggregate list, and actions pages.
+
 The solar toolbar keeps the add-status action beside its map-style icon filters. Incident source can switch between the daily traffic list and Rahyar system records; the incident visibility icon hides incident-marked systems by default and reveals the selected source when enabled. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly. The table shows one incident column for the selected source.
 
 New-status form updates

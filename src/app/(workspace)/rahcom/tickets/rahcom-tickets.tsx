@@ -9,9 +9,10 @@ import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
-import { rahcomTicketDateKey } from '@/lib/api/rahcom/solar-status';
+import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
+import { tehranDateKey } from '@/lib/api/rahcom/solar-status';
 
-type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt'>;
+type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate'>;
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_-]/g, '');
 const provinceFromLabel = (value: string) => {
   const normalized = normalize(value.trim().replace(/^(?:\u0627\u0633\u062a\u0627\u0646\s*|province\s*:?\s*)/i, ''));
@@ -82,7 +83,7 @@ export function RahcomTickets() {
   }, [access?.canManageAssignments, importing]);
 
   const visibleTickets = useMemo(() => (importedTickets ?? []).filter((ticket) =>
-    rahcomTicketDateKey(ticket.createdOn, ticket.importedAt) === date && (!systemFilter || ticket.systemCode.trim().toLocaleLowerCase(locale) === systemFilter.trim())
+    ticket.listDate.slice(0, 10) === date && (!systemFilter || ticket.systemCode.trim().toLocaleLowerCase(locale) === systemFilter.trim())
   ), [importedTickets, locale, systemFilter, date]);
 
   const handleExcelUpload = async (file?: File) => {
@@ -114,7 +115,7 @@ export function RahcomTickets() {
         return [{ ticketCode, systemCode, province, summary, customer, equipment, type: stringValue(row, 'TicketType'), status: stringValue(row, 'Status'), priority: stringValue(row, 'Priority'), supportTeam: stringValue(row, 'SupportTeam'), createdOn: stringValue(row, 'Created On') }];
       });
       if (!matched.length || matched.length > 10000) throw new Error('invalid');
-      await rahcomApi.importTickets(file.name, matched);
+      await rahcomApi.importTickets(file.name, selectedProvince, date ?? tehranDateKey(), matched);
       await loadImported(selectedProvince);
       setSelectedFileName(file.name);
     } catch (reason) {
@@ -136,7 +137,7 @@ export function RahcomTickets() {
     <input ref={uploadInputRef} type="file" disabled={importing} accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void handleExcelUpload(file); }} />
     <div className="flex flex-wrap items-center gap-3"><h2 className="text-lg font-bold text-foreground">{uiMessage(locale, 'rahcomTickets')}</h2>{importing && <span role="status" className="text-sm text-muted-foreground">{uiMessage(locale, 'rolesUploading')}</span>}</div>
     {!importedTickets && !error && <p role="status" className="p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
-    {selectedFileName && <p className="text-xs text-muted-foreground" dir="auto">{selectedFileName} · {new Intl.NumberFormat(locale).format(visibleTickets.length)} {uiMessage(locale, 'supportTicketCount')}</p>}
+    {visibleTickets.length > 0 && <RahcomRecordSummary locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} />}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {visibleTickets.length ? <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[1060px] text-sm"><thead className="bg-muted/50"><tr>{[['rahcomTicketNumber','TicketCode'],['rahcomProvince','Province'],['rahcomSystemCode','System'],['rahcomTicketSubject','Summary'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At']].map(([key]) => <th key={key} className="p-3 text-start">{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead><tbody>{visibleTickets.map((ticket) => <tr key={ticket.id} className="border-t border-border"><td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td><td className="whitespace-nowrap p-3">{provinceName(ticket.province, locale)}</td><td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td><td className="min-w-64 p-3">{ticket.summary || '—'}</td><td className="p-3">{ticket.customer || '—'}</td><td className="p-3 font-mono" dir="ltr">{ticket.equipment || '—'}</td><td className="p-3">{ticket.type || '—'}</td><td className="p-3">{ticket.status || '—'}</td><td className="p-3">{ticket.priority || '—'}</td><td className="p-3">{ticket.supportTeam || '—'}</td><td className="whitespace-nowrap p-3" dir="auto">{ticket.createdOn || '—'}</td><td className="whitespace-nowrap p-3"><span className="inline-flex items-center gap-1.5"><Clock3 size={14} className="text-muted-foreground" />{formatImportedAt(ticket.importedAt)}</span></td></tr>)}</tbody></table></div> : importedTickets && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
   </section>;

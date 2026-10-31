@@ -25,7 +25,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   const currentUser = getCurrentUser();
   const isDemoUser = currentUser?.username?.trim().toLowerCase() === 'demo'
     || currentUser?.role?.trim().toUpperCase() === 'DEMO_USER';
-  const [province, setProvince] = useState('isfahan');
+  const [province, setProvince] = useState('all');
   const [offices, setOffices] = useState<Array<{ id: string; name: string }>>([]);
   const [access, setAccess] = useState<RahcomAccess | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -33,11 +33,11 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const label = uiMessage(locale, 'rahcomProvince');
   const allProvincesLabel = uiMessage(locale, 'rahcomAllProvinces');
-  const selectedProvinceName = province === 'all'
-    ? allProvincesLabel
-    : offices.find(({ id }) => id === province)?.name
-      ?? iranProvinces.find(([id]) => id === province)?.[1]
-      ?? allProvincesLabel;
+  const selectedProvinceName = offices.length === 0
+    ? uiMessage(locale, 'rahcomUnassignedProvince')
+    : province === 'all'
+      ? allProvincesLabel
+      : offices.find(({ id }) => id === province)?.name ?? uiMessage(locale, 'rahcomUnassignedProvince');
   const sortedOffices = [...offices].sort((a, b) => a.name.localeCompare(b.name, 'fa'));
   const numberFormat = new Intl.NumberFormat(locale);
 
@@ -69,23 +69,27 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
       const branches = await settingsApi.getBranches(organizationId).catch(() => [] as BranchItem[]);
       const branchProvinces = branches
         .filter((branch) => branch.isActive !== false)
-        .map((branch) => ({ id: provinceIdForBranch(branch), name: branch.name }))
+        .map((branch) => {
+          const id = provinceIdForBranch(branch);
+          const configuredName = iranProvinces.find(([provinceId]) => provinceId === id)?.[1];
+          return { id, name: configuredName ?? branch.name };
+        })
         .filter((branch): branch is { id: string; name: string } => Boolean(branch.id))
+        .filter((branch, index, list) => list.findIndex((candidate) => candidate.id === branch.id) === index)
         .sort((a, b) => iranProvinces.findIndex(([id]) => id === a.id) - iranProvinces.findIndex(([id]) => id === b.id));
-      const isfahan = iranProvinces.find(([id]) => id === 'isfahan');
-      const availableOffices = isDemoUser && isfahan
-        ? [branchProvinces.find(({ id }) => id === 'isfahan') ?? { id: isfahan[0], name: isfahan[1] }]
-        : iranProvinces.map(([id, name]) => branchProvinces.find((branch) => branch.id === id) ?? { id, name });
-      const available = availableOffices;
+      const available = isDemoUser ? branchProvinces.filter(({ id }) => id === 'isfahan') : branchProvinces;
       setAccess(rahcomAccess);
       setOffices(available);
-      const initial = isDemoUser && available.some(({ id }) => id === 'isfahan')
+      const preferredProvince = isDemoUser
         ? 'isfahan'
-        : rahcomAccess.isAdmin ? rahcomAccess.selectedProvince ?? 'isfahan' : rahcomAccess.province ?? 'all';
+        : rahcomAccess.isAdmin ? rahcomAccess.selectedProvince : rahcomAccess.province;
+      const initial = available.some(({ id }) => id === preferredProvince)
+        ? preferredProvince!
+        : available.length === 1 ? available[0].id : 'all';
       setProvince(initial);
       window.localStorage.setItem(storageKey(userId), initial);
       window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: initial } }));
-      if (rahcomAccess.isAdmin && rahcomAccess.memberId) {
+      if (available.length > 0 && rahcomAccess.isAdmin && rahcomAccess.memberId) {
         void rahcomApi.setSelectedProvince(initial).catch(() => undefined);
       }
       setLoaded(true);
@@ -93,12 +97,9 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
       if (active) {
         setOffices([]);
         setAccess(null);
-        const fallback = isDemoUser ? 'isfahan' : 'all';
-        setProvince(fallback);
-        if (isDemoUser) {
-          window.localStorage.setItem(storageKey(userId), fallback);
-          window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: fallback } }));
-        }
+        setProvince('all');
+        window.localStorage.setItem(storageKey(userId), 'all');
+        window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: 'all' } }));
         setLoaded(true);
       }
     });
@@ -119,6 +120,9 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   }
 
   if (!loaded) return null;
+  if (offices.length === 0) {
+    return <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--muted-foreground)] sm:max-w-52 sm:px-3 sm:text-sm"><MapPinned size={17} aria-hidden="true" /><span className="truncate">{selectedProvinceName}</span></div>;
+  }
   if (isDemoUser) {
     return (
       <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] sm:max-w-52 sm:px-3 sm:text-sm">
