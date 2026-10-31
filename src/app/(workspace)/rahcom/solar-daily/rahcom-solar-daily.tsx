@@ -370,7 +370,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents, incidentSource, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, snapshotEditMode, showIncidents, incidentSource, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; snapshotEditMode: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void }) {
   const { locale } = usePreferences();
   const { dateText } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -498,6 +498,17 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   }
 
   return <section className="space-y-5">
+    {!loading && snapshots.length > 0 && <div className="flex flex-wrap gap-2" role="group" aria-label={t('rahcomSolarDownFilter')}>
+      {snapshots.map((snapshot) => {
+        const number = rahcomSolarSnapshotNumber(snapshot, snapshots);
+        const time = formatCapturedAt(snapshot.capturedAt, locale);
+        const selected = (selectedSnapshot?.id ?? snapshots[0]?.id) === snapshot.id;
+        return <div key={snapshot.id} className="inline-flex items-center gap-1 rounded-xl">
+          <button type="button" aria-pressed={selected} title={`${new Intl.NumberFormat(locale).format(number)} - ${time}`} onClick={() => onSnapshotSelect(snapshot.id)} className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium tabular-nums transition-colors ${selected ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30' : 'border-border bg-card text-foreground hover:border-primary hover:text-primary'}`} dir="ltr"><span>{new Intl.NumberFormat(locale).format(number)}</span><span aria-hidden="true" className={selected ? 'text-primary/70' : 'text-muted-foreground'}>-</span><time>{time}</time></button>
+          {snapshotEditMode && canManage && <button type="button" aria-label={`${t('solarDeleteSnapshot')} ${time}`} title={t('solarDeleteSnapshot')} onClick={() => void deleteSnapshot(snapshot)} className="grid size-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"><Trash2 size={15} /></button>}
+        </div>;
+      })}
+    </div>}
     {formOpen && canManage && <>
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t(editingSnapshotId ? 'solarEditSnapshot' : 'solarAddSnapshot')}</h2><button type="button" onClick={() => void fillDemoData()} disabled={saving || loading || !canManage} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><ClipboardList size={16} />{t('solarFillDemoData')}</button></div>
     <div className="grid gap-4 md:grid-cols-2">

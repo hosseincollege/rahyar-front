@@ -70,7 +70,7 @@ export function RahcomHeaderDate() {
     const updatePosition = () => {
       const anchor = wrapperRef.current?.getBoundingClientRect();
       if (!anchor) return;
-      const width = weekOpen ? Math.min(224, window.innerWidth - 24) : Math.min(320, window.innerWidth - 24);
+      const width = weekOpen ? Math.min(192, window.innerWidth - 24) : Math.min(320, window.innerWidth - 24);
       const height = open ? 390 : 300;
       const left = Math.max(12, Math.min(anchor.right - width, window.innerWidth - width - 12));
       const top = anchor.bottom + height + 12 <= window.innerHeight
@@ -115,7 +115,7 @@ export function RahcomHeaderDate() {
     setOpen(false);
   };
 
-  return <div ref={wrapperRef} className="grid h-10 w-[14rem] shrink-0 grid-cols-[0.85fr_1fr] overflow-hidden rounded-full border border-border bg-background">
+  return <div ref={wrapperRef} className="grid h-10 w-[11.5rem] shrink-0 grid-cols-[0.9fr_1fr] overflow-hidden rounded-full border border-border bg-background">
     <button type="button" aria-expanded={weekOpen} aria-label={weekday} onClick={() => {
       setOpen(false);
       setWeekStart(startOfPersianWeek(date ?? fallbackDate));
@@ -126,7 +126,7 @@ export function RahcomHeaderDate() {
     <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={uiMessage(locale, 'rahcomVisitDate')} onClick={() => { setWeekOpen(false); setOpen((value) => !value); setViewMonth(persianParts(activeDate)); }} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap border-s border-border px-1 font-mono text-[13px] font-medium tabular-nums transition-colors hover:bg-muted ${open ? 'bg-primary/10 text-primary' : 'text-foreground'}`}>
       <span dir="ltr">{dateText}</span>
     </button>
-    {(open || weekOpen) && popoverPosition && typeof document !== 'undefined' && createPortal(<div ref={popoverRef} dir={direction} role="dialog" aria-label={weekOpen ? 'انتخاب روز هفته' : uiMessage(locale, 'rahcomVisitDate')} className={`fixed z-[9999] ${weekOpen ? 'w-[min(14rem,calc(100vw-1.5rem))]' : 'w-[min(20rem,calc(100vw-1.5rem))]'} rounded-xl border border-border p-2.5 text-foreground shadow-2xl ring-1 ring-black/10 dark:ring-white/10`} style={{ top: popoverPosition.top, left: popoverPosition.left, backgroundColor: 'var(--card)' }}>
+    {(open || weekOpen) && popoverPosition && typeof document !== 'undefined' && createPortal(<div ref={popoverRef} dir={direction} role="dialog" aria-label={weekOpen ? 'انتخاب روز هفته' : uiMessage(locale, 'rahcomVisitDate')} className={`fixed z-[9999] ${weekOpen ? 'w-[min(12rem,calc(100vw-1.5rem))]' : 'w-[min(20rem,calc(100vw-1.5rem))]'} rounded-xl border border-border p-2.5 text-foreground shadow-2xl ring-1 ring-black/10 dark:ring-white/10`} style={{ top: popoverPosition.top, left: popoverPosition.left, backgroundColor: 'var(--card)' }}>
       {open ? <>
       <div className="mb-3 flex items-center justify-between gap-2">
         <button type="button" onClick={() => { setDateText(todayJalaliDate()); setViewMonth(persianParts(fallbackDate)); setOpen(false); }} className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold text-foreground hover:bg-muted">{uiMessage(locale, 'rahcomGoToToday')}</button>

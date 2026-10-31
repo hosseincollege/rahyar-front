@@ -154,8 +154,8 @@ function HeaderControlToggle({ title, icon: Icon, enabled, onToggle, locale }: {
 
 function NavigationOptionToggle({ title, icon: Icon, enabled, disabled, onToggle, locale }: { title: string; icon: LucideIcon; enabled: boolean; disabled: boolean; onToggle: () => void; locale: Parameters<typeof uiMessage>[0] }) {
   return <button type="button" disabled={disabled} aria-pressed={enabled} aria-label={`${title}: ${uiMessage(locale, enabled ? 'settingsModuleEnabled' : 'settingsModuleDisabled')}`} title={title} onClick={onToggle} className={`group flex w-[4.5rem] flex-col items-center gap-1 rounded-lg p-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-muted/70'}`}>
-    <span className="relative flex size-9 items-center justify-center rounded-lg transition-colors">
-      <Icon size={19} strokeWidth={1.8} style={{ color: enabled ? 'var(--foreground)' : 'var(--muted-foreground)', opacity: enabled ? 1 : disabled ? 0.28 : 0.42 }} />
+    <span style={enabled && !disabled ? { backgroundColor: 'var(--primary-soft)' } : undefined} className="relative flex size-9 items-center justify-center rounded-lg transition-colors">
+      <Icon size={19} strokeWidth={1.8} style={{ color: enabled && !disabled ? 'var(--primary)' : 'var(--muted-foreground)', opacity: enabled ? 1 : disabled ? 0.28 : 0.42 }} />
       {!enabled && <span aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', color: 'var(--muted-foreground)', opacity: disabled ? 0.28 : 0.42 }}><span style={{ width: 32, height: 3, borderRadius: 9999, backgroundColor: 'currentColor', transform: 'rotate(-45deg)' }} /></span>}
     </span>
     <span style={{ opacity: disabled ? 0.48 : 1 }} className={`line-clamp-2 min-h-7 w-full text-[10px] leading-3 ${disabled ? 'text-muted-foreground' : 'text-foreground'}`}>{title}</span>
