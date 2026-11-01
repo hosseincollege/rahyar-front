@@ -46,3 +46,14 @@ npm run start:dev
 
 $env:DATABASE_URL="postgres://997a41df45e55cd7dda11cdb700a9f6c2f5362a724ed444693843d32f7f3bddb:sk_HklO46Oc0aAKQSR4ZE-dZ@db.prisma.io:5432/postgres?sslmode=require"
 npx prisma db push --force-reset --schema=prisma/schema
+
+
+مایگریشن ابری ورسل
+
+Set-Location "D:\hossein\projects\rahyar\rahyar-back"
+
+$secureUrl = Read-Host "postgres://997a41df45e55cd7dda11cdb700a9f6c2f5362a724ed444693843d32f7f3bddb:sk_HklO46Oc0aAKQSR4ZE-dZ@db.prisma.io:5432/postgres?sslmode=require" -AsSecureString
+$env:DATABASE_URL = (New-Object System.Net.NetworkCredential("", $secureUrl)).Password
+
+npx prisma migrate deploy
+
