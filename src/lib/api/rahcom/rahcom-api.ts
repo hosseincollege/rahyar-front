@@ -45,7 +45,7 @@ export type RahcomSystem = {
   cameraIp: string | null; pcIp: string | null; routerIp: string | null; laptopIp: string | null;
 };
 export type RahcomActivity = {
-  id: string; createdById: string; activityDate: string; activityType: 'EMAIL_SENT' | 'SYSTEM_VISIT' | 'OTHER';
+  id: string; createdById: string; activityDate: string; activityType: 'EMAIL_SENT' | 'SYSTEM_VISIT' | 'OTHER' | 'SYSTEM_CODES' | 'VISIT_PLAN' | 'COMPLETION_REPORT' | 'DAILY_NOTE' | 'EXCEL_UPDATE';
   quantity: number; description: string | null; createdAt: string; systemId: string | null;
   systemNameSnapshot: string | null; systemCodeSnapshot: string | null; provinceSnapshot: string | null;
   accompaniedBy: string | null; handedOverTo: string | null; performedBy: string | null;
@@ -67,7 +67,7 @@ export type RahcomRoadListSnapshot = {
 };
 export type RahcomTrafficSystemHistory = Pick<RahcomTrafficSnapshot, 'id' | 'fileName' | 'sheetName' | 'rowCount' | 'createdAt' | 'headers'> & { row: string[] };
 export type RahcomImportedTicket = {
-  id: string; ticketCode: string; systemCode: string; province: string | null; listDate: string; summary: string; customer: string; equipment: string;
+  id: string; ticketCode: string; systemCode: string; province: string | null; listDate: string; summary: string; description: string; customer: string; equipment: string;
   type: string; status: string; priority: string; supportTeam: string; createdOn: string; sourceFileName: string; importedAt: string;
 };
 export type RahcomMemberProvince = { id: string; userId: string; username: string; name: string; province: string | null };
@@ -106,7 +106,8 @@ export const rahcomApi = {
   trafficSnapshotDates: (province: string | undefined, from: string, to: string) => apiClient.get<string[]>(`/rahcom/traffic-snapshot/dates?${new URLSearchParams({ ...(province ? { province } : {}), from, to })}`),
   trafficSystemHistory: (systemCode: string) => apiClient.get<RahcomTrafficSystemHistory[]>(`/rahcom/traffic-snapshot/history?systemCode=${encodeURIComponent(systemCode)}`),
   importedTickets: (province?: string, date?: string) => apiClient.get<RahcomImportedTicket[]>(`/rahcom/tickets?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
-  importTickets: (sourceFileName: string, province: string, listDate: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate'>>) => afterTicketsMutation(apiClient.post<{ imported: number }, { sourceFileName: string; province: string; listDate: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, province, listDate, tickets })),
+  importTickets: (sourceFileName: string, province: string, listDate: string, tickets: Array<Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate' | 'description'>>) => afterTicketsMutation(apiClient.post<{ imported: number }, { sourceFileName: string; province: string; listDate: string; tickets: typeof tickets }>('/rahcom/tickets/import', { sourceFileName, province, listDate, tickets })),
+  updateImportedTicketDescription: (id: string, description: string) => afterTicketsMutation(apiClient.put<RahcomImportedTicket>(`/rahcom/tickets/${encodeURIComponent(id)}/description`, { description })),
   createTrafficSnapshot: (data: Pick<RahcomTrafficSnapshot, 'fileName' | 'sheetName' | 'headers' | 'rows'> & { snapshotDate: string }) => afterTrafficSnapshotMutation(apiClient.post<RahcomTrafficSnapshot>('/rahcom/traffic-snapshots', data)),
   roadList: (province: string, date: string) => apiClient.get<RahcomRoadListSnapshot | null>(`/rahcom/road-list?province=${encodeURIComponent(province)}&date=${encodeURIComponent(date)}`),
   roadListDates: (province: string, from: string, to: string) => apiClient.get<string[]>(`/rahcom/road-list/dates?${new URLSearchParams({ province, from, to })}`),
@@ -118,6 +119,7 @@ export const rahcomApi = {
   deleteSystems: (input: { province?: string; ids?: string[] }) => afterSystemsMutation(apiClient.deleteWithBody<{ deleted: number }, { ids: string[] }>(`/rahcom/systems${input.province ? `?province=${encodeURIComponent(input.province)}` : ''}`, { ids: input.ids ?? [] })),
   activities: (date: string, range?: { from: string; to: string }, province?: string) => apiClient.get<RahcomActivity[]>(`/rahcom/activities?${new URLSearchParams({ ...(range ? { from: range.from, to: range.to } : { date }), ...(province ? { province } : {}) }).toString()}`),
   addActivity: (data: { date: string; activityType: RahcomActivity['activityType']; quantity: number; description: string; systemId?: string; accompaniedBy?: string; handedOverTo?: string; province?: string }) => afterActivityMutation(apiClient.post<RahcomActivity>('/rahcom/activities', data)),
+  saveDailyWorkflow: (data: { date: string; province: string; systemCodes: string; visitPlan: string; completionReport: string; dailyNote: string; excelUpdated: boolean; excelFileName?: string }) => afterActivityMutation(apiClient.put<{ saved: boolean }>('/rahcom/activities/daily-workflow', data)),
   systemActivities: (systemId: string, date?: string) => apiClient.get<RahcomActivity[]>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities${date ? `?date=${encodeURIComponent(date)}` : ''}`),
   addSystemActivity: (systemId: string, data: { date: string; description: string; accompaniedBy: string; handedOverTo: string }) => afterActivityMutation(apiClient.post<RahcomActivity>(`/rahcom/systems/${encodeURIComponent(systemId)}/activities`, data)),
   deleteActivity: (id: string) => afterActivityMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/activities/${id}`)),

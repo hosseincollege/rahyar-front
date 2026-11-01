@@ -15,13 +15,9 @@ const modules: Array<{
   countLabels: Record<string, Parameters<typeof uiMessage>[1]>;
   plannedCounts?: Record<string, number>;
 }> = [
-  { key: 'settings', title: 'sidebarSettings', countLabels: { organizationSettings: 'testDataOrganizationPreferences', branches: 'testDataProvinces', departments: 'testDataUnits', announcements: 'sidebarAnnouncements' }, plannedCounts: { organizationSettings: 1, branches: 31, departments: 4, announcements: 3 } },
-  { key: 'rahcom', title: 'sidebarRahkam', countLabels: { systems: 'testDataSystems', activities: 'testDataActivities' } },
+  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'testDataProvinces' }, plannedCounts: { branches: 31 } },
 ];
-const moduleDescriptions: Record<TestDataModuleKey, Parameters<typeof uiMessage>[1]> = {
-  settings: 'testDataSettingsDescription',
-  rahcom: 'testDataRahcomDescription',
-};
+const moduleDescriptions: Record<TestDataModuleKey, Parameters<typeof uiMessage>[1]> = { settings: 'testDataSettingsDescription' };
 const optionalKeys: OptionalModuleId[] = [];
 
 export default function TestDataPage() {
@@ -75,7 +71,6 @@ export default function TestDataPage() {
     try {
       const result = await developmentApi.applyTestData(moduleKey);
       updateModuleStatus(result);
-      if (moduleKey === 'settings') window.dispatchEvent(new Event('organization-branding-changed'));
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) setDenied(true);
       else setFailedKeys((current) => current.includes(moduleKey) ? current : [...current, moduleKey]);
@@ -87,13 +82,12 @@ export default function TestDataPage() {
   const applyAllModules = async () => {
     setApplyingAll(true);
     setFailedKeys([]);
-    const order: TestDataModuleKey[] = ['settings', 'rahcom'];
+    const order: TestDataModuleKey[] = ['settings'];
     for (const moduleKey of order.filter((key) => visibleModules.some((module) => module.key === key))) {
       setWorkingKey(moduleKey);
       try {
         const result = await developmentApi.applyTestData(moduleKey);
         updateModuleStatus(result);
-        if (moduleKey === 'settings') window.dispatchEvent(new Event('organization-branding-changed'));
       } catch (error) {
         if (error instanceof ApiError && error.status === 403) {
           setDenied(true);

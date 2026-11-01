@@ -771,6 +771,16 @@ svg {
   text-align: center;
 }
 
+.leaflet-tooltip.rahcom-system-code-tooltip .rahcom-zone-tooltip-name {
+  direction: rtl;
+  display: inline-block;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.72em;
+  line-height: 1.35;
+  max-width: 13rem;
+  white-space: normal;
+}
+
 .leaflet-tooltip.rahcom-system-code-tooltip::before {
   display: none !important;
 }

@@ -1,6 +1,7 @@
 import { isfahanAxes } from '@/provinces/isfahan';
+import { isfahanZones } from '@/provinces/isfahan-zones';
 
-const axisPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#d97706', '#0891b2', '#db2777', '#475569'];
+const axisPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#d97706', '#0891b2', '#db2777', '#475569', '#0f766e', '#be123c', '#7c3aed'];
 
 export const defaultIsfahanAxes = isfahanAxes.map(({ name }) => name);
 
@@ -32,6 +33,28 @@ export function rahcomOperationalAxis(latitude?: number, longitude?: number, pro
   return closestDistance <= 18 ? closestAxis?.name ?? '' : '';
 }
 
+const zoneNormalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase('fa').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u200c\s\-_.\u060c,/]/g, '');
+
+export function rahcomOperationalZone(system: { systemName?: string | null; axis?: string | null; announcedAxis?: string | null; latitude?: number; longitude?: number; province?: string }) {
+  if (system.province !== 'isfahan') return '';
+  const descriptiveText = [system.systemName, system.axis, system.announcedAxis].filter(Boolean).join(' ');
+  const normalizedText = zoneNormalize(descriptiveText);
+  const namedZone = isfahanZones.slice(0, -1).find((zone) => zone.aliases.some((alias) => normalizedText.includes(zoneNormalize(alias))));
+  if (namedZone) return namedZone.name;
+  if (!Number.isFinite(system.latitude) || !Number.isFinite(system.longitude)) return '';
+  const point: AxisPoint = [system.latitude as number, system.longitude as number];
+  if (distanceToAxisSegmentKm(point, [32.6546, 51.668], [32.6546, 51.668]) < 6) return isfahanZones[10].name;
+  let closestZone: (typeof isfahanZones)[number] | undefined;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (const zone of isfahanZones) {
+    const distance = distanceToOperationalRouteKm(point, zone.route);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestZone = zone;
+    }
+  }
+  return closestZone?.name ?? isfahanZones[10].name;
+}
 
 function distanceToAxisSegmentKm(point: readonly [number, number], start: readonly [number, number], end: readonly [number, number]) {
   const referenceLatitude = ((point[0] + start[0] + end[0]) / 3) * Math.PI / 180;
@@ -84,6 +107,8 @@ export function canonicalRahcomAxis(axis: string | null | undefined, latitude?: 
 }
 
 export function rahcomAxisColor(axis: string, axes: string[]) {
+  const zone = isfahanZones.find((item) => item.name === axis);
+  if (zone) return zone.color;
   const index = axes.indexOf(axis);
   return axisPalette[(index < 0 ? 0 : index) % axisPalette.length];
 }

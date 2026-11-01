@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Clock3, LoaderCircle, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Clock3, LoaderCircle, Trash2 } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
@@ -10,6 +10,7 @@ import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
+import { RahcomDailyWorkflow } from './rahcom-daily-workflow';
 export function RahcomActions({ canManage = false, canRecord = false, selectedProvince = 'all' }: { canManage?: boolean; canRecord?: boolean; selectedProvince?: string }) {
   const { locale } = usePreferences();
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -23,16 +24,8 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
   const activityProvince = activityProvinceState.selection === selectedProvince
     ? activityProvinceState.province
     : selectedProvince === 'all' ? 'isfahan' : selectedProvince;
-  const [selectedSystemId, setSystemId] = useState('');
-  const systemId = systems.some((system) => system.id === selectedSystemId && system.province === activityProvince) ? selectedSystemId : '';
-  const [accompaniedBy, setAccompaniedBy] = useState('');
-  const [handedOverTo, setHandedOverTo] = useState('');
   const [historySystemId, setHistorySystemId] = useState('');
-  const [type, setType] = useState<RahcomActivity['activityType']>('EMAIL_SENT');
-  const [quantity, setQuantity] = useState(1);
-  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -45,53 +38,29 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
     void rahcomApi.systems(selectedProvince).then((result) => {
       if (!active) return;
       setSystems(result);
-      const focusId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
-      const focusSystem = result.find((system) => system.id === focusId);
-      if (focusSystem) {
-        setActivityProvinceState({ selection: selectedProvince, province: focusSystem.province });
-        setSystemId(focusSystem.id);
-        setType('SYSTEM_VISIT');
-        window.sessionStorage.removeItem('rahyar-rahcom-focus-system');
-      }
     }).catch(() => { if (active) setSystems([]); });
     return () => { active = false; };
   }, [selectedProvince]);
-  const availableSystems = systems.filter((system) => system.province === activityProvince);
-  async function add() {
-    if (!date) { setError(t('rahcomInvalidJalaliDate')); return; }
-    setSaving(true); setError('');
-    try { await rahcomApi.addActivity({ date, activityType: systemId ? 'SYSTEM_VISIT' : type, quantity: systemId ? 1 : quantity, description, province: activityProvince, ...(systemId ? { systemId, accompaniedBy, handedOverTo } : {}) }); setDescription(''); setQuantity(1); setAccompaniedBy(''); setHandedOverTo(''); await load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Could not save action.'); }
-    finally { setSaving(false); }
-  }
 async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm'))) return; try { await rahcomApi.deleteActivity(id); await load(); } catch (e) { setError(e instanceof Error ? e.message : t('rahcomSystemDeleteFailed')); } }
-  const labels = { EMAIL_SENT: t('rahcomEmailSent'), SYSTEM_VISIT: t('rahcomSystemVisit'), OTHER: t('rahcomOther') };
-  const latestActivityAt = items.reduce<string | null>((latest, item) => !latest || new Date(item.createdAt) > new Date(latest) ? item.createdAt : latest, null);
+  const visibleItems = items.filter(item => item.activityType === 'SYSTEM_VISIT');
+  const latestActivityAt = visibleItems.reduce<string | null>((latest, item) => !latest || new Date(item.createdAt) > new Date(latest) ? item.createdAt : latest, null);
   return <section className="space-y-4" dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'}>
     <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="font-bold">{t('rahcomActions')}</h2>{date && <span className="text-sm text-muted-foreground">{formatJalaliDate(date)}</span>}{!date && <span className="text-xs text-destructive">{t('rahcomInvalidJalaliDate')}</span>}</div>
-      {items.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={items.length} savedAt={latestActivityAt} />}
-      {canRecord && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {selectedProvince === 'all' && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => { setActivityProvinceState({ selection: selectedProvince, province: e.target.value }); setSystemId(''); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
-        <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomSystemOptional')}<select value={systemId} onChange={(e) => { setSystemId(e.target.value); setType(e.target.value ? 'SYSTEM_VISIT' : 'EMAIL_SENT'); }} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="">{t('rahcomSystemOptional')}</option>{availableSystems.map(item => <option key={item.id} value={item.id}>{item.systemName} · {iranProvinces.find(([id]) => id === item.province)?.[1] ?? item.province}</option>)}</select></label>
-        <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomActions')}<select value={type} disabled={Boolean(systemId)} onChange={(e) => setType(e.target.value as typeof type)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground disabled:opacity-60">{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        {!systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomQuantity')}<input aria-label={t('rahcomQuantity')} type="number" min={1} max={100000} step={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
-        {systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomAccompaniedBy')}<input value={accompaniedBy} onChange={e => setAccompaniedBy(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
-        {systemId && <label className="grid gap-1 text-xs text-muted-foreground">{t('rahcomHandedOverTo')}<input value={handedOverTo} onChange={e => setHandedOverTo(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>}
-        <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">{systemId ? t('rahcomWorkPerformed') : t('rahcomDescription')}<input aria-label={t('rahcomDescription')} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={systemId ? t('rahcomWorkPerformed') : t('rahcomDescription')} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label>
-        <button type="button" disabled={saving || !date} onClick={() => void add()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Plus size={16} />}{t('rahcomAdd')}</button>
-      </div>}
+      {selectedProvince === 'all' && <label className="mb-4 grid max-w-sm gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => setActivityProvinceState({ selection: selectedProvince, province: e.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
+      {visibleItems.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={visibleItems.length} savedAt={latestActivityAt} />}
+      {canRecord && <RahcomDailyWorkflow date={date} province={activityProvince} items={items} systems={systems.filter(system => system.province === activityProvince)} onSaved={load} />}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     </div>
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      {loading ? <div className="flex items-center gap-2 p-5 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin" />…</div> : items.length === 0 ? <p className="p-5 text-sm text-muted-foreground">{t('rahcomNoActivities')}</p> : <div className="divide-y divide-border">{items.map(item => {
+      {loading ? <div className="flex items-center gap-2 p-5 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin" />…</div> : visibleItems.length === 0 ? <p className="p-5 text-sm text-muted-foreground">{t('rahcomNoActivities')}</p> : <div className="divide-y divide-border">{visibleItems.map(item => {
         const linkedSystem = item.system ?? systems.find(system => system.id === item.systemId) ?? null;
         const systemName = item.system?.systemName ?? item.systemNameSnapshot;
         const historyOpen = Boolean(item.systemId && historySystemId === item.systemId);
         return <article key={item.id} className="space-y-3 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{labels[item.activityType]}</strong><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{item.quantity}</span><time className="text-xs text-muted-foreground">{formatJalaliDate(item.activityDate)}</time></div>
+              <div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{t('rahcomSystemVisit')}</strong><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{item.quantity}</span><time className="text-xs text-muted-foreground">{formatJalaliDate(item.activityDate)}</time></div>
               {systemName && <p className="mt-2 text-sm font-medium text-foreground">{systemName} <span dir="ltr" className="font-mono text-xs text-muted-foreground">{item.system?.systemCode ?? item.systemCodeSnapshot}</span></p>}
               {item.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{item.description}</p>}
               {(item.performedBy || item.accompaniedBy || item.handedOverTo) && <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">{item.performedBy && <span>{t('rahcomPerformedBy')}: {item.performedBy}</span>}{item.accompaniedBy && <span>{t('rahcomAccompaniedBy')}: {item.accompaniedBy}</span>}{item.handedOverTo && <span>{t('rahcomHandedOverTo')}: {item.handedOverTo}</span>}</div>}

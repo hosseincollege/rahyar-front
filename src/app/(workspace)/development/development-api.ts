@@ -16,7 +16,7 @@ export type ImpersonationContext =
     };
 
 type AccessTokenResponse = { access_token: string };
-export type TestDataModuleKey = 'settings' | 'rahcom';
+export type TestDataModuleKey = 'settings';
 export type TestDataModuleStatus = {
   moduleKey: TestDataModuleKey;
   applied: boolean;

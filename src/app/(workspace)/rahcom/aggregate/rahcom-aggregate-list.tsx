@@ -7,13 +7,12 @@ import { iranProvinces, rahcomApi, type RahcomImportedTicket, type RahcomSolarSn
 import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, tehranDateKey, latestRahcomSolarSnapshotsByProvince, rahcomTicketDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
-import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 
 const normalize = (value: string) => value.trim().toLocaleLowerCase('fa').replace(/[\u200c\s_-]/g, '').replace(/[ي]/g, 'ی').replace(/[ك]/g, 'ک');
 const has = (value: string, ...terms: string[]) => terms.some((term) => value.includes(term));
 const defaultSolarEquipment = new Set(['LTE', 'RTR-1', 'CAM-1', 'RAD-1']);
 
-export function RahcomAggregateList() {
+export function RahcomAggregateList({ onSystemCountChange }: { onSystemCountChange: (count: number) => void }) {
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
@@ -144,10 +143,8 @@ export function RahcomAggregateList() {
 
   const included = (value: boolean) => <span className={value ? 'font-semibold text-primary' : 'text-muted-foreground'}>{value ? `✓ ${t('rahcomInList')}` : `— ${t('rahcomNotInList')}`}</span>;
   const tableColumnCount = 11 + Number(showTrafficIncidents) + Number(showSystemIncidents);
-  const latestAggregateAt = [traffic?.createdAt, ...solar.map((item) => item.createdAt), ...tickets.map((item) => item.importedAt)].filter((value): value is string => Boolean(value)).sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+  useEffect(() => { onSystemCountChange(rows.length); }, [onSystemCountChange, rows.length]);
   return <section dir="auto" className="space-y-4">
-    <p className="text-sm text-muted-foreground">{t('rahcomAggregateDescription')}</p>
-    {latestAggregateAt && <RahcomRecordSummary locale={locale} source={t('rahcomAggregateList')} recordDate={date ?? tehranDateKey()} count={rows.length} savedAt={latestAggregateAt} />}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     <div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group" aria-label={t('rahcomAggregateOperation')}><button type="button" aria-pressed={setOperation === 'union'} onClick={() => setSetOperation('union')} className={`px-3 py-1.5 ${setOperation === 'union' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAggregateUnion')}</button><button type="button" aria-pressed={setOperation === 'intersection'} onClick={() => setSetOperation('intersection')} className={`border-s border-border px-3 py-1.5 ${setOperation === 'intersection' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAggregateIntersection')}</button></div><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showTrafficIncidents} onChange={(event) => setShowTrafficIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomTrafficIncidentColumn')} ({new Intl.NumberFormat(locale).format(incidentCounts.traffic)})</label><label className="inline-flex items-center gap-2"><input type="checkbox" checked={showSystemIncidents} onChange={(event) => setShowSystemIncidents(event.target.checked)} className="size-4 accent-primary" />{t('rahcomSystemIncidentColumn')} ({new Intl.NumberFormat(locale).format(incidentCounts.systems)})</label></div>
     <div className="overflow-x-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>

@@ -1,15 +1,14 @@
 ﻿'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Download, LoaderCircle, Pencil, Search, Save, Trash2, X } from 'lucide-react';
+import { ClipboardList, Download, LoaderCircle, Search, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, rahcomSolarSnapshotNumber, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { rahcomOperationalAxis } from '@/lib/api/rahcom/rahcom-axes';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
-import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 
 const commonEquipment = ['LTE', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2', 'PC', 'RLY', 'RLY-1', 'WL-1', 'WLP2P'];
 const emptyTrafficHeaders: string[] = [];
@@ -219,7 +218,6 @@ function axisTagStyle(value: string) {
 }
 
 function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = false, incidentSource, axisSource }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar' }) {
-  const [sortBy, setSortBy] = useState<'code' | 'name'>('code');
   const [query, setQuery] = useState('');
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -297,7 +295,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     const groupKey = axisCode || '__no_axis__';
     return { site, system, trafficRow, axisCode, axisName, groupKey };
   });
-  const sortedRows = [...recordRows].sort((left, right) => (sortBy === 'code' ? left.axisCode : left.axisName).localeCompare(sortBy === 'code' ? right.axisCode : right.axisName, locale, { numeric: true, sensitivity: 'base' }) || left.site.localeCompare(right.site, 'en', { numeric: true, sensitivity: 'base' }));
+  const sortedRows = [...recordRows].sort((left, right) => left.axisCode.localeCompare(right.axisCode, locale, { numeric: true, sensitivity: 'base' }) || left.site.localeCompare(right.site, 'en', { numeric: true, sensitivity: 'base' }));
   const snapshotsForProvince = snapshots.filter((snapshot) => snapshot.province === (currentSnapshot ? currentSnapshot.province : viewProvince ?? selectedProvince));
   const chronologicalSnapshots = [...snapshotsForProvince].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
   const currentSnapshotIndex = currentSnapshot ? chronologicalSnapshots.findIndex((snapshot) => snapshot.id === currentSnapshot.id) : chronologicalSnapshots.length;
@@ -332,7 +330,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const columnCount = 8 + equipmentGroups.length + Number(showIncidents);
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
-  return <div className="space-y-3"><div className="flex flex-wrap items-center gap-3 text-sm"><div className="inline-flex overflow-hidden rounded-lg border border-border" role="group"><button type="button" aria-pressed={sortBy === 'code'} onClick={() => setSortBy('code')} className={`px-3 py-1.5 ${sortBy === 'code' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisCode')}</button><button type="button" aria-pressed={sortBy === 'name'} onClick={() => setSortBy('name')} className={`border-s border-border px-3 py-1.5 ${sortBy === 'name' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>{t('rahcomAxisName')}</button></div><label className="inline-flex h-9 min-w-48 items-center gap-2 rounded-lg border border-border bg-background px-3 text-muted-foreground"><Search size={16} /><input aria-label={t('solarSearch')} placeholder={t('solarSearch')} value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label><span className="text-xs text-muted-foreground">{sites.length.toLocaleString(locale)} {t('rahcomSystemsOnMap')}</span><button type="button" onClick={downloadExcel} className="ms-auto inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 font-medium text-foreground hover:border-primary hover:text-primary"><Download size={16} />{t('solarDownloadExcel')}</button></div><div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
+  return <div className="space-y-3"><div className="flex flex-nowrap items-center gap-3 text-sm"><label className="inline-flex h-9 min-w-48 max-w-xl flex-1 items-center gap-2 rounded-full border border-border bg-background px-3 text-muted-foreground"><Search size={16} /><input aria-label={t('solarSearch')} placeholder={t('solarSearch')} value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-foreground outline-none" /></label><button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="ms-auto grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button></div><div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
     <th className="p-3 text-center">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-start">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
@@ -371,7 +369,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, snapshotEditMode, showIncidents, incidentSource, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; snapshotEditMode: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents, incidentSource, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void }) {
   const { locale } = usePreferences();
   const { dateText, date } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -397,9 +395,10 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const snapshotsForDate = snapshots.filter((snapshot) => tehranDateKey(snapshot.capturedAt) === (date ?? tehranDateKey()));
   const selectedSnapshot = snapshotsForDate.find((snapshot) => snapshot.id === selectedSnapshotId) ?? snapshotsForDate[0] ?? null;
-  const selectedSnapshotNumber = selectedSnapshot ? rahcomSolarSnapshotNumber(selectedSnapshot, snapshotsForDate) : 0;
   const selectedSnapshotColumns = selectedSnapshot?.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column).filter((column, index, all) => all.indexOf(column) === index) ?? [];
   const selectedSnapshotEntries = selectedSnapshot ? [...parseList(selectedSnapshot.downText, 'down'), ...parseList(selectedSnapshot.unreachableText, 'unreachable')] : [];
+  const selectedSnapshotSystemCount = new Set(selectedSnapshotEntries.map((entry) => entry.site)).size;
+  useEffect(() => { onSystemCountChange(selectedSnapshotSystemCount); }, [onSystemCountChange, selectedSnapshotSystemCount]);
 
   useEffect(() => {
     if (formOpen) {
@@ -472,45 +471,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     setError('');
   }
 
-  function editSnapshot(snapshot: RahcomSolarSnapshot) {
-    const timestamp = jalaliDateTimeFromTimestamp(snapshot.capturedAt);
-    setDownText(snapshot.downText);
-    setUnreachableText(snapshot.unreachableText);
-    setCapturedDate(timestamp.date);
-    setCapturedTime(timestamp.time);
-    setEditingSnapshotProvince(snapshot.province ?? '');
-    const selected = snapshot.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column);
-    setSelectedEquipment([...new Set(selected)]);
-    setCustomEquipment((current) => [...new Set([...current, ...selected.filter((item) => !commonEquipment.includes(item))])]);
-    setEditingSnapshotId(snapshot.id);
-    setEditingColumns(false);
-    onFormOpenChange(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  async function deleteSnapshot(snapshot: RahcomSolarSnapshot) {
-    if (!window.confirm(t('solarDeleteSnapshotConfirm'))) return;
-    setError('');
-    try {
-      await rahcomApi.deleteSolarSnapshot(snapshot.id);
-      setSnapshots((current) => current.filter((item) => item.id !== snapshot.id));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('solarSaveFailed'));
-    }
-  }
-
   return <section className="space-y-5">
-    {!loading && snapshotsForDate.length > 0 && <div className="flex flex-wrap gap-2" role="group" aria-label={t('rahcomSolarDownFilter')}>
-      {snapshotsForDate.map((snapshot) => {
-        const number = rahcomSolarSnapshotNumber(snapshot, snapshotsForDate);
-        const time = formatCapturedAt(snapshot.capturedAt, locale);
-        const selected = (selectedSnapshot?.id ?? snapshots[0]?.id) === snapshot.id;
-        return <div key={snapshot.id} className="inline-flex items-center gap-1 rounded-xl">
-          <button type="button" aria-pressed={selected} title={`${new Intl.NumberFormat(locale).format(number)} - ${time}`} onClick={() => onSnapshotSelect(snapshot.id)} className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium tabular-nums transition-colors ${selected ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30' : 'border-border bg-card text-foreground hover:border-primary hover:text-primary'}`} dir="ltr"><span>{new Intl.NumberFormat(locale).format(number)}</span><span aria-hidden="true" className={selected ? 'text-primary/70' : 'text-muted-foreground'}>-</span><time>{time}</time></button>
-          {snapshotEditMode && canManage && <button type="button" aria-label={`${t('solarDeleteSnapshot')} ${time}`} title={t('solarDeleteSnapshot')} onClick={() => void deleteSnapshot(snapshot)} className="grid size-8 place-items-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"><Trash2 size={15} /></button>}
-        </div>;
-      })}
-    </div>}
     {formOpen && canManage && <>
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t(editingSnapshotId ? 'solarEditSnapshot' : 'solarAddSnapshot')}</h2><button type="button" onClick={() => void fillDemoData()} disabled={saving || loading || !canManage} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><ClipboardList size={16} />{t('solarFillDemoData')}</button></div>
     <div className="grid gap-4 md:grid-cols-2">
@@ -529,8 +490,6 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     </>}
 
     <div className="space-y-3">{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
-      <RahcomRecordSummary locale={locale} source={t('rahcomSolarDaily')} recordDate={tehranDateKey(selectedSnapshot.capturedAt)} count={selectedSnapshotEntries.length} savedAt={selectedSnapshot.createdAt} />
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"><span className="text-sm font-semibold tabular-nums">{new Intl.NumberFormat(locale).format(selectedSnapshotNumber)} - {formatCapturedAt(selectedSnapshot.capturedAt, locale)}</span>{canManage && <div className="flex items-center gap-1"><button type="button" aria-label={`${t('solarEditSnapshot')} ${formatCapturedAt(selectedSnapshot.capturedAt, locale)}`} title={t('solarEditSnapshot')} onClick={() => editSnapshot(selectedSnapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-primary"><Pencil size={15} /></button><button type="button" aria-label={`${t('solarDeleteSnapshot')} ${formatCapturedAt(selectedSnapshot.capturedAt, locale)}`} title={t('solarDeleteSnapshot')} onClick={() => void deleteSnapshot(selectedSnapshot)} className="grid size-8 place-items-center rounded-lg border border-border hover:text-destructive"><Trash2 size={15} /></button></div>}</div>
       <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? 'all'} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} />
     </>}</div>
   </section>;
