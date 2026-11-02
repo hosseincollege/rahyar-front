@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { ChevronLeft, ChevronRight, ClipboardList, Download, FileUp, LoaderCircle, PanelsTopLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ClipboardList, Download, FileUp, LoaderCircle, PanelsTopLeft, TriangleAlert } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
@@ -18,6 +18,7 @@ import { SolarSnapshotPicker } from '@/app/(workspace)/rahcom/_shared/rahcom-sec
 const PAGE_SIZE = 100;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
   .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u200c\s_\-./()]/g, '');
+const isSolarHeader = (value: string) => normalizeHeader(value).includes(normalizeHeader('سولار')) || normalizeHeader(value).includes('solar') || normalizeHeader(value).includes(normalizeHeader('وضعیت لیست تردد')) || normalizeHeader(value).includes('trafficliststatus');
 const normalizeIdentifier = (value: unknown) => String(value ?? '').normalize('NFKC')
   .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
   .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
@@ -44,6 +45,7 @@ export function RahcomRoadList() {
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedSolarSnapshotId, setSelectedSolarSnapshotId] = useState('');
   const [incidentSource, setIncidentSource] = useState<'traffic' | 'systems'>('traffic');
+  const [showIncidentRows, setShowIncidentRows] = useState(false);
   const [page, setPage] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -142,10 +144,16 @@ export function RahcomRoadList() {
     }
   }
 
-  const visibleRows = useMemo(() => (Array.isArray(snapshot?.rows) ? snapshot.rows : [])
-    .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [snapshot, page]);
   const headers = Array.isArray(snapshot?.headers) ? snapshot.headers : [];
-  const identifierIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0634\u0646\u0627\u0633\u0647') || normalizeHeader(header) === 'id');
+  const identifierIndex = headers.findIndex((header) => {
+    const normalized = normalizeHeader(header);
+    return normalized.includes(normalizeHeader('\u0634\u0646\u0627\u0633\u0647'))
+      || normalized.includes(normalizeHeader('\u06a9\u062f \u0627\u06cc\u0633\u062a\u06af\u0627\u0647'))
+      || normalized.includes(normalizeHeader('\u06a9\u062f \u062a\u062c\u0645\u06cc\u0639'))
+      || normalized === 'id'
+      || normalized === 'stationcode'
+      || normalized === 'aggregationcode';
+  });
   const positionIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0645\u0648\u0642\u0639\u06cc\u062a') || normalizeHeader(header).includes('position'));
   const cityIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0634\u0647\u0631') || normalizeHeader(header) === 'city');
   const wideSingleLineIndexes = headers.flatMap((header, index) => { const normalized = normalizeHeader(header); return normalized.includes('\u0633\u0627\u0645\u0627\u0646\u0647') || normalized.includes('system') || normalized.includes('\u067e\u06cc\u0645\u0627\u0646\u06a9\u0627\u0631') || normalized.includes('contractor') ? [index] : []; });
@@ -212,7 +220,6 @@ export function RahcomRoadList() {
     }
     return matches;
   }, [province, traffic]);
-  const pageCount = Math.max(1, Math.ceil((snapshot?.rowCount ?? 0) / PAGE_SIZE));
   const getMatch = (row: string[]) => {
     const identifier = identifierIndex >= 0 ? normalizeIdentifier(row[identifierIndex]) : '';
     const candidates = identifier ? trafficMatches.get(identifier) ?? [] : [];
@@ -225,6 +232,13 @@ export function RahcomRoadList() {
     if (system.incidentType) return t(system.incidentType === 'WIDENING_RELOCATION' ? 'solarWideningRelocation' : system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth');
     return isRahcomIncidentValue(system.incidentDetails) ? system.incidentDetails || t('rahcomIncidentBoth') : '\u2014';
   };
+  const filteredRows = useMemo(() => {
+    const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+    if (!showIncidentRows) return rows;
+    return rows.filter((row) => getIncidentText(getMatch(row)) !== '\u2014');
+  }, [snapshot, showIncidentRows, incidentSource, trafficMatches, identifierIndex, systemsByCode, t]);
+  const visibleRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const getSolarStatuses = (match: ReturnType<typeof getMatch>) => {
     const system = match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined;
     const solarProvince = system?.province ?? province;
@@ -233,13 +247,12 @@ export function RahcomRoadList() {
   };
   const downloadExcel = () => {
     if (!snapshot) return;
-    const incidentHeader = locale === 'fa' ? '\u0648\u0636\u0639\u06cc\u062a \u0633\u0631\u0642\u062a \u0648 \u062a\u062e\u0631\u06cc\u0628' : `${t('rahcomIncidentTheft')} / ${t('rahcomIncidentDamage')}`;
-    const exportHeaders = [t('rahcomRowNumber'), t('rahcomSystemCode'), ...(identifierIndex >= 0 ? [headers[identifierIndex]] : []), t('rahcomSystemName'), incidentHeader,
-      ...displayedDataColumns.map((column) => column === 'solar' ? t('rahcomSystemSolar') : headers[column])];
-    const exportRows = snapshot.rows.map((row, rowIndex) => {
+    const exportHeaders = [t('rahcomRowNumber'), t('rahcomSystemCode'), ...(identifierIndex >= 0 ? [headers[identifierIndex]] : []), t('rahcomSystemName'),
+      ...displayedDataColumns.map((column) => column === 'solar' ? t('rahcomSystemSolar') : isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : headers[column])];
+    const exportRows = filteredRows.map((row, rowIndex) => {
       const match = getMatch(row);
       const solarText = getSolarStatuses(match).map(({ equipment, state }) => `${equipment}: ${t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable')}`).join(', ') || '\u2014';
-      return [rowIndex + 1, match?.systemCode || '\u2014', ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []), match?.systemName || '\u2014', getIncidentText(match),
+      return [rowIndex + 1, match?.systemCode || '\u2014', ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []), match?.systemName || '\u2014',
         ...displayedDataColumns.map((column) => column === 'solar' ? solarText : row[column] ?? '')];
     });
     const worksheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...exportRows]);
@@ -255,11 +268,12 @@ export function RahcomRoadList() {
     <header className="flex flex-wrap justify-start gap-3">
       <RahcomHeaderDate loadMarkedDates={loadRoadListDates} />
       {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} />}
-      <RahcomCountCapsule count={snapshot?.rowCount ?? 0} />
+      <RahcomCountCapsule count={filteredRows.length} />
       <div className="inline-flex h-9 overflow-hidden rounded-full border border-border bg-background" role="group" aria-label={t('rahcomIncidentFilter')}>
-        <button type="button" aria-pressed={incidentSource === 'traffic'} aria-label={t('rahcomTrafficIncidentColumn')} title={t('rahcomTrafficIncidentColumn')} onClick={() => setIncidentSource('traffic')} className="grid size-9 place-items-center" style={incidentSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><ClipboardList size={16} /></button>
-        <button type="button" aria-pressed={incidentSource === 'systems'} aria-label={t('rahcomSystemIncidentColumn')} title={t('rahcomSystemIncidentColumn')} onClick={() => setIncidentSource('systems')} className="grid size-9 place-items-center border-s border-border" style={incidentSource === 'systems' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><PanelsTopLeft size={16} /></button>
+        <button type="button" aria-pressed={incidentSource === 'traffic'} aria-label={t('rahcomTrafficIncidentColumn')} title={t('rahcomTrafficIncidentColumn')} onClick={() => { setIncidentSource('traffic'); setPage(0); }} className="grid size-9 place-items-center" style={incidentSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><ClipboardList size={16} /></button>
+        <button type="button" aria-pressed={incidentSource === 'systems'} aria-label={t('rahcomSystemIncidentColumn')} title={t('rahcomSystemIncidentColumn')} onClick={() => { setIncidentSource('systems'); setPage(0); }} className="grid size-9 place-items-center border-s border-border" style={incidentSource === 'systems' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><PanelsTopLeft size={16} /></button>
       </div>
+      <button type="button" aria-pressed={showIncidentRows} aria-label={`${t('rahcomIncidentFilter')} · ${t(incidentSource === 'traffic' ? 'rahcomTrafficIncidentColumn' : 'rahcomSystemIncidentColumn')}`} title={`${t('rahcomIncidentFilter')} · ${t(incidentSource === 'traffic' ? 'rahcomTrafficIncidentColumn' : 'rahcomSystemIncidentColumn')}`} onClick={() => { setShowIncidentRows((current) => !current); setPage(0); }} style={showIncidentRows ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidentRows ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
       <div className="flex flex-wrap items-center gap-2">
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
         {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
@@ -281,10 +295,9 @@ export function RahcomRoadList() {
             <th scope="col" className="min-w-[100px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemCode')}</th>
             {identifierIndex >= 0 && <th scope="col" className="min-w-[88px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{headers[identifierIndex]}</th>}
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomSystemName')}</th>
-            <th scope="col" aria-label={t('rahcomIncidentFilter')} className="min-w-[150px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{locale === 'fa' ? 'وضعیت سرقت و تخریب' : `${t('rahcomIncidentTheft')} / ${t('rahcomIncidentDamage')}`}</th>
             {displayedDataColumns.map((column, index) => column === 'solar'
               ? <th key="solar-status" scope="col" className="min-w-[180px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemSolar')}</th>
-              : <th key={`${headers[column]}-${column}-${index}`} scope="col" className={`border-b border-border px-3 py-2.5 font-semibold ${positionIndex === column ? 'min-w-[240px] whitespace-nowrap' : cityIndex === column ? 'min-w-[160px] whitespace-nowrap' : wideSingleLineIndexes.includes(column) ? 'min-w-[200px] whitespace-nowrap' : 'max-w-64 whitespace-normal'}`}>{headers[column]}</th>)}
+              : <th key={`${headers[column]}-${column}-${index}`} scope="col" className={`border-b border-border px-3 py-2.5 font-semibold ${positionIndex === column ? 'min-w-[240px] whitespace-nowrap' : cityIndex === column ? 'min-w-[160px] whitespace-nowrap' : wideSingleLineIndexes.includes(column) ? 'min-w-[200px] whitespace-nowrap' : 'max-w-64 whitespace-normal'}`}>{isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : headers[column]}</th>)}
           </tr></thead>
           <tbody>{visibleRows.map((row, rowIndex) => {
             const match = getMatch(row);
@@ -293,7 +306,6 @@ export function RahcomRoadList() {
               <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
               {identifierIndex >= 0 && <td className="min-w-[88px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{row[identifierIndex] ?? ''}</td>}
               <td className="min-w-[280px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
-              <td className="min-w-[150px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>
               {displayedDataColumns.map((column, index) => column === 'solar'
                 ? <td key="solar-status" className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const equipmentStatuses = getSolarStatuses(match); return equipmentStatuses.length ? <span className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" title={`${equipment}: ${label}`} aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'; })()}</td>
                 : <td key={`${column}-${index}`} className={`border-b border-border/70 px-3 py-2 align-top text-foreground ${positionIndex === column || cityIndex === column || wideSingleLineIndexes.includes(column) ? 'whitespace-nowrap' : 'max-w-80 whitespace-pre-wrap'}`}>{row[column] ?? ''}</td>)}
