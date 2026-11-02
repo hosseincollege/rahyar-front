@@ -183,11 +183,21 @@ export function RahcomRoadList() {
   const orderedDataIndexes = [...prioritizedIndexes, ...headers.map((_, index) => index).filter((index) => index !== identifierIndex && !prioritizedIndexes.includes(index))];
   const axisIndexes = headers.flatMap((header, index) => normalizeHeader(header).includes('\u0645\u062d\u0648\u0631') || normalizeHeader(header).includes('axis') ? [index] : []);
   const provinceIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0627\u0633\u062a\u0627\u0646') || normalizeHeader(header) === 'province');
+  const contractorIndex = headers.findIndex((header) => {
+    const normalized = normalizeHeader(header);
+    return normalized.includes('\u067e\u06cc\u0645\u0627\u0646\u06a9\u0627\u0631') || normalized.includes('contractor') || normalized.includes('\u0634\u0631\u06a9\u062a') || normalized.includes('company');
+  });
   const lastAxisPosition = orderedDataIndexes.reduce((last, index, position) => axisIndexes.includes(index) ? position : last, -1);
   const provincePosition = orderedDataIndexes.findIndex((index) => index === provinceIndex);
   const solarInsertPosition = provincePosition >= 0 && provincePosition > lastAxisPosition ? provincePosition : lastAxisPosition >= 0 ? lastAxisPosition + 1 : provincePosition >= 0 ? provincePosition : orderedDataIndexes.length;
   const displayedDataColumns: Array<number | 'solar'> = [...orderedDataIndexes];
   displayedDataColumns.splice(solarInsertPosition, 0, 'solar');
+  const contractorPosition = displayedDataColumns.indexOf(contractorIndex);
+  const displayedProvincePosition = displayedDataColumns.indexOf(provinceIndex);
+  if (contractorIndex >= 0 && displayedProvincePosition >= 0 && contractorPosition >= 0 && contractorPosition !== displayedProvincePosition + 1) {
+    displayedDataColumns.splice(contractorPosition, 1);
+    displayedDataColumns.splice(displayedDataColumns.indexOf(provinceIndex) + 1, 0, contractorIndex);
+  }
   const trafficMatches = useMemo(() => {
     const trafficHeaders = Array.isArray(traffic?.headers) ? traffic.headers : [];
     const aggregationIndex = trafficHeaders.findIndex((header) => {

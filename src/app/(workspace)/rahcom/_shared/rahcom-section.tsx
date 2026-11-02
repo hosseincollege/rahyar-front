@@ -27,7 +27,7 @@ export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 's
 
 export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }: { snapshots: RahcomSolarSnapshot[]; selectedId: string; locale: Parameters<typeof uiMessage>[0]; onSelect: (id: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const selected = snapshots.find((snapshot) => snapshot.id === selectedId) ?? snapshots[0];
@@ -40,8 +40,8 @@ export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }:
     const updatePosition = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const width = Math.min(96, window.innerWidth - 24);
-      setPosition({ top: rect.bottom + 6, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) });
+      const width = rect.width;
+      setPosition({ top: rect.bottom + 6, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), width });
     };
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
@@ -67,7 +67,7 @@ export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }:
     <button ref={triggerRef} type="button" aria-haspopup="listbox" aria-expanded={open} aria-label={uiMessage(locale, 'rahcomSolarDownFilter')} title={uiMessage(locale, 'rahcomSolarDownFilter')} onClick={() => setOpen((value) => !value)} className="grid h-9 w-24 shrink-0 grid-cols-2 overflow-hidden rounded-full border border-border bg-background text-xs tabular-nums text-foreground transition-colors hover:border-primary" dir="ltr">
       <span className="flex h-full items-center justify-center"><span style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }} className="grid size-5 place-items-center rounded-full border text-[10px] font-semibold">{selectedLabel.ordinal}</span></span><span className="flex h-full items-center justify-center" style={{ color: 'var(--primary)' }}><time>{selectedLabel.time}</time></span>
     </button>
-    {open && position && typeof document !== 'undefined' && createPortal(<div ref={menuRef} role="listbox" aria-label={uiMessage(locale, 'rahcomSolarDownFilter')} className="fixed z-[9999] max-h-60 w-24 overflow-y-auto rounded-xl border border-border p-1 text-foreground shadow-xl" style={{ top: position.top, left: position.left, backgroundColor: 'var(--card)' }}>
+    {open && position && typeof document !== 'undefined' && createPortal(<div ref={menuRef} role="listbox" aria-label={uiMessage(locale, 'rahcomSolarDownFilter')} className="fixed z-[9999] max-h-60 overflow-y-auto rounded-xl border border-border p-1 text-foreground shadow-xl" style={{ top: position.top, left: position.left, width: position.width, backgroundColor: 'var(--card)' }}>
       {snapshots.map((snapshot) => {
         const item = label(snapshot);
         const active = snapshot.id === selected.id;
@@ -224,6 +224,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
             <button type="button" aria-pressed={incidentSource === 'traffic'} aria-label={uiMessage(locale, 'rahcomTrafficIncidentColumn')} title={uiMessage(locale, 'rahcomTrafficIncidentColumn')} onClick={() => setIncidentSource('traffic')} style={incidentSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid size-9 place-items-center transition-colors ${incidentSource === 'traffic' ? '' : 'text-muted-foreground hover:bg-muted'}`}><ClipboardList size={17} /></button>
             <button type="button" aria-pressed={incidentSource === 'systems'} aria-label={uiMessage(locale, 'rahcomSystemIncidentColumn')} title={uiMessage(locale, 'rahcomSystemIncidentColumn')} onClick={() => setIncidentSource('systems')} style={incidentSource === 'systems' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid size-9 place-items-center border-s border-border transition-colors ${incidentSource === 'systems' ? '' : 'text-muted-foreground hover:bg-muted'}`}><PanelsTopLeft size={17} /></button>
           </div>}
+          {section === 'solar-daily' && <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>}
           {section === 'map' && <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-2.5 text-sm transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>}
           {section === 'map' && (mapLocationError || mapSystemsError) && <div className="flex shrink-0 items-center gap-2">
             {mapLocationError && <span role="alert" className="text-xs text-destructive">{uiMessage(locale, 'rahcomLocationUnavailable')}</span>}
@@ -256,7 +257,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
             <button type="button" aria-pressed={axisSource === 'rahyar'} aria-label={uiMessage(locale, 'rahcomAxesTitle')} title={uiMessage(locale, 'rahcomAxesTitle')} onClick={() => setAxisSource('rahyar')} style={axisSource === 'rahyar' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid size-9 place-items-center border-s border-border transition-colors ${axisSource === 'rahyar' ? '' : 'text-muted-foreground hover:bg-muted'}`}><MapPinned size={17} /></button>
             <button type="button" disabled={province !== 'isfahan'} aria-pressed={axisSource === 'zones'} aria-label={uiMessage(locale, 'rahcomZones')} title={uiMessage(locale, 'rahcomZones')} onClick={() => setAxisSource('zones')} style={axisSource === 'zones' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid size-9 place-items-center border-s border-border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${axisSource === 'zones' ? '' : 'text-muted-foreground hover:bg-muted'}`}><MapIcon size={17} /></button>
           </div>
-          <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
         </div>}
         {section === 'solar-daily' && <div id="rahcom-solar-table-controls" className="contents" />}
       </header>}
