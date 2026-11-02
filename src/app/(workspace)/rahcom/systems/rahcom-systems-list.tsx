@@ -38,7 +38,7 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
   return `https://balad.ir/directions/driving?destination=${encodeURIComponent(`${lng},${lat}`)}#16/${lat}/${lng}`;
 }
 
-export function RahcomSystemsList({ canManage = false, selectedProvince = 'all', axisSource = 'traffic', onAxisSourceChange, incidentSource = 'traffic', onIncidentSourceChange }: { canManage?: boolean; selectedProvince?: string; axisSource?: 'traffic' | 'rahyar'; onAxisSourceChange?: (source: 'traffic' | 'rahyar') => void; incidentSource?: 'traffic' | 'systems'; onIncidentSourceChange?: (source: 'traffic' | 'systems') => void }) {
+export function RahcomSystemsList({ canManage = false, selectedProvince = 'all', axisSource = 'traffic', renderAxisSource, onAxisSourceChange, incidentSource = 'traffic', renderIncidentSource, onIncidentSourceChange }: { canManage?: boolean; selectedProvince?: string; axisSource?: 'traffic' | 'rahyar'; renderAxisSource?: 'traffic' | 'rahyar'; onAxisSourceChange?: (source: 'traffic' | 'rahyar') => void; incidentSource?: 'traffic' | 'systems'; renderIncidentSource?: 'traffic' | 'systems'; onIncidentSourceChange?: (source: 'traffic' | 'systems') => void }) {
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
@@ -60,6 +60,9 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
   const [editMode, setEditMode] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
+  const dataAxisSource = renderAxisSource ?? axisSource;
+  const dataIncidentSource = renderIncidentSource ?? incidentSource;
+  const sourceUpdating = dataAxisSource !== axisSource || dataIncidentSource !== incidentSource;
 
   useEffect(() => {
     const onSearch = (event: Event) => {
@@ -127,7 +130,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
   }, [routeSystem]);
 
   const incidentSystemKeys = useMemo(() => {
-    if (incidentSource === 'systems') return new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => rahcomSystemKey(system.province, system.systemCode)));
+    if (dataIncidentSource === 'systems') return new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => rahcomSystemKey(system.province, system.systemCode)));
     const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\u200c_./-]/g, '');
     const headers = trafficSnapshot?.headers ?? [];
     const codeIndex = headers.findIndex((value) => { const key = normalize(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
@@ -146,12 +149,12 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
       for (const system of matches) keys.add(rahcomSystemKey(system.province, code));
     }
     return keys;
-  }, [incidentSource, systems, trafficSnapshot]);
+  }, [dataIncidentSource, systems, trafficSnapshot]);
 
   const groups = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase(locale);
     const trafficLabels = new Map<string, string>();
-    if (axisSource === 'traffic' && trafficSnapshot) {
+    if (dataAxisSource === 'traffic' && trafficSnapshot) {
       const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\u200c_./-]/g, '');
       const headers = trafficSnapshot.headers;
       const codeIndex = headers.findIndex((value) => normalize(value).includes('کدسامانه') || normalize(value).includes('systemcode'));
@@ -173,11 +176,11 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
     const grouped = new Map<string, { label: string; rows: RahcomSystem[] }>();
     for (const system of systems) {
       if (filters.includes('incidents') && !incidentSystemKeys.has(rahcomSystemKey(system.province, system.systemCode))) continue;
-      const axis = axisSource === 'traffic'
+      const axis = dataAxisSource === 'traffic'
         ? ([system.axisCode, system.announcedAxis].filter(Boolean).join(' · ') || trafficLabels.get(rahcomSystemKey(system.province, system.systemCode)) || '')
         : rahcomOperationalAxis(system.latitude, system.longitude, system.province);
       const label = axis || t('rahcomNoAxis');
-      const axisCode = axisSource === 'traffic' ? system.axisCode || axis.split(' · ')[0] : '';
+      const axisCode = dataAxisSource === 'traffic' ? system.axisCode || axis.split(' · ')[0] : '';
       const key = `${system.province}:${axisCode || label}`;
       const provinceLabel = provinceName(system.province);
       const searchable = [provinceLabel, system.province, label, axis, system.axis, system.announcedAxis, system.axisCode, system.systemName, system.systemCode, system.details, system.incidentType, system.incidentDetails, system.electricityBillId, system.simIp, system.radarIp, system.cameraIp, system.pcIp, system.routerIp, system.laptopIp, system.latitude, system.longitude]
@@ -188,7 +191,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
       grouped.set(key, group);
     }
     return [...grouped.entries()].map(([key, value]) => [key, value.label, value.rows] as const).sort((a, b) => a[1].localeCompare(b[1], locale, { numeric: true, sensitivity: 'base' }));
-  }, [axisSource, filters, incidentSystemKeys, locale, query, selectedProvince, systems, t, trafficSnapshot]);
+  }, [dataAxisSource, filters, incidentSystemKeys, locale, query, selectedProvince, systems, t, trafficSnapshot]);
 
   async function copyValue(key: string, value: string) {
     try {
@@ -286,7 +289,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
   const systemRows = groups.flatMap(([, , axisRows]) => axisRows.map((system) => ({
     system,
     axisCode: system.axisCode ?? '',
-    axisName: axisSource === 'traffic' ? system.announcedAxis || operationalAxisLabel(system) : operationalAxisLabel(system),
+    axisName: dataAxisSource === 'traffic' ? system.announcedAxis || operationalAxisLabel(system) : operationalAxisLabel(system),
   }))).sort((left, right) => left.axisName.localeCompare(right.axisName, locale, { numeric: true, sensitivity: 'base' }) || left.system.systemCode.localeCompare(right.system.systemCode, 'en', { numeric: true, sensitivity: 'base' }));
   const latestSystemUpdate = systems.reduce<string | null>((latest, system) => !latest || new Date(system.updatedAt) > new Date(latest) ? system.updatedAt : latest, null);
 
@@ -309,6 +312,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
           <button type="button" aria-pressed={axisSource === 'rahyar'} aria-label={t('rahcomAxesTitle')} title={t('rahcomAxesTitle')} onClick={() => onAxisSourceChange?.('rahyar')} className="grid size-9 place-items-center border-s border-border" style={axisSource === 'rahyar' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><MapPinned size={16} /></button>
         </div>
         {systems.length > 0 && latestSystemUpdate && <div className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-background px-3"><RahcomRecordSummary bare locale={locale} source={t('rahcomSystemsList')} showSource={false} showRecordDate={false} showCount={false} recordDate={tehranDateKey(latestSystemUpdate)} count={groups.length} savedAt={latestSystemUpdate} /></div>}
+        {sourceUpdating && <span role="status" aria-label={t('rahcomSystemsLoading')} className="inline-grid size-9 shrink-0 place-items-center text-primary"><LoaderCircle size={16} className="animate-spin" /></span>}
       </div>
       {canManage && editMode && selectedProvince !== 'all' && <div className="space-y-3 rounded-xl border border-border bg-card p-3"><RahcomAxesManager province={selectedProvince} canManage={canManage} /><button type="button" onClick={async () => { if (window.confirm(t('rahcomDeleteProvinceConfirm'))) { await rahcomApi.deleteSystems({ province: selectedProvince }); setSystemsRevision((value) => value + 1); } }} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs text-destructive">{t('rahcomDeleteProvinceSystems')}</button></div>}
 

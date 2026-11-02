@@ -246,6 +246,7 @@ export function Sidebar({
     setActiveTab(item.id);
 
     if (item.href && navigateOnClick) {
+      window.dispatchEvent(new Event('rahyar:navigation-start'));
       router.push(item.href);
     }
   };

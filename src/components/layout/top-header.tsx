@@ -52,6 +52,8 @@ import { HeaderProvinceSelector } from './header-province-selector';
 import type { MissionEntryMode } from './mission-quick-actions';
 
 interface TopHeaderProps {
+  loadingProgress?: number;
+  loadingProgressFading?: boolean;
   isCollapsed?: boolean;
   isMobileMenuOpen?: boolean;
   isSidebarLocked?: boolean;
@@ -65,6 +67,8 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({
+  loadingProgress = 0,
+  loadingProgressFading = false,
   isCollapsed = true,
   isMobileMenuOpen = false,
   isSidebarLocked = false,
@@ -386,6 +390,7 @@ export function TopHeader({
 
   return (
     <header
+      data-app-top-header
       dir={direction}
       className="
         sticky top-0 z-50 relative flex h-16
@@ -544,7 +549,7 @@ export function TopHeader({
           </div>
           </button>
           {isAccountMenuOpen && (
-            <div role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="pointer-events-auto absolute end-0 top-full z-[60] mt-2 w-[min(11rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1.5 shadow-lg sm:w-44">
+            <div role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="pointer-events-auto absolute end-0 top-full z-[110] mt-2 w-[min(11rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1.5 shadow-lg sm:w-44">
               <div className="md:hidden">
                 {shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded />}
                 {shellVisibility.headerControls?.provinceSelector !== false && <div className="px-2 py-1"><HeaderProvinceSelector userId={user?.id} embedded/></div>}
@@ -580,7 +585,7 @@ export function TopHeader({
           className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-xl sm:h-12 sm:w-12"
         >
           <span
-            className="absolute right-[calc(100%+0.0625rem)] top-1/2 hidden w-max max-w-[min(24vw,15rem)] -translate-y-1/2 truncate text-left font-black tracking-tight text-[var(--foreground)] sm:block"
+            className="absolute right-[calc(100%+0.75rem)] top-1/2 hidden w-max max-w-[min(24vw,15rem)] -translate-y-1/2 truncate text-left font-black tracking-tight text-[var(--foreground)] sm:block"
             style={{ fontSize: english ? '0.8rem' : '0.95rem' }}
           >
             {organizationBranding?.name || 'رهیار'}
@@ -621,7 +626,46 @@ export function TopHeader({
             )}
           </div>
 
-          <span dir="rtl" className="absolute left-[calc(100%+0.0625rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">
+          <svg
+            viewBox="0 0 56 56"
+            role="progressbar"
+            aria-label={message('rahcomSystemsLoading')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={loadingProgress}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-14 w-14 -translate-x-1/2 -translate-y-1/2"
+          >
+            <circle
+              cx="28"
+              cy="28"
+              r="25"
+              fill="none"
+              stroke="color-mix(in srgb, var(--foreground) 24%, var(--surface))"
+              strokeWidth="1.5"
+            />
+            <circle
+              cx="28"
+              cy="28"
+              r="25"
+              fill="none"
+              stroke="var(--primary)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeDasharray="157.08"
+              strokeDashoffset={157.08 * (1 - loadingProgress / 100)}
+              transform="rotate(-90 28 28)"
+              style={{
+                opacity: loadingProgressFading ? 0 : 1,
+                filter: loadingProgress > 0 && !loadingProgressFading ? 'drop-shadow(0 0 2px var(--primary))' : 'none',
+                transition: loadingProgressFading
+                  ? 'stroke-dashoffset 180ms ease-in-out, opacity 300ms ease-in-out, filter 180ms ease-in-out'
+                  : 'stroke-dashoffset 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-in-out, filter 180ms ease-in-out',
+                willChange: 'stroke-dashoffset, opacity',
+              }}
+            />
+          </svg>
+
+          <span dir="rtl" className="absolute left-[calc(100%+0.75rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">
             Rahyar
           </span>
         </Link>
@@ -632,7 +676,7 @@ export function TopHeader({
           <button type="button" onClick={() => setIsMissionMenuOpen((open) => !open)} title={message('missionShortcutTitle')} aria-label={message('missionShortcutTitle')} aria-haspopup="menu" aria-expanded={isMissionMenuOpen} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">
             {activeMissionMode === 'form' ? <FilePlus2 size={17}/> : activeMissionMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}
           </button>
-          {isMissionMenuOpen && <div role="menu" dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`absolute ${direction === 'rtl' ? 'end-0' : 'start-0'} top-full z-[70] mt-2 w-max min-w-32 max-w-[calc(100vw-1rem)] rounded-xl border border-[var(--border)] p-1 shadow-xl`}>
+          {isMissionMenuOpen && <div role="menu" dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`absolute ${direction === 'rtl' ? 'end-0' : 'start-0'} top-full z-[110] mt-2 w-max min-w-32 max-w-[calc(100vw-1rem)] rounded-xl border border-[var(--border)] p-1 shadow-xl`}>
             {([
               ['form', FilePlus2, 'missionModeForm'],
               ['command', SquareTerminal, 'missionModeCommand'],
