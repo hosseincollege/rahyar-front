@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { ChevronLeft, ChevronRight, ClipboardList, FileUp, LoaderCircle, PanelsTopLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ClipboardList, Download, FileUp, LoaderCircle, PanelsTopLeft } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
@@ -173,6 +173,13 @@ export function RahcomRoadList() {
   const activityIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0641\u0639\u0627\u0644\u06cc\u062a') || normalizeHeader(header).includes('activity'));
   const prioritizedIndexes = [positionIndex, cityIndex, activityIndex].filter((index, order, indexes): index is number => index >= 0 && indexes.indexOf(index) === order);
   const orderedDataIndexes = [...prioritizedIndexes, ...headers.map((_, index) => index).filter((index) => index !== identifierIndex && !prioritizedIndexes.includes(index))];
+  const axisIndexes = headers.flatMap((header, index) => normalizeHeader(header).includes('\u0645\u062d\u0648\u0631') || normalizeHeader(header).includes('axis') ? [index] : []);
+  const provinceIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0627\u0633\u062a\u0627\u0646') || normalizeHeader(header) === 'province');
+  const lastAxisPosition = orderedDataIndexes.reduce((last, index, position) => axisIndexes.includes(index) ? position : last, -1);
+  const provincePosition = orderedDataIndexes.findIndex((index) => index === provinceIndex);
+  const solarInsertPosition = provincePosition >= 0 && provincePosition > lastAxisPosition ? provincePosition : lastAxisPosition >= 0 ? lastAxisPosition + 1 : provincePosition >= 0 ? provincePosition : orderedDataIndexes.length;
+  const displayedDataColumns: Array<number | 'solar'> = [...orderedDataIndexes];
+  displayedDataColumns.splice(solarInsertPosition, 0, 'solar');
   const trafficMatches = useMemo(() => {
     const trafficHeaders = Array.isArray(traffic?.headers) ? traffic.headers : [];
     const aggregationIndex = trafficHeaders.findIndex((header) => {
@@ -206,6 +213,41 @@ export function RahcomRoadList() {
     return matches;
   }, [province, traffic]);
   const pageCount = Math.max(1, Math.ceil((snapshot?.rowCount ?? 0) / PAGE_SIZE));
+  const getMatch = (row: string[]) => {
+    const identifier = identifierIndex >= 0 ? normalizeIdentifier(row[identifierIndex]) : '';
+    const candidates = identifier ? trafficMatches.get(identifier) ?? [] : [];
+    return candidates.length === 1 ? candidates[0] : null;
+  };
+  const getIncidentText = (match: ReturnType<typeof getMatch>) => {
+    if (incidentSource === 'traffic') return match?.trafficIncident || '\u2014';
+    const system = match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined;
+    if (!system) return '\u2014';
+    if (system.incidentType) return t(system.incidentType === 'WIDENING_RELOCATION' ? 'solarWideningRelocation' : system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth');
+    return isRahcomIncidentValue(system.incidentDetails) ? system.incidentDetails || t('rahcomIncidentBoth') : '\u2014';
+  };
+  const getSolarStatuses = (match: ReturnType<typeof getMatch>) => {
+    const system = match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined;
+    const solarProvince = system?.province ?? province;
+    if (!match || !selectedSolarSnapshot || (selectedSolarSnapshot.province && selectedSolarSnapshot.province !== solarProvince)) return [];
+    return solarStateByCode.get(rahcomSystemKey(solarProvince, match.systemCode)) ?? [];
+  };
+  const downloadExcel = () => {
+    if (!snapshot) return;
+    const incidentHeader = locale === 'fa' ? '\u0648\u0636\u0639\u06cc\u062a \u0633\u0631\u0642\u062a \u0648 \u062a\u062e\u0631\u06cc\u0628' : `${t('rahcomIncidentTheft')} / ${t('rahcomIncidentDamage')}`;
+    const exportHeaders = [t('rahcomRowNumber'), t('rahcomSystemCode'), ...(identifierIndex >= 0 ? [headers[identifierIndex]] : []), t('rahcomSystemName'), incidentHeader,
+      ...displayedDataColumns.map((column) => column === 'solar' ? t('rahcomSystemSolar') : headers[column])];
+    const exportRows = snapshot.rows.map((row, rowIndex) => {
+      const match = getMatch(row);
+      const solarText = getSolarStatuses(match).map(({ equipment, state }) => `${equipment}: ${t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable')}`).join(', ') || '\u2014';
+      return [rowIndex + 1, match?.systemCode || '\u2014', ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []), match?.systemName || '\u2014', getIncidentText(match),
+        ...displayedDataColumns.map((column) => column === 'solar' ? solarText : row[column] ?? '')];
+    });
+    const worksheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...exportRows]);
+    worksheet['!cols'] = exportHeaders.map((_, index) => ({ wch: index === 0 ? 8 : index === 1 ? 16 : 24 }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Road list');
+    XLSX.writeFile(workbook, `road-list-${province}-${selectedDate}.xlsx`);
+  };
   if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
@@ -219,6 +261,7 @@ export function RahcomRoadList() {
         <button type="button" aria-pressed={incidentSource === 'systems'} aria-label={t('rahcomSystemIncidentColumn')} title={t('rahcomSystemIncidentColumn')} onClick={() => setIncidentSource('systems')} className="grid size-9 place-items-center border-s border-border" style={incidentSource === 'systems' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><PanelsTopLeft size={16} /></button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
         {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
           <span>{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
@@ -239,21 +282,21 @@ export function RahcomRoadList() {
             {identifierIndex >= 0 && <th scope="col" className="min-w-[88px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{headers[identifierIndex]}</th>}
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomSystemName')}</th>
             <th scope="col" aria-label={t('rahcomIncidentFilter')} className="min-w-[150px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{locale === 'fa' ? 'وضعیت سرقت و تخریب' : `${t('rahcomIncidentTheft')} / ${t('rahcomIncidentDamage')}`}</th>
-            <th scope="col" className="min-w-[180px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemSolar')}</th>
-            {orderedDataIndexes.map((index) => <th key={`${headers[index]}-${index}`} scope="col" className={`border-b border-border px-3 py-2.5 font-semibold ${positionIndex === index ? 'min-w-[240px] whitespace-nowrap' : cityIndex === index ? 'min-w-[160px] whitespace-nowrap' : wideSingleLineIndexes.includes(index) ? 'min-w-[200px] whitespace-nowrap' : 'max-w-64 whitespace-normal'}`}>{headers[index]}</th>)}
+            {displayedDataColumns.map((column, index) => column === 'solar'
+              ? <th key="solar-status" scope="col" className="min-w-[180px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemSolar')}</th>
+              : <th key={`${headers[column]}-${column}-${index}`} scope="col" className={`border-b border-border px-3 py-2.5 font-semibold ${positionIndex === column ? 'min-w-[240px] whitespace-nowrap' : cityIndex === column ? 'min-w-[160px] whitespace-nowrap' : wideSingleLineIndexes.includes(column) ? 'min-w-[200px] whitespace-nowrap' : 'max-w-64 whitespace-normal'}`}>{headers[column]}</th>)}
           </tr></thead>
           <tbody>{visibleRows.map((row, rowIndex) => {
-            const identifier = identifierIndex >= 0 ? normalizeIdentifier(row[identifierIndex]) : '';
-            const candidates = identifier ? trafficMatches.get(identifier) ?? [] : [];
-            const match = candidates.length === 1 ? candidates[0] : null;
+            const match = getMatch(row);
             return <tr key={page * PAGE_SIZE + rowIndex} className="odd:bg-background even:bg-muted/30">
               <td className="border-b border-border/70 px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(page * PAGE_SIZE + rowIndex + 1)}</td>
               <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
               {identifierIndex >= 0 && <td className="min-w-[88px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{row[identifierIndex] ?? ''}</td>}
               <td className="min-w-[280px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
-              <td className="min-w-[150px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{incidentSource === 'traffic' ? match?.trafficIncident || '—' : (() => { const system = match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined; if (!system) return '—'; if (system.incidentType) return t(system.incidentType === 'WIDENING_RELOCATION' ? 'solarWideningRelocation' : system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth'); return isRahcomIncidentValue(system.incidentDetails) ? system.incidentDetails || t('rahcomIncidentBoth') : '—'; })()}</td>
-              <td className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const system = match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined; const solarProvince = system?.province ?? province; if (!match || !selectedSolarSnapshot || (selectedSolarSnapshot.province && selectedSolarSnapshot.province !== solarProvince)) return '—'; const equipmentStatuses = solarStateByCode.get(rahcomSystemKey(solarProvince, match.systemCode)) ?? []; return equipmentStatuses.length ? <span className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" title={`${equipment}: ${label}`} aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '—'; })()}</td>
-              {orderedDataIndexes.map((columnIndex) => <td key={columnIndex} className={`border-b border-border/70 px-3 py-2 align-top text-foreground ${positionIndex === columnIndex || cityIndex === columnIndex || wideSingleLineIndexes.includes(columnIndex) ? 'whitespace-nowrap' : 'max-w-80 whitespace-pre-wrap'}`}>{row[columnIndex] ?? ''}</td>)}
+              <td className="min-w-[150px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>
+              {displayedDataColumns.map((column, index) => column === 'solar'
+                ? <td key="solar-status" className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const equipmentStatuses = getSolarStatuses(match); return equipmentStatuses.length ? <span className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" title={`${equipment}: ${label}`} aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'; })()}</td>
+                : <td key={`${column}-${index}`} className={`border-b border-border/70 px-3 py-2 align-top text-foreground ${positionIndex === column || cityIndex === column || wideSingleLineIndexes.includes(column) ? 'whitespace-nowrap' : 'max-w-80 whitespace-pre-wrap'}`}>{row[column] ?? ''}</td>)}
             </tr>;
           })}</tbody>
         </table>

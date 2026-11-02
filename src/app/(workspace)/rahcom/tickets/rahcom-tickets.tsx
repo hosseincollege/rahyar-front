@@ -47,7 +47,8 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const [selectedFileName, setSelectedFileName] = useState('');
   const [error, setError] = useState('');
   const [access, setAccess] = useState<RahcomAccess | null>(null);
-  const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
+  const [descriptionTicketId, setDescriptionTicketId] = useState<string | null>(null);
+  const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [savingDescriptionId, setSavingDescriptionId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +106,13 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const visibleSystemCount = useMemo(() => new Set(visibleTickets.map((ticket) => ticket.systemCode.trim().toLocaleUpperCase(locale)).filter(Boolean)).size, [locale, visibleTickets]);
   const systemsByCode = useMemo(() => new Map(systems.map((system) => [system.systemCode.trim().toLocaleUpperCase(locale), system])), [locale, systems]);
   useEffect(() => { onSystemCountChange(visibleSystemCount); }, [onSystemCountChange, visibleSystemCount]);
+  const descriptionTicket = visibleTickets.find((ticket) => ticket.id === descriptionTicketId) ?? null;
+  useEffect(() => {
+    if (!descriptionTicketId) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !savingDescriptionId) setDescriptionTicketId(null); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [descriptionTicketId, savingDescriptionId]);
 
   const handleExcelUpload = async (file?: File) => {
     if (!file || importing) return;
@@ -152,7 +160,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     try {
       const updated = await rahcomApi.updateImportedTicketDescription(ticket.id, descriptionDraft);
       setImportedTickets((current) => current?.map((row) => row.id === updated.id ? updated : row) ?? null);
-      setEditingTicketId(null);
+      setEditingDescription(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : uiMessage(locale, 'rahcomTicketDescriptionSaveFailed'));
     } finally {
@@ -176,23 +184,19 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     {visibleTickets.length ? <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /></div>
       <div className="overflow-x-auto"><table className="w-full min-w-[2500px] text-sm">
-        <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemCode','System'],['rahcomSystemName','Name'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'min-w-[300px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
+        <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemCode','System'],['rahcomSystemName','Name'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
           const system = systemsByCode.get(ticket.systemCode.trim().toLocaleUpperCase(locale));
-          const editing = editingTicketId === ticket.id;
           return <tr key={ticket.id} className="border-t border-border">
             <td className="whitespace-nowrap p-3 text-center tabular-nums">{new Intl.NumberFormat(locale).format(index + 1)}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td>
             <td className="min-w-[220px] whitespace-nowrap p-3">{system?.systemName || '—'}</td>
             <td className="min-w-[120px] whitespace-nowrap p-3 font-mono" dir="ltr">{ticketTitle(ticket) || '—'}</td>
-            <td className="min-w-[300px] p-2 align-top">
-              {editing ? <div className="grid min-w-[280px] gap-2">
-                <textarea autoFocus rows={3} maxLength={10000} value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} aria-label={uiMessage(locale, 'rahcomTicketDescription')} className="w-full resize-y rounded-lg border border-border bg-background p-2 text-start text-sm outline-none focus:border-primary" />
-                <div className="flex items-center gap-1">
-                  <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => void saveTicketDescription(ticket)} aria-label={uiMessage(locale, 'rahcomSave')} title={uiMessage(locale, 'rahcomSave')} className="grid size-8 place-items-center rounded-lg border border-border text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{savingDescriptionId === ticket.id ? <LoaderCircle size={15} className="animate-spin" /> : <Check size={15} />}</button>
-                  <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => setEditingTicketId(null)} aria-label={uiMessage(locale, 'rahcomCancel')} title={uiMessage(locale, 'rahcomCancel')} className="grid size-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-50"><X size={15} /></button>
-                </div>
-              </div> : access?.canManageAssignments ? <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => { setDescriptionDraft(ticket.description ?? ''); setEditingTicketId(ticket.id); }} aria-label={`${uiMessage(locale, 'rahcomEdit')} ${uiMessage(locale, 'rahcomTicketDescription')}`} title={uiMessage(locale, 'rahcomEdit')} className="group flex min-h-8 w-full items-start gap-2 whitespace-pre-wrap text-start text-foreground hover:text-primary disabled:opacity-50"><span className="min-w-0 flex-1">{ticket.description || '—'}</span><Pencil size={14} className="mt-0.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" /></button> : <span className="whitespace-pre-wrap">{ticket.description || '—'}</span>}
+            <td className="w-[150px] max-w-[150px] p-2 align-middle">
+              <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => { setDescriptionDraft(ticket.description ?? ''); setEditingDescription(false); setDescriptionTicketId(ticket.id); }} aria-label={uiMessage(locale, 'rahcomTicketDescription')} title={uiMessage(locale, 'rahcomTicketDescription')} className="group flex min-h-8 w-full items-center gap-2 overflow-hidden text-start text-foreground hover:text-primary disabled:opacity-50">
+                <span className="line-clamp-2 min-w-0 flex-1 break-words">{ticket.description || '—'}</span>
+                {access?.canManageAssignments && <Pencil size={14} className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />}
+              </button>
             </td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{system?.axisCode || '—'}</td>
             <td className="min-w-[180px] whitespace-nowrap p-3">{system?.announcedAxis || system?.axis || '—'}</td>
@@ -211,5 +215,26 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
         })}</tbody>
       </table></div>
     </div> : importedTickets && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
+    {descriptionTicket && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingDescriptionId) setDescriptionTicketId(null); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="rahcom-ticket-description-title" className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-xl sm:p-5">
+        <header className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-3">
+          <h2 id="rahcom-ticket-description-title" className="font-semibold">{uiMessage(locale, 'rahcomTicketDescription')}</h2>
+          <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => setDescriptionTicketId(null)} aria-label={uiMessage(locale, 'missionClose')} title={uiMessage(locale, 'missionClose')} className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground disabled:opacity-50"><X size={16} /></button>
+        </header>
+        {editingDescription ? <div className="grid gap-3">
+          <textarea autoFocus rows={8} maxLength={10000} value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} aria-label={uiMessage(locale, 'rahcomTicketDescription')} className="max-h-[55vh] min-h-40 w-full resize-y rounded-xl border border-border bg-background p-3 text-start text-sm leading-7 outline-none focus:border-primary" />
+          <div className="flex items-center gap-2">
+            <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => void saveTicketDescription(descriptionTicket)} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{savingDescriptionId === descriptionTicket.id ? <LoaderCircle size={15} className="animate-spin" /> : <Check size={15} />}{uiMessage(locale, 'rahcomSave')}</button>
+            <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => { setDescriptionDraft(descriptionTicket.description ?? ''); setEditingDescription(false); }} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm text-foreground disabled:opacity-50"><X size={15} />{uiMessage(locale, 'rahcomCancel')}</button>
+          </div>
+        </div> : <>
+          <div dir="auto" className="max-h-[55vh] min-h-20 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-background p-3 text-start text-sm leading-7">{descriptionTicket.description || '—'}</div>
+          <footer className="mt-4 flex justify-end gap-2">
+            {access?.canManageAssignments && <button type="button" onClick={() => { setDescriptionDraft(descriptionTicket.description ?? ''); setEditingDescription(true); }} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground"><Pencil size={15} />{uiMessage(locale, 'rahcomEdit')}</button>}
+            <button type="button" onClick={() => setDescriptionTicketId(null)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm text-foreground">{uiMessage(locale, 'missionClose')}</button>
+          </footer>
+        </>}
+      </section>
+    </div>}
   </section>;
 }
