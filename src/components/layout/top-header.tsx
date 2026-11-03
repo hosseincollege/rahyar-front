@@ -656,10 +656,9 @@ export function TopHeader({
               transform="rotate(-90 28 28)"
               style={{
                 opacity: loadingProgressFading ? 0 : 1,
-                filter: loadingProgress > 0 && !loadingProgressFading ? 'drop-shadow(0 0 2px var(--primary))' : 'none',
                 transition: loadingProgressFading
-                  ? 'stroke-dashoffset 180ms ease-in-out, opacity 300ms ease-in-out, filter 180ms ease-in-out'
-                  : 'stroke-dashoffset 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-in-out, filter 180ms ease-in-out',
+                  ? 'stroke-dashoffset 180ms ease-in-out, opacity 300ms ease-in-out'
+                  : 'stroke-dashoffset 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-in-out',
                 willChange: 'stroke-dashoffset, opacity',
               }}
             />

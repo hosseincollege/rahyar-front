@@ -78,14 +78,14 @@ export function AppShell({ children }: AppShellProps) {
     if (progressFinishTimer.current) window.clearTimeout(progressFinishTimer.current);
     if (progressResetTimer.current) window.clearTimeout(progressResetTimer.current);
     if (progressFadeTimer.current) window.clearTimeout(progressFadeTimer.current);
-    // Hold at 100% briefly so completion is clear, then fade the fill away.
+    // Hold at 100% for 300ms, then fade the fill away.
     progressResetTimer.current = window.setTimeout(() => {
       setNavigationProgressFading(true);
       progressFadeTimer.current = window.setTimeout(() => {
         setNavigationProgress(0);
         // Keep the completed fill hidden until the next interaction begins.
       }, 240);
-    }, 900);
+    }, 300);
   }, []);
 
   const finishNavigationProgress = useCallback(() => {
