@@ -107,7 +107,7 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
   });
   const bodyFontId = existingFontCount + 1;
   const alignment = '<alignment horizontal="center" vertical="center" wrapText="1"/>';
-  const noWrapAlignment = '<alignment horizontal="center" vertical="center"/>';
+  const noWrapAlignment = '<alignment horizontal="center" vertical="center" wrapText="0" shrinkToFit="1"/>';
   const newCellFormats = [
     `<xf numFmtId="0" fontId="${bodyFontId}" fillId="${existingFillCount}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignment}</xf>`,
     `<xf numFmtId="0" fontId="${bodyFontId}" fillId="${existingFillCount + 1}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignment}</xf>`,
@@ -138,8 +138,6 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
     const cellReference = cellXml.match(/\br="([A-Z]+\d+)"/)?.[1];
     if (!cellReference) return cellXml;
     const rowNumber = Number(cellReference.match(/\d+$/)?.[0] ?? 1);
-    const isLteColumn = XLSX.utils.decode_cell(cellReference).c === lteColumnIndex;
-    const styleId = rowNumber === 1 ? existingXfCount + (isLteColumn ? 5 : 2) : rowNumber % 2 === 0 ? existingXfCount + (isLteColumn ? 3 : 0) : existingXfCount + (isLteColumn ? 4 : 1);
     let styledCellXml = cellXml;
     const value = cellXml.match(/<v>([\s\S]*?)<\/v>/)?.[1];
     if (value !== undefined) {
@@ -162,9 +160,12 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
         styledCellXml = `<c r="${cellReference}" t="inlineStr"><is>${runs.join('')}</is></c>`;
       }
     }
+    const columnIndex = XLSX.utils.decode_cell(cellReference).c;
+    const isNoWrapColumn = columnIndex === lteColumnIndex || columnIndex === sheetRange?.e.c;
     return styledCellXml.replace(/<c\b([^>]*)>/, (_all, attributes: string) => {
       const updatedAttributes = attributes.replace(/\s+s="[^"]*"/, '').trim();
-      return `<c ${updatedAttributes} s="${styleId}">`;
+      const rowStyleId = rowNumber === 1 ? existingXfCount + (isNoWrapColumn ? 5 : 2) : rowNumber % 2 === 0 ? existingXfCount + (isNoWrapColumn ? 3 : 0) : existingXfCount + (isNoWrapColumn ? 4 : 1);
+      return `<c ${updatedAttributes} s="${rowStyleId}">`;
     });
   });
 
@@ -199,26 +200,27 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
       longestValue = Math.max(longestValue, ...value.split(/\r?\n/).map((line) => Array.from(line.trim()).length));
     }
     const width = columnIndex === rowNumberIndex ? [7, 8]
-      : columnIndex === incidentIndex ? [14, 20]
+      : columnIndex === incidentIndex ? [12, 16]
         : columnIndex === systemCodeIndex ? [13, 16]
-          : columnIndex === systemNameIndex ? [40, 56]
-            : columnIndex === axisCodeIndex ? [10, 14]
-              : columnIndex === axisNameIndex ? [16, 28]
+          : columnIndex === systemNameIndex ? [24, 36]
+            : columnIndex === axisCodeIndex ? [9, 12]
+              : columnIndex === axisNameIndex ? [14, 22]
                 : columnIndex >= equipmentStartIndex && columnIndex < equipmentEndIndex
-                  ? columnIndex === lteColumnIndex ? [20, 26] : [12, 18]
-                  : columnIndex === outageIndex ? [10, 14]
-                    : columnIndex === solarStatusIndex ? [12, 18]
-                      : columnIndex === historyIndex ? [20, 34] : [10, 18];
+                  ? columnIndex === lteColumnIndex ? [16, 22] : [10, 15]
+                  : columnIndex === outageIndex ? [8, 11]
+                    : columnIndex === solarStatusIndex ? [10, 14]
+                      : columnIndex === historyIndex ? [44, 68] : [9, 14];
     const [minimum, maximum] = width;
     const naturalWidth = Math.ceil(longestValue * 1.15 + 2);
     return Math.min(maximum, Math.max(minimum, naturalWidth));
   });
   worksheet['!cols'] = columnWidths.map((wch) => ({ wch }));
   worksheet['!rows'] = Array.from({ length: range.e.r + 1 }, (_, rowIndex) => {
-    if (rowIndex === 0) return { hpt: 34 };
+    if (rowIndex === 0) return { hpt: 28 };
     let estimatedLines = 1;
     let hasStatusDot = false;
     for (let columnIndex = 0; columnIndex <= range.e.c; columnIndex += 1) {
+      if (columnIndex === historyIndex || columnIndex === lteColumnIndex) continue;
       const cell = worksheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })];
       const value = String(cell?.w ?? cell?.v ?? '');
       hasStatusDot ||= value.includes('[[RAHCOM_STATUS_');
@@ -227,7 +229,7 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
         .map((line) => Math.max(1, Math.ceil(Array.from(line).length / columnWidth)));
       estimatedLines = Math.max(estimatedLines, ...lines);
     }
-    return { hpt: Math.min(150, Math.max(hasStatusDot ? 36 : 22, estimatedLines * 18 + 6)) };
+    return { hpt: Math.min(110, Math.max(hasStatusDot ? 22 : 18, estimatedLines * 14 + 4)) };
   });
 }
 
@@ -381,16 +383,16 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         return changes;
       }, []);
       return <tr key={site} className="border-t border-border hover:bg-muted/20">
-        <td className="p-3 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
-        {showIncidents && <td className="max-w-64 whitespace-nowrap p-3 text-center align-middle">{incidentText || '\u2014'}</td>}
-        <td className="p-3 font-mono" dir="ltr">{site}</td>
-        <td className="p-3">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
-        <td className="p-3 font-mono" dir="ltr">{axisCode ? <span className="inline-flex rounded-md border px-2 py-1 font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisCode}</span> : '—'}</td>
-        <td className="p-3">{axisName ? <span className="inline-flex rounded-md border px-2 py-1 font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisName}</span> : '—'}</td>
-        {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center">{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className="inline-flex items-center gap-1.5" dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
-        <td className="p-3 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
-        <td className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '—' : '—'}</td>
-        <td className="whitespace-nowrap p-3 text-xs"><time className="me-2 inline text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{historyChanges.length === 0 ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <span className="inline-flex flex-nowrap items-center gap-3">{historyChanges.map(({ equipment, from, to }) => <span key={equipment} className="shrink-0" dir="auto"><bdi dir="ltr">{equipment}</bdi>: {from ? statusText(from) + ' → ' : ''}{statusText(to)}</span>)}</span>}</td>
+        <td className="p-2 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
+        {showIncidents && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{incidentText || '\u2014'}</td>}
+        <td className="p-2 font-mono" dir="ltr">{site}</td>
+        <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
+        <td className="p-2 font-mono" dir="ltr">{axisCode ? <span className="inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisCode}</span> : '—'}</td>
+        <td className="p-2">{axisName ? <span className="inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisName}</span> : '—'}</td>
+        {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-2 text-center">{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className="inline-flex items-center gap-1.5" dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
+        <td className="p-2 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
+        <td className="w-32 max-w-32 whitespace-nowrap p-2 text-center align-middle">{solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '—' : '—'}</td>
+        <td className="whitespace-nowrap p-2 text-xs"><time className="me-2 inline text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{historyChanges.length === 0 ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <span className="inline-flex flex-nowrap items-center gap-3">{historyChanges.map(({ equipment, from, to }) => <span key={equipment} className="shrink-0" dir="auto"><bdi dir="ltr">{equipment}</bdi>: {from ? statusText(from) + ' → ' : ''}{statusText(to)}</span>)}</span>}</td>
       </tr>;
     })}
   </tbody></table></div></div>;
