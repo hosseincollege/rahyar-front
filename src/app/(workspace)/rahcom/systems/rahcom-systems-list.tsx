@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { Check, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapIcon, MapPinned, PanelsTopLeft, Pencil, Rows3, Save, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
+import { Check, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapIcon, MapPinned, Pencil, Rows3, Save, Search, Trash2, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { canonicalRahcomAxis, rahcomOperationalAxis, rahcomOperationalZone } from '@/lib/api/rahcom/rahcom-axes';
 import type { RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { isRahcomIncidentValue, rahcomProvinceFromLabel, rahcomSystemKey } from '@/lib/api/rahcom/solar-status';
+import { rahcomProvinceFromLabel, rahcomSystemKey } from '@/lib/api/rahcom/solar-status';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomAxesManager } from '@/app/(workspace)/rahcom/_shared/rahcom-axes-manager';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
@@ -38,7 +38,7 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
   return `https://balad.ir/directions/driving?destination=${encodeURIComponent(`${lng},${lat}`)}#16/${lat}/${lng}`;
 }
 
-export function RahcomSystemsList({ canManage = false, selectedProvince = 'all', axisSource = 'traffic', renderAxisSource, onAxisSourceChange, incidentSource = 'traffic', renderIncidentSource, onIncidentSourceChange }: { canManage?: boolean; selectedProvince?: string; axisSource?: 'traffic' | 'rahyar' | 'zones'; renderAxisSource?: 'traffic' | 'rahyar' | 'zones'; onAxisSourceChange?: (source: 'traffic' | 'rahyar' | 'zones') => void; incidentSource?: 'traffic' | 'systems'; renderIncidentSource?: 'traffic' | 'systems'; onIncidentSourceChange?: (source: 'traffic' | 'systems') => void }) {
+export function RahcomSystemsList({ canManage = false, selectedProvince = 'all', axisSource = 'traffic', renderAxisSource, onAxisSourceChange }: { canManage?: boolean; selectedProvince?: string; axisSource?: 'traffic' | 'rahyar' | 'zones'; renderAxisSource?: 'traffic' | 'rahyar' | 'zones'; onAxisSourceChange?: (source: 'traffic' | 'rahyar' | 'zones') => void }) {
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
@@ -47,7 +47,6 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<string[]>([]);
   const [routeSystem, setRouteSystem] = useState<RahcomSystem | null>(null);
   const [historySystem, setHistorySystem] = useState<RahcomSystem | null>(null);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
@@ -61,8 +60,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
   const [uploadBusy, setUploadBusy] = useState(false);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const dataAxisSource = renderAxisSource ?? axisSource;
-  const dataIncidentSource = renderIncidentSource ?? incidentSource;
-  const sourceUpdating = dataAxisSource !== axisSource || dataIncidentSource !== incidentSource;
+  const sourceUpdating = dataAxisSource !== axisSource;
 
   useEffect(() => {
     const onSearch = (event: Event) => {
@@ -129,28 +127,6 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
     return () => window.removeEventListener('keydown', onEscape);
   }, [routeSystem]);
 
-  const incidentSystemKeys = useMemo(() => {
-    if (dataIncidentSource === 'systems') return new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => rahcomSystemKey(system.province, system.systemCode)));
-    const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\u200c_./-]/g, '');
-    const headers = trafficSnapshot?.headers ?? [];
-    const codeIndex = headers.findIndex((value) => { const key = normalize(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
-    const incidentIndexes = headers.flatMap((value, index) => { const key = normalize(value); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', '\u062a\u0639\u0631\u06cc\u0636', '\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc', 'theft', 'damage', 'widening', 'relocation'].some((term) => key.includes(normalize(term))) ? [index] : []; });
-    if (codeIndex < 0 || incidentIndexes.length === 0) return new Set<string>();
-    const provinceIndex = headers.findIndex((value) => /province|\u0627\u0633\u062a\u0627\u0646/i.test(value));
-    const keys = new Set<string>();
-    for (const row of trafficSnapshot?.rows ?? []) {
-      if (!incidentIndexes.some((index) => isRahcomIncidentValue(row[index]))) continue;
-      const code = (row[codeIndex] ?? '').trim().toUpperCase();
-      const rawProvince = provinceIndex >= 0 ? row[provinceIndex]?.trim() : '';
-      const rowProvince = rawProvince ? rahcomProvinceFromLabel(rawProvince) : null;
-      if (rawProvince && !rowProvince) continue;
-      const matches = systems.filter((system) => system.systemCode.trim().toUpperCase() === code && (!rowProvince || system.province === rowProvince));
-      if (!rowProvince && matches.length !== 1) continue;
-      for (const system of matches) keys.add(rahcomSystemKey(system.province, code));
-    }
-    return keys;
-  }, [dataIncidentSource, systems, trafficSnapshot]);
-
   const groups = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase(locale);
     const trafficLabels = new Map<string, string>();
@@ -175,7 +151,6 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
     }
     const grouped = new Map<string, { label: string; rows: RahcomSystem[] }>();
     for (const system of systems) {
-      if (filters.includes('incidents') && !incidentSystemKeys.has(rahcomSystemKey(system.province, system.systemCode))) continue;
       const axis = dataAxisSource === 'traffic'
         ? ([system.axisCode, system.announcedAxis].filter(Boolean).join(' · ') || trafficLabels.get(rahcomSystemKey(system.province, system.systemCode)) || '')
         : dataAxisSource === 'zones'
@@ -193,7 +168,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
       grouped.set(key, group);
     }
     return [...grouped.entries()].map(([key, value]) => [key, value.label, value.rows] as const).sort((a, b) => a[1].localeCompare(b[1], locale, { numeric: true, sensitivity: 'base' }));
-  }, [dataAxisSource, filters, incidentSystemKeys, locale, query, selectedProvince, systems, t, trafficSnapshot]);
+  }, [dataAxisSource, locale, query, selectedProvince, systems, t, trafficSnapshot]);
 
   async function copyValue(key: string, value: string) {
     try {
@@ -307,11 +282,6 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
           <input aria-label={t('rahcomSearchSystems')} placeholder={t('rahcomSearchSystems')} value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0" />
           {query && <button type="button" onClick={() => setQuery('')} aria-label={t('searchClear')} title={t('searchClear')} className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><X size={14} /></button>}
         </label>
-        <div className="inline-flex overflow-hidden rounded-full border border-border bg-background" role="group" aria-label={t('rahcomIncidentFilter')}>
-          <button type="button" aria-pressed={incidentSource === 'traffic'} aria-label={t('rahcomTrafficIncidentColumn')} title={t('rahcomTrafficIncidentColumn')} onClick={() => onIncidentSourceChange?.('traffic')} className="grid size-9 place-items-center" style={incidentSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><ClipboardList size={16} /></button>
-          <button type="button" aria-pressed={incidentSource === 'systems'} aria-label={t('rahcomSystemIncidentColumn')} title={t('rahcomSystemIncidentColumn')} onClick={() => onIncidentSourceChange?.('systems')} className="grid size-9 place-items-center border-s border-border" style={incidentSource === 'systems' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined}><PanelsTopLeft size={16} /></button>
-        </div>
-        <button type="button" aria-pressed={filters.includes('incidents')} aria-label={`${t('rahcomIncidentFilter')} · ${t(incidentSource === 'traffic' ? 'rahcomTrafficIncidentColumn' : 'rahcomSystemIncidentColumn')}`} title={`${t('rahcomIncidentFilter')} · ${t(incidentSource === 'traffic' ? 'rahcomTrafficIncidentColumn' : 'rahcomSystemIncidentColumn')}`} onClick={() => setFilters((current) => current.includes('incidents') ? current.filter((item) => item !== 'incidents') : [...current, 'incidents'])} style={filters.includes('incidents') ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${filters.includes('incidents') ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={17} aria-hidden="true" /></button>
         <label aria-label={t('rahcomUploadExcel')} title={t('rahcomUploadExcel')} className={`grid size-9 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted ${uploadBusy ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} aria-hidden="true" />}<input type="file" accept=".xlsx,.xls" disabled={uploadBusy} className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void uploadSystemsFile(file); }} /></label>
         <button type="button" onClick={downloadSystems} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted"><Download size={17} aria-hidden="true" /></button>
         {canManage && <button type="button" aria-pressed={editMode} onClick={() => setEditMode((enabled) => !enabled)} aria-label={t('rahcomEditSystem')} title={t('rahcomEditSystem')} style={editMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${editMode ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Pencil size={16} /></button>}

@@ -3,10 +3,10 @@ Rahcom road maintenance list
 Implemented behavior
 - Rahcom > My Road Maintenance List is available at /rahcom/road-list and follows the shared Rahcom date selector.
 - Authorized Rahcom users can view the most recently uploaded workbook for their assigned province. Organization administrators can choose a province and upload an .xlsx or .xls workbook.
-- The importer finds a header row containing an استان / province column, keeps workbook column names and cell values, and shows the saved rows in a paginated table.
+- The importer accepts a province column or a station-only workbook with «کد ایستگاه» and «نام ایستگاه». For a station-only workbook, it appends the currently selected province to the API payload while preserving the uploaded file as two columns.
 - Each upload is stored for the selected date. Re-uploading replaces that organization's list for the same province and date while retaining lists from other dates.
 - The calendar marks each Jalali day that has an uploaded road list for the selected province. Marked dates are queried for the visible calendar month, and the marker is independent from daily traffic dates.
-- The API rejects files without a province column, unsupported province values, or rows whose province differs from the selected province. Demo accounts cannot read or upload road lists.
+- The API validates the province column, rejects unsupported province values or rows whose province differs from the authorized selected province, and does not accept a payload without a province column. Demo accounts cannot read or upload road lists.
 
 Persistence and API
 - Prisma model: RahcomRoadList in rahyar-back/prisma/schema/rahcom.prisma.
@@ -21,7 +21,12 @@ Source paths
 - rahyar-front/src/lib/api/rahcom/rahcom-api.ts
 - rahyar-front/src/components/layout/sidebar.tsx
 - rahyar-front/src/languages/messages/
-- rahyar-front/docs/templates/لیست-راهداری-نمونه.xlsx
+- rahyar-front/docs/templates/Ù„ÛŒØ³Øª-Ø±Ø§Ù‡Ø¯Ø§Ø±ÛŒ-Ù†Ù…ÙˆÙ†Ù‡.xlsx
 - rahyar-back/src/rahcom/rahcom.controller.ts
 - rahyar-back/src/rahcom/rahcom.service.ts
 - rahyar-back/src/rahcom/dto/rahcom.dto.ts
+
+Incident display
+- The road list always includes a theft/damage and widening/relocation status column. It uses the per-system special category (theft, damage, both, or widening/relocation) first, then falls back to the system's incident type or matching traffic details, and displays an em dash when no incident is found.
+- The incident source and row filter controls are not shown on this page. Excel downloads include the same status column for every row.
+- On upload, station-code, station-name, and axis headers are stored as the canonical Persian labels “کد ایستگاه”, “نام ایستگاه”, and “محور”. Existing road-list rows are rendered with the same labels regardless of their original workbook headers.

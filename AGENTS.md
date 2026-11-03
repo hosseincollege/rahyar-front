@@ -107,3 +107,9 @@ Whenever assigned a task:
 ## Project documentation
 - Keep `docs/as-built/` current as features, modules, APIs, data models, and workflows change. Record implemented behavior and relevant source paths; distinguish proposed work from implemented behavior.
 - Keep `docs/presentation/` useful for the user's course presentation. Update its technical descriptions when the system architecture or demonstrated workflows change.
+
+## Rahcom incident toggle invariant
+- The shared «سرقت و تخریب» icon is a visibility toggle for incident records from the imported daily traffic list. Its incident fields are سرقت، تخریب، تعریض، and جابه‌جایی.
+- The toggle is active by default. Active means incident-marked systems remain visible with the normal records; inactive means hide systems marked in those traffic-list fields while preserving all other records.
+- Always classify this toggle from the traffic-list snapshot. Do not switch its source to `RahcomSystem.incidentType` or `RahcomSystem.incidentDetails`, and do not restore the two-button source selector.
+- Keep the toggle state and behavior consistent wherever the «سرقت و تخریب» icon is shown, including the map, daily traffic, and solar daily views. Preserve the preference under `rahcom-show-incidents`.

@@ -241,7 +241,7 @@ function axisTagStyle(value: string) {
   return { color, borderColor: `color-mix(in srgb, ${color} 38%, transparent)`, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` };
 }
 
-function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = false, incidentSource, axisSource, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar' | 'zones'; onRowCountChange?: (count: number) => void }) {
+function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, axisSource, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; axisSource: 'traffic' | 'rahyar' | 'zones'; onRowCountChange?: (count: number) => void }) {
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -291,16 +291,12 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     return incidents;
   }, [traffic, codeIndex, incidentIndexes]);
   const trafficIncidentSites = useMemo(() => new Set(trafficIncidentsByCode.keys()), [trafficIncidentsByCode]);
-  const systemIncidentSites = useMemo(() => new Set(systems.filter((system) => system.incidentType || isRahcomIncidentValue(system.incidentDetails)).map((system) => system.systemCode.trim().toUpperCase())), [systems]);
   const solarSiteSet = new Set(solarSites);
-  const sites = [...new Set([...solarSites, ...trafficIncidentSites, ...systemIncidentSites])].filter((site) => allowedSites.has(site))
+  const sites = [...new Set([...solarSites, ...trafficIncidentSites])].filter((site) => allowedSites.has(site))
     .filter((site) => {
       const hasTrafficIncident = trafficIncidentSites.has(site);
-      const hasSystemIncident = systemIncidentSites.has(site);
-      const isIncident = hasTrafficIncident || hasSystemIncident;
-      if (isIncident && !showIncidents) return false;
-      if (!isIncident) return solarSiteSet.has(site);
-      return incidentSource === 'traffic' ? hasTrafficIncident : hasSystemIncident;
+      if (hasTrafficIncident && !showIncidents) return false;
+      return hasTrafficIncident || solarSiteSet.has(site);
     }).sort();
   useEffect(() => { onRowCountChange?.(sites.length); }, [onRowCountChange, sites.length]);
   const bySiteEquipment = new Map(validEntries.map((entry) => [`${entry.site.toUpperCase()}:${entry.equipment.toUpperCase()}`, entry.state]));
@@ -372,8 +368,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
       const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
-      const systemIncident = system?.incidentType ? t(system.incidentType === 'WIDENING_RELOCATION' ? 'solarWideningRelocation' : system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth') + (system.incidentDetails ? ' · ' + system.incidentDetails : '') : system?.incidentDetails || '—';
-      const incidentText = incidentSource === 'traffic' ? trafficIncident : systemIncident;
+      const incidentText = trafficIncident;
       const previousSiteStates = previousStatesBySite.get(site);
       const historyChanges = displayedEquipmentCodes.reduce<{ equipment: string; from: 'normal' | 'down' | 'unreachable' | null; to: 'normal' | 'down' | 'unreachable' }[]>((changes, equipment) => {
         const currentState = bySiteEquipment.get(site + ':' + equipment) ?? 'normal';
@@ -404,7 +399,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents, incidentSource, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar' | 'zones'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents = true, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents?: boolean; axisSource: 'traffic' | 'rahyar' | 'zones'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void }) {
   const { locale } = usePreferences();
   const { dateText, date } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -520,11 +515,11 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
       {!snapshotProvince && <p role="status" className="text-xs text-muted-foreground">{t('solarChooseProvinceFromHeader')}</p>}
     </div>
 
-    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} /></div>}
+    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} axisSource={axisSource} /></div>}
     </>}
 
     <div className="space-y-3">{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
-      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? 'all'} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} incidentSource={incidentSource} axisSource={axisSource} onRowCountChange={onSystemCountChange} />
+      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} axisSource={axisSource} onRowCountChange={onSystemCountChange} />
     </>}</div>
   </section>;
 }

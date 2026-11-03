@@ -96,12 +96,13 @@ export function rahcomProvinceFromLabel(value: string) {
   return iranProvinces.find(([id, label]) => normalize(id) === normalize(value) || normalize(label) === normalize(value))?.[0] ?? null;
 }
 
-export function failedRahcomSystemKeys(snapshots: RahcomSolarSnapshot[], systems: RahcomSystem[], day: string) {
+export function failedRahcomSystemKeys(snapshots: RahcomSolarSnapshot[], systems: RahcomSystem[], day: string, fallbackProvince?: string) {
   const failed = new Set<string>();
   for (const snapshot of latestRahcomSolarSnapshotsByProvince(snapshots, day)) {
     for (const code of failedRahcomSystemCodes(snapshot)) {
-      const matches = systems.filter((system) => system.systemCode.trim().toUpperCase() === code && (!snapshot.province || system.province === snapshot.province));
-      if (!snapshot.province && matches.length !== 1) continue;
+      const snapshotProvince = snapshot.province || fallbackProvince;
+      const matches = systems.filter((system) => system.systemCode.trim().toUpperCase() === code && (!snapshotProvince || system.province === snapshotProvince));
+      if (!snapshotProvince && matches.length !== 1) continue;
       for (const system of matches) failed.add(rahcomSystemKey(system.province, code));
     }
   }
