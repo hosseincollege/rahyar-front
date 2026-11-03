@@ -52,8 +52,6 @@ import { HeaderProvinceSelector } from './header-province-selector';
 import type { MissionEntryMode } from './mission-quick-actions';
 
 interface TopHeaderProps {
-  loadingProgress?: number;
-  loadingProgressFading?: boolean;
   isCollapsed?: boolean;
   isMobileMenuOpen?: boolean;
   isSidebarLocked?: boolean;
@@ -67,8 +65,6 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({
-  loadingProgress = 0,
-  loadingProgressFading = false,
   isCollapsed = true,
   isMobileMenuOpen = false,
   isSidebarLocked = false,
@@ -625,44 +621,6 @@ export function TopHeader({
               />
             )}
           </div>
-
-          <svg
-            viewBox="0 0 56 56"
-            role="progressbar"
-            aria-label={message('rahcomSystemsLoading')}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={loadingProgress}
-            className="pointer-events-none absolute left-1/2 top-1/2 z-10 h-14 w-14 -translate-x-1/2 -translate-y-1/2"
-          >
-            <circle
-              cx="28"
-              cy="28"
-              r="25"
-              fill="none"
-              stroke="color-mix(in srgb, var(--foreground) 24%, var(--surface))"
-              strokeWidth="1.5"
-            />
-            <circle
-              cx="28"
-              cy="28"
-              r="25"
-              fill="none"
-              stroke="var(--primary)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeDasharray="157.08"
-              strokeDashoffset={157.08 * (1 - loadingProgress / 100)}
-              transform="rotate(-90 28 28)"
-              style={{
-                opacity: loadingProgressFading ? 0 : 1,
-                transition: loadingProgressFading
-                  ? 'stroke-dashoffset 180ms ease-in-out, opacity 300ms ease-in-out'
-                  : 'stroke-dashoffset 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-in-out',
-                willChange: 'stroke-dashoffset, opacity',
-              }}
-            />
-          </svg>
 
           <span dir="rtl" className="absolute left-[calc(100%+0.75rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">
             Rahyar

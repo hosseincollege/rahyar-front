@@ -23,14 +23,16 @@ Help authorized users across provinces find their assigned systems, understand o
 - Improve settings and module page contents within the current shell; global preferences must be additive and preserve responsive behavior.
 - Persian and RTL remain the default. Apply English/LTR only when the user selects English.
 
-### Immediate interaction and loading feedback (P0 — highest priority)
+### Immediate interaction responsiveness (Priority 1 / P0 — highest priority)
 - User-perceived responsiveness is a core, non-negotiable requirement across every screen. For every new feature or edit, prioritize immediate visible feedback and an unblocked interaction path ahead of nonessential features or visual polish, and explicitly review this before finishing.
 - Make every user interaction respond in the same frame: update the selected control, toggle, tab, filter, or pressed state immediately, then do network requests, persistence, and expensive calculations asynchronously.
+- In click/change handlers, commit the optimistic local selection before the first `await`; never put persistence or data loading ahead of the visible state change. Start async work with `void` or after the state update, then reconcile on success and roll back with an inline error on failure.
+- For navigation links, highlight the destination immediately on activation and clear the optimistic highlight when the router confirms the new pathname. Keep the current shell mounted while destination data loads.
 - Never make a visible control wait for a server response before showing the user's selection. Keep optimistic UI state local and reconcile it with the response; show a clear error and restore state if the operation fails.
-- For work that continues after the immediate response, show progress or loading feedback without blocking the whole page. Keep persistent loading indicators in a fixed, reserved shell position so their appearance or progress never shifts content or changes the page layout.
-- Show the shell page-loading bar for actual route changes and interactions with page toolbars/actions that start data updates. Opening or closing a menu, dropdown, tooltip, or icon action in the global top header must respond immediately without starting page loading. Scope top-header exclusions specifically to the global shell header; page-level `<header>` toolbars still trigger progress. Mark custom clickable data actions with `data-navigation-progress` / `rahyar:navigation-start` when needed.
+- Do not add a global shell progress bar, logo progress ring, or other persistent shell-wide progress animation. For work that continues after the immediate response, use a small, context-specific loading state next to the content or action being updated. Keep its space stable and do not block or dim the whole page.
 - For route changes, update the selected navigation state immediately, then load the destination in stages: preserve the shell and stable layout, show local skeleton/loading feedback for pending content, and reveal loaded data as it arrives. Avoid blanking/rebuilding the whole page or causing layout jumps while waiting.
 - Keep expensive filtering, sorting, and rendering work off the urgent interaction path. Use deferred values, transitions, pagination/virtualization, or incremental rendering when needed, and avoid broad state updates that delay unrelated controls.
+- Treat immediate visible response as Priority 1 for every new feature and every edit. Before finishing, review the interaction path: selected/pressed state must update immediately, async work must not block it, and loading must be shown locally only when useful. Optimize the remaining data load as far as practical without delaying the user's action.
 - Apply these responsiveness rules to every Rahyar module and re-check them whenever a component, data flow, or interaction is added or edited.
 
 ### Frontend (Next.js App Router):

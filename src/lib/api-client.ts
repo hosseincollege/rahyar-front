@@ -48,7 +48,6 @@ export { ApiError as ApiClientError };
 
 export const ACCESS_TOKEN_KEY = 'access_token';
 let authRedirectStarted = false;
-let apiRequestSequence = 0;
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
@@ -216,8 +215,6 @@ async function request<T>(
 
   let response: Response;
 
-  const requestId = ++apiRequestSequence;
-  if (isBrowser()) window.dispatchEvent(new CustomEvent('rahyar:request-start', { detail: { requestId } }));
   try {
     response = await fetch(buildUrl(path), requestInit);
   } catch (error) {
@@ -236,7 +233,6 @@ async function request<T>(
       });
     }
 
-    if (isBrowser()) window.dispatchEvent(new CustomEvent('rahyar:request-end', { detail: { requestId } }));
     throw new ApiError(message, 0, error);
   }
 
@@ -252,9 +248,7 @@ async function request<T>(
     });
   }
 
-  return await parseResponse<T>(response).finally(() => {
-    if (isBrowser()) window.dispatchEvent(new CustomEvent('rahyar:request-end', { detail: { requestId } }));
-  });
+  return await parseResponse<T>(response);
 }
 
 function unwrapData<T>(response: T | ApiSuccessResponse<T>): T {

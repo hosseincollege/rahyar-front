@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { TopHeader } from './top-header';
@@ -21,15 +21,6 @@ const NAVIGATE_ON_CLICK_KEY = 'erp-navigate-on-click';
 
 interface AppShellProps {
   children: React.ReactNode;
-}
-
-function hasPointerCursor(target: Element): boolean {
-  let element: Element | null = target;
-  while (element && element !== document.body) {
-    if (window.getComputedStyle(element).cursor === 'pointer') return true;
-    element = element.parentElement;
-  }
-  return false;
 }
 
 export function AppShell({ children }: AppShellProps) {
@@ -57,195 +48,6 @@ export function AppShell({ children }: AppShellProps) {
   const [isProfileActive, setIsProfileActive] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [navigateOnClick, setNavigateOnClick] = useState(false);
-  const [navigationPending, setNavigationPending] = useState(false);
-  const [navigationProgress, setNavigationProgress] = useState(0);
-  const [navigationProgressFading, setNavigationProgressFading] = useState(false);
-  const navigationTimer = useRef<number | null>(null);
-  const progressFallbackTimer = useRef<number | null>(null);
-  const progressFinishTimer = useRef<number | null>(null);
-  const progressResetTimer = useRef<number | null>(null);
-  const progressFadeTimer = useRef<number | null>(null);
-  const pendingRequests = useRef(new Set<number>());
-  const progressActive = useRef(false);
-  const progressStartedAt = useRef(0);
-
-  const completeNavigationProgress = useCallback(() => {
-    progressActive.current = false;
-    setNavigationPending(false);
-    setNavigationProgress(100);
-    if (navigationTimer.current) window.clearTimeout(navigationTimer.current);
-    if (progressFallbackTimer.current) window.clearTimeout(progressFallbackTimer.current);
-    if (progressFinishTimer.current) window.clearTimeout(progressFinishTimer.current);
-    if (progressResetTimer.current) window.clearTimeout(progressResetTimer.current);
-    if (progressFadeTimer.current) window.clearTimeout(progressFadeTimer.current);
-    // Hold at 100% for 300ms, then fade the fill away.
-    progressResetTimer.current = window.setTimeout(() => {
-      setNavigationProgressFading(true);
-      progressFadeTimer.current = window.setTimeout(() => {
-        setNavigationProgress(0);
-        // Keep the completed fill hidden until the next interaction begins.
-      }, 240);
-    }, 300);
-  }, []);
-
-  const finishNavigationProgress = useCallback(() => {
-    if (!progressActive.current) return;
-    const minimumVisibleDuration = 500;
-    const elapsed = performance.now() - progressStartedAt.current;
-    if (elapsed < minimumVisibleDuration) {
-      if (progressFinishTimer.current) window.clearTimeout(progressFinishTimer.current);
-      progressFinishTimer.current = window.setTimeout(completeNavigationProgress, minimumVisibleDuration - elapsed);
-      return;
-    }
-    completeNavigationProgress();
-  }, [completeNavigationProgress]);
-
-  useEffect(() => {
-    if (navigationTimer.current) window.clearTimeout(navigationTimer.current);
-    if (pendingRequests.current.size !== 0) return;
-    const completionTimer = window.setTimeout(finishNavigationProgress, 0);
-    return () => window.clearTimeout(completionTimer);
-  }, [pathname, finishNavigationProgress]);
-
-  useEffect(() => {
-    if (!navigationPending) return;
-    const progressTimer = window.setInterval(() => {
-      setNavigationProgress((current) => current >= 90 ? current : Math.min(90, current + 1.5));
-    }, 50);
-    return () => window.clearInterval(progressTimer);
-  }, [navigationPending]);
-
-  useEffect(() => {
-    const startProgress = () => {
-      if (progressActive.current) return;
-      progressActive.current = true;
-      progressStartedAt.current = performance.now();
-      setNavigationPending(true);
-      setNavigationProgress((current) => current >= 100 ? 14 : Math.max(current, 14));
-      if (navigationTimer.current) window.clearTimeout(navigationTimer.current);
-      if (progressFallbackTimer.current) window.clearTimeout(progressFallbackTimer.current);
-      if (progressFinishTimer.current) window.clearTimeout(progressFinishTimer.current);
-      if (progressResetTimer.current) window.clearTimeout(progressResetTimer.current);
-      if (progressFadeTimer.current) window.clearTimeout(progressFadeTimer.current);
-      if (progressResetTimer.current) window.clearTimeout(progressResetTimer.current);
-      if (progressFadeTimer.current) window.clearTimeout(progressFadeTimer.current);
-      setNavigationProgressFading(false);
-      progressFallbackTimer.current = window.setTimeout(() => {
-        if (pendingRequests.current.size === 0) finishNavigationProgress();
-      }, 900);
-      navigationTimer.current = window.setTimeout(() => {
-        if (pendingRequests.current.size === 0) finishNavigationProgress();
-      }, 10000);
-    };
-    const handleInternalNavigation = (event: MouseEvent) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const anchor = target.closest('a[href]');
-      if (anchor instanceof HTMLAnchorElement && anchor.target !== '_blank') {
-        const destination = new URL(anchor.href, window.location.href);
-        if (destination.origin === window.location.origin && (destination.pathname !== window.location.pathname || destination.search !== window.location.search || destination.hash !== window.location.hash)) startProgress();
-        return;
-      }
-
-      if (target.closest('[data-navigation-progress]')) {
-        startProgress();
-        return;
-      }
-      // Header menus and icon actions are immediate UI controls; opening them
-      // does not represent page loading. Route links above still get progress.
-      if (target.closest('[data-app-top-header]')) return;
-      const stateToggle = target.closest('[role="switch"], [aria-pressed]');
-      if (stateToggle && !stateToggle.matches(':disabled, [aria-disabled="true"]')) {
-        startProgress();
-        return;
-      }
-      const control = target.closest('button, [role="button"], [role="tab"], [role="switch"], [role="combobox"], [role="option"], [role="menuitem"], select, input[type="checkbox"], input[type="radio"], input[type="date"]');
-      if (control?.matches('[aria-haspopup], [aria-expanded]')) return;
-      if (control && !control.matches(':disabled, [aria-disabled="true"]')) {
-        startProgress();
-        return;
-      }
-      if (target.closest('[onclick]') || hasPointerCursor(target)) startProgress();
-    };
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const anchor = target.closest('a[href]');
-      if (anchor instanceof HTMLAnchorElement) {
-        if (anchor.target !== '_blank') {
-          const destination = new URL(anchor.href, window.location.href);
-          if (destination.origin === window.location.origin && (destination.pathname !== window.location.pathname || destination.search !== window.location.search || destination.hash !== window.location.hash)) startProgress();
-        }
-        return;
-      }
-      if (target.closest('[data-navigation-progress]')) {
-        startProgress();
-        return;
-      }
-      if (target.closest('[data-app-top-header]')) return;
-      const stateToggle = target.closest('[role="switch"], [aria-pressed]');
-      if (stateToggle && !stateToggle.matches(':disabled, [aria-disabled="true"]')) {
-        startProgress();
-        return;
-      }
-      const control = target.closest('button, a[href], [role="button"], [role="tab"], [role="switch"], [role="combobox"], [role="option"], [role="menuitem"], select, input[type="checkbox"], input[type="radio"], input[type="date"]');
-      if (control?.matches('[aria-haspopup], [aria-expanded]')) return;
-      if (control && !control.matches(':disabled, [aria-disabled="true"]')) {
-        if (control instanceof HTMLAnchorElement && control.target === '_blank') return;
-        startProgress();
-        return;
-      }
-      if (target.closest('[onclick]') || hasPointerCursor(target)) startProgress();
-    };
-    const handleFormSubmit = () => startProgress();
-    const handleControlChange = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Element && target.matches('select, input[type="checkbox"], input[type="radio"], input[type="date"]')) startProgress();
-    };
-    document.addEventListener('click', handleInternalNavigation, true);
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('submit', handleFormSubmit, true);
-    document.addEventListener('change', handleControlChange, true);
-    window.addEventListener('rahyar:navigation-start', startProgress);
-    return () => {
-      document.removeEventListener('click', handleInternalNavigation, true);
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('submit', handleFormSubmit, true);
-      document.removeEventListener('change', handleControlChange, true);
-      window.removeEventListener('rahyar:navigation-start', startProgress);
-      if (navigationTimer.current) window.clearTimeout(navigationTimer.current);
-      if (progressFallbackTimer.current) window.clearTimeout(progressFallbackTimer.current);
-      if (progressFinishTimer.current) window.clearTimeout(progressFinishTimer.current);
-      if (progressFadeTimer.current) window.clearTimeout(progressFadeTimer.current);
-    };
-  }, [pathname, finishNavigationProgress]);
-
-  useEffect(() => {
-    const handleRequestStart = (event: Event) => {
-      // Ignore startup and background polling; only track requests initiated
-      // after a user interaction has already made the shell react.
-      if (!progressActive.current) return;
-      const requestId = (event as CustomEvent<{ requestId?: number }>).detail?.requestId;
-      if (typeof requestId !== 'number') return;
-      pendingRequests.current.add(requestId);
-      if (progressFallbackTimer.current) window.clearTimeout(progressFallbackTimer.current);
-      if (progressFinishTimer.current) window.clearTimeout(progressFinishTimer.current);
-    };
-    const handleRequestEnd = (event: Event) => {
-      const requestId = (event as CustomEvent<{ requestId?: number }>).detail?.requestId;
-      if (typeof requestId !== 'number' || !pendingRequests.current.delete(requestId)) return;
-      if (pendingRequests.current.size === 0) finishNavigationProgress();
-    };
-    window.addEventListener('rahyar:request-start', handleRequestStart);
-    window.addEventListener('rahyar:request-end', handleRequestEnd);
-    return () => {
-      window.removeEventListener('rahyar:request-start', handleRequestStart);
-      window.removeEventListener('rahyar:request-end', handleRequestEnd);
-    };
-  }, [finishNavigationProgress]);
-
   useEffect(() => {
     const refreshOrganizationVisibility = () => { void loadOrganizationModuleVisibility(isReducedEdition); };
     refreshOrganizationVisibility();
@@ -379,8 +181,6 @@ export function AppShell({ children }: AppShellProps) {
       className="erp-app-shell flex h-screen min-h-0 flex-col overflow-hidden bg-[color:var(--background)] text-[color:var(--foreground)] transition-colors duration-200"
     >
       <TopHeader
-        loadingProgress={navigationProgress}
-        loadingProgressFading={navigationProgressFading}
         onSelectMissionMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }}
         activeMissionMode={workspaceMode}
         isCollapsed={isCollapsed}

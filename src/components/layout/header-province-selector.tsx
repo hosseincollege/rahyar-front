@@ -30,7 +30,9 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   const [access, setAccess] = useState<RahcomAccess | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
+  const [provinceSaveFailed, setProvinceSaveFailed] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const provinceRequest = useRef(0);
   const label = uiMessage(locale, 'rahcomProvince');
   const allProvincesLabel = uiMessage(locale, 'rahcomAllProvinces');
   const selectedProvinceName = offices.length === 0
@@ -109,14 +111,25 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
 
   async function selectProvince(value: string) {
     if (!access?.isAdmin) return;
-    if (access.memberId) {
-      try { await rahcomApi.setSelectedProvince(value); }
-      catch { return; }
-    }
+    if (value === province) { setOpen(false); return; }
+    const previousProvince = province;
+    const requestId = ++provinceRequest.current;
+    setProvinceSaveFailed(false);
     setProvince(value);
     setOpen(false);
     window.localStorage.setItem(storageKey(userId), value);
     window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: value } }));
+    if (!access.memberId) return;
+    try {
+      await rahcomApi.setSelectedProvince(value);
+    } catch {
+      if (requestId !== provinceRequest.current) return;
+      setProvince(previousProvince);
+      setProvinceSaveFailed(true);
+      setOpen(true);
+      window.localStorage.setItem(storageKey(userId), previousProvince);
+      window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: previousProvince } }));
+    }
   }
 
   if (!loaded) return null;
@@ -142,20 +155,22 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
           <option value="all">{uiMessage(locale, 'rahcomAllProvinces')}</option>
           {sortedOffices.map(({ id, name }, index) => <option key={id} value={id}>{numberFormat.format(index + 1)} ـ {name}</option>)}
         </select>
+        {provinceSaveFailed && <span role="alert" className="mt-1 block max-w-44 text-xs text-red-500">{uiMessage(locale, 'rahcomProvinceSaveFailed')}</span>}
       </label>
     );
   }
   return (
     <div ref={dropdownRef} dir={getLocaleDirection(locale)} className="pointer-events-auto relative shrink-0">
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-label={`${label}: ${selectedProvinceName}`} aria-haspopup="menu" aria-expanded={open} aria-controls="header-province-selector-menu" title={`${label}: ${selectedProvinceName}`} className={`flex h-9 max-w-44 items-center justify-center gap-2 rounded-xl border px-2 text-xs text-[var(--foreground)] transition-colors sm:max-w-52 sm:px-3 sm:text-sm ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
+      <button type="button" onClick={() => { if (!open) setProvinceSaveFailed(false); setOpen((value) => !value); }} aria-label={`${label}: ${selectedProvinceName}`} aria-haspopup="menu" aria-expanded={open} aria-controls="header-province-selector-menu" title={`${label}: ${selectedProvinceName}`} className={`flex h-9 max-w-44 items-center justify-center gap-2 rounded-xl border px-2 text-xs text-[var(--foreground)] transition-colors sm:max-w-52 sm:px-3 sm:text-sm ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
         <MapPinned size={17} aria-hidden="true" />
         <span className="truncate">{selectedProvinceName}</span>
       </button>
       {open && <div id="header-province-selector-menu" role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`absolute ${getLocaleDirection(locale) === 'rtl' ? 'end-0' : 'start-0'} top-full z-[110] mt-2 max-h-[min(65vh,24rem)] w-[min(11rem,calc(100vw-1rem))] space-y-0.5 overflow-y-auto rounded-xl border border-[var(--border)] p-1 shadow-xl`}>
-        <button type="button" role="menuitemradio" data-navigation-progress aria-checked={province === 'all'} onClick={() => selectProvince('all')} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-start text-sm transition-colors ${province === 'all' ? 'bg-[var(--primary-soft)] font-semibold text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)]'}`}>
+        {provinceSaveFailed && <p role="alert" className="px-2 py-1 text-xs text-red-500">{uiMessage(locale, 'rahcomProvinceSaveFailed')}</p>}
+        <button type="button" role="menuitemradio" aria-checked={province === 'all'} onClick={() => selectProvince('all')} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-start text-sm transition-colors ${province === 'all' ? 'bg-[var(--primary-soft)] font-semibold text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)]'}`}>
           <span className="min-w-0 truncate">{allProvincesLabel}</span>{province === 'all' && <Check size={16} className="shrink-0" aria-hidden="true" />}
         </button>
-        {sortedOffices.map(({ id, name }, index) => <button key={id} type="button" role="menuitemradio" data-navigation-progress aria-checked={province === id} onClick={() => selectProvince(id)} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-start text-sm transition-colors ${province === id ? 'bg-[var(--primary-soft)] font-semibold text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)]'}`}>
+        {sortedOffices.map(({ id, name }, index) => <button key={id} type="button" role="menuitemradio" aria-checked={province === id} onClick={() => selectProvince(id)} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-start text-sm transition-colors ${province === id ? 'bg-[var(--primary-soft)] font-semibold text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)]'}`}>
           <span className="flex min-w-0 flex-1 items-center gap-1"><span className="shrink-0 tabular-nums text-xs text-[var(--muted-foreground)]">{numberFormat.format(index + 1)} ـ</span><span className="truncate">{name}</span></span>{province === id && <Check size={16} className="shrink-0" aria-hidden="true" />}
         </button>)}
       </div>}

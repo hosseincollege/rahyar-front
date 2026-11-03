@@ -763,6 +763,7 @@ export type UiMessage =
   | "rahcomSystemData"
   | "rahcomDataUploadHint"
   | "rahcomProvince"
+  | "rahcomProvinceSaveFailed"
   | "rahcomProvinceAssignment"
   | "rahcomUnassignedProvince"
   | "rahcomSystemName"
