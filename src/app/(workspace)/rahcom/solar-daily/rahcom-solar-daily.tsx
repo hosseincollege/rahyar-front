@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Download, LoaderCircle, Map as MapIcon, MapPinned, Search, Save, X } from 'lucide-react';
+import { ClipboardList, Download, LoaderCircle, Map as MapIcon, MapPinned, Save } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
@@ -240,10 +240,7 @@ function axisTagStyle(value: string) {
 }
 
 function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = false, incidentSource, axisSource, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; incidentSource: 'traffic' | 'systems'; axisSource: 'traffic' | 'rahyar' | 'zones'; onRowCountChange?: (count: number) => void }) {
-  const [query, setQuery] = useState('');
-  const [queryFocused, setQueryFocused] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   useEffect(() => {
@@ -302,7 +299,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       if (isIncident && !showIncidents) return false;
       if (!isIncident) return solarSiteSet.has(site);
       return incidentSource === 'traffic' ? hasTrafficIncident : hasSystemIncident;
-    }).filter((site) => !query.trim() || `${site} ${systemsByCode.get(site)?.systemName ?? ''}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())).sort();
+    }).sort();
   useEffect(() => { onRowCountChange?.(sites.length); }, [onRowCountChange, sites.length]);
   const bySiteEquipment = new Map(validEntries.map((entry) => [`${entry.site.toUpperCase()}:${entry.equipment.toUpperCase()}`, entry.state]));
   const fixedEquipment = ['LTE', 'LTE-1', 'LTE-2', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2'];
@@ -362,11 +359,6 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   };
   const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<div className="inline-flex shrink-0 items-center gap-2 text-sm">
     <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button>
-    <label className={`inline-flex h-9 w-40 shrink-0 items-center gap-2 rounded-full border px-3 transition-colors ${queryFocused ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
-      <Search size={16} className="shrink-0 text-muted-foreground" />
-      <input ref={searchInputRef} aria-label={t('solarSearch')} placeholder={t('solarSearch')} value={query} onFocus={() => setQueryFocused(true)} onBlur={() => setQueryFocused(false)} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 appearance-none border-0 bg-transparent text-foreground shadow-none outline-none placeholder:text-muted-foreground focus:border-0 focus:shadow-none focus:outline-none focus-visible:border-0 focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0" />
-      {query && <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setQuery(''); searchInputRef.current?.focus(); }} aria-label={t('searchClear')} title={t('searchClear')} className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><X size={14} /></button>}
-    </label>
   </div>, toolbarTarget) : null;
   const columnCount = 8 + equipmentGroups.length + Number(showIncidents);
   let nextRowNumber = 0;

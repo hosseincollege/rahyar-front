@@ -849,6 +849,7 @@ export type UiMessage =
   | "rahcomLatitude"
   | "rahcomLongitude"
   | "rahcomElectricityBillId"
+  | "rahcomBillId"
   | "rahcomSimIp"
   | "rahcomRadarIp"
   | "rahcomCameraIp"

@@ -1,5 +1,4 @@
-import { isfahanAxes } from '@/provinces/isfahan';
-import { isfahanZones } from '@/provinces/isfahan-zones';
+import { isfahanAxes, isfahanZones } from '@/provinces/isfahan';
 
 const axisPalette = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#d97706', '#0891b2', '#db2777', '#475569', '#0f766e', '#be123c', '#7c3aed'];
 

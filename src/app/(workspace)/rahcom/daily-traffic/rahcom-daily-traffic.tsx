@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, ClipboardList, LoaderCircle, Search, Sun, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ClipboardList, LoaderCircle, Sun, TriangleAlert } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -26,7 +26,6 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, sola
   const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [trafficLoading, setTrafficLoading] = useState(true);
   const [trafficError, setTrafficError] = useState('');
-  const [trafficSearch, setTrafficSearch] = useState('');
   const [trafficPage, setTrafficPage] = useState(0);
   const [systemsByCode, setSystemsByCode] = useState<Record<string, RahcomSystem>>({});
   const [solarSnapshot, setSolarSnapshot] = useState<RahcomSolarSnapshot[]>([]);
@@ -206,9 +205,8 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, sola
         || (trafficFilters.includes('three-day-outage') && threeDayOutage)
         || (trafficFilters.includes('over-five-day-outage') && overFiveDayOutage);
     };
-    const query = trafficSearch.trim().toLocaleLowerCase(locale);
-    return provinceTrafficRows.filter((row) => matchesFilter(row) && (!query || row.join(' ').toLocaleLowerCase(locale).includes(query)));
-  }, [locale, noTrafficIndex, outageDurationIndex, overFiveDayOutageIndexes, provinceForView, provinceTrafficRows, showIncidents, solarStateByCode, systemsByCode, threeDayOutageIndexes, trafficCodeIndex, trafficFilters, trafficIncidentIndexes, trafficProvinceIndex, trafficSearch, trafficSolarIndex]);
+    return provinceTrafficRows.filter(matchesFilter);
+  }, [locale, noTrafficIndex, outageDurationIndex, overFiveDayOutageIndexes, provinceForView, provinceTrafficRows, showIncidents, solarStateByCode, systemsByCode, threeDayOutageIndexes, trafficCodeIndex, trafficFilters, trafficIncidentIndexes, trafficProvinceIndex, trafficSolarIndex]);
   const trafficPageCount = Math.max(1, Math.ceil(filteredTrafficRows.length / pageSize));
   const visibleTrafficRows = filteredTrafficRows.slice(Math.min(trafficPage, trafficPageCount - 1) * pageSize, (Math.min(trafficPage, trafficPageCount - 1) + 1) * pageSize);
   const filteredSystemCount = useMemo(() => new Set(filteredTrafficRows.flatMap((row) => {
@@ -244,7 +242,6 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = false, sola
         <RahcomCountCapsule count={filteredSystemCount} />
         <RahcomTrafficUpload />
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => onShowIncidentsChange?.(!showIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
-        <label className="relative block min-w-40 max-w-sm flex-1"><Search size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input value={trafficSearch} onChange={(event) => { setTrafficSearch(event.target.value); setTrafficPage(0); }} placeholder={t('rahcomTrafficSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-3 text-sm text-foreground" /></label>
         <div className="flex flex-wrap items-center gap-1.5">
           {([
             ['solar-down', Sun, t('rahcomTrafficSolarDown')],
