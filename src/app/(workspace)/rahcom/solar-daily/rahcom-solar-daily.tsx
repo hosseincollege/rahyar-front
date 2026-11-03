@@ -187,8 +187,9 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
   const axisCodeIndex = systemCodeIndex + 2;
   const axisNameIndex = systemCodeIndex + 3;
   const equipmentStartIndex = axisNameIndex + 1;
-  const equipmentEndIndex = range.e.c - 2;
-  const outageIndex = range.e.c - 2;
+  const equipmentEndIndex = range.e.c - 3;
+  const outageIndex = range.e.c - 3;
+  const crmIndex = range.e.c - 2;
   const solarStatusIndex = range.e.c - 1;
   const historyIndex = range.e.c;
   const columnWidths = Array.from({ length: range.e.c + 1 }, (_, columnIndex) => {
@@ -208,7 +209,8 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
                 : columnIndex >= equipmentStartIndex && columnIndex < equipmentEndIndex
                   ? columnIndex === lteColumnIndex ? [16, 22] : [10, 15]
                   : columnIndex === outageIndex ? [8, 11]
-                    : columnIndex === solarStatusIndex ? [10, 14]
+                    : columnIndex === crmIndex ? [14, 18]
+                      : columnIndex === solarStatusIndex ? [10, 14]
                       : columnIndex === historyIndex ? [44, 68] : [9, 14];
     const [minimum, maximum] = width;
     const naturalWidth = Math.ceil(longestValue * 1.15 + 2);
@@ -231,14 +233,6 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
     }
     return { hpt: Math.min(110, Math.max(hasStatusDot ? 22 : 18, estimatedLines * 14 + 4)) };
   });
-}
-
-function axisTagStyle(value: string) {
-  let hash = 0;
-  for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) | 0;
-  const hue = (hash >>> 0) % 360;
-  const color = `hsl(${hue} 68% 46%)`;
-  return { color, borderColor: `color-mix(in srgb, ${color} 38%, transparent)`, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` };
 }
 
 function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, axisSource, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; axisSource: 'traffic' | 'rahyar' | 'zones'; onRowCountChange?: (count: number) => void }) {
@@ -266,6 +260,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     return normalized.includes('\u0633\u0631\u0642\u062a') || normalized.includes('\u062a\u062e\u0631\u06cc\u0628') || normalized.includes('\u062a\u0639\u0631\u06cc\u0636') || normalized.includes('\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc') || normalized.includes('theft') || normalized.includes('damage') || normalized.includes('widening') || normalized.includes('relocation') ? [index] : [];
   }), [headers]);
   const outageIndex = findHeader((header) => header.includes('\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('\u062a\u0639\u062f\u0627\u062f\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('outagedays'));
+  const trafficCrmIndex = findHeader((header) => header.includes('crm') && (header.includes(normalize('\u062a\u0631\u062f\u062f')) || header.includes('traffic')) && (header.includes(normalize('\u0644\u062d\u0638\u0647\u200c\u0627\u06cc')) || header.includes('realtime')));
   const solarIndex = findHeader((header) => header.includes('\u0633\u0648\u0644\u0627\u0631') || header.includes('solar'));
   const provinceName = iranProvinces.find(([id]) => id === provinceForTable)?.[1] ?? provinceForTable;
   const normalizeProvince = (value: string) => normalize(value).replace(/^Ø§Ø³ØªØ§Ù†/, '');
@@ -358,13 +353,13 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<div className="inline-flex shrink-0 items-center gap-2 text-sm">
     <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button>
   </div>, toolbarTarget) : null;
-  const columnCount = 8 + equipmentGroups.length + Number(showIncidents);
+  const columnCount = 9 + equipmentGroups.length + Number(showIncidents);
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
   return <div className="space-y-3">{toolbarControls}<div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
     <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : axisSource === 'zones' ? 'rahcomZoneAxisColumn' : 'rahcomOperationalAxisColumn')}</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
-    <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
+    <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
       const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
@@ -382,10 +377,11 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         {showIncidents && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{incidentText || '\u2014'}</td>}
         <td className="p-2 font-mono" dir="ltr">{site}</td>
         <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
-        <td className="p-2 font-mono" dir="ltr">{axisCode ? <span className="inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisCode}</span> : '—'}</td>
-        <td className="p-2">{axisName ? <span className="inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold" style={axisTagStyle(axisCode || axisName)}>{axisName}</span> : '—'}</td>
+        <td className="p-2 font-mono" dir="ltr">{axisCode || '—'}</td>
+        <td className="p-2">{axisName || '—'}</td>
         {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-2 text-center">{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className="inline-flex items-center gap-1.5" dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
         <td className="p-2 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
+        <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
         <td className="w-32 max-w-32 whitespace-nowrap p-2 text-center align-middle">{solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '—' : '—'}</td>
         <td className="whitespace-nowrap p-2 text-xs"><time className="me-2 inline text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{historyChanges.length === 0 ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <span className="inline-flex flex-nowrap items-center gap-3">{historyChanges.map(({ equipment, from, to }) => <span key={equipment} className="shrink-0" dir="auto"><bdi dir="ltr">{equipment}</bdi>: {from ? statusText(from) + ' → ' : ''}{statusText(to)}</span>)}</span>}</td>
       </tr>;

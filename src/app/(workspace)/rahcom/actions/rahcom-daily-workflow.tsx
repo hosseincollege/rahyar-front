@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Clipboard, FileSpreadsheet, LoaderCircle, Save, Sparkles } from 'lucide-react';
+import { Check, Clipboard, FileSpreadsheet, LoaderCircle, Save, Search, Sparkles, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
@@ -19,6 +19,8 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const records = useMemo(() => Object.fromEntries(workflowTypes.map(type => [type, items.find(item => item.activityType === type && item.provinceSnapshot === province) ?? null])) as Record<typeof workflowTypes[number], RahcomActivity | null>, [items, province]);
   const [codes, setCodes] = useState('');
+  const [systemQuery, setSystemQuery] = useState('');
+  const [prepared, setPrepared] = useState(false);
   const [plan, setPlan] = useState('');
   const [report, setReport] = useState('');
   const [note, setNote] = useState('');
@@ -29,6 +31,7 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
   const [error, setError] = useState('');
   useEffect(() => {
     setCodes(records.SYSTEM_CODES?.description ?? '');
+    setPrepared(Boolean(records.SYSTEM_CODES?.description));
     setPlan(records.VISIT_PLAN?.description ?? '');
     setReport(records.COMPLETION_REPORT?.description ?? '');
     setNote(records.DAILY_NOTE?.description ?? '');
@@ -39,6 +42,11 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
 
   const codeList = useMemo(() => [...new Set(codes.split(/[\s,،;؛]+/).map(code => code.trim()).filter(Boolean))], [codes]);
   const selectedSystems = useMemo(() => codeList.map(systemCode => systems.find(system => system.systemCode.toLocaleLowerCase() === systemCode.toLocaleLowerCase())).filter((system): system is RahcomSystem => Boolean(system)), [codeList, systems]);
+  const searchResults = useMemo(() => {
+    const query = systemQuery.trim().toLocaleLowerCase(locale);
+    if (!query) return [];
+    return systems.filter(system => !codeList.some(code => code.toLocaleLowerCase() === system.systemCode.toLocaleLowerCase()) && `${system.systemCode} ${system.systemName}`.toLocaleLowerCase(locale).includes(query)).slice(0, 8);
+  }, [systems, systemQuery, codeList, locale]);
   const missingCodes = codeList.filter(code => !systems.some(system => system.systemCode.toLocaleLowerCase() === code.toLocaleLowerCase()));
   const jalaliDate = date ? formatJalaliDate(date) : '';
   const provinceName = iranProvinces.find(([id]) => id === province)?.[1] ?? province;
@@ -60,11 +68,23 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
   }
   function generatePlan() {
     const entries = codeList.map((code, index) => (index + 1) + '. سامانه ' + code + systemDescription(code) + ':\nشرح برنامه مراجعه را وارد کنید.');
-    setPlan('استان: ' + provinceName + '\nتاریخ: ' + jalaliDate + '\nبرنامه مراجعه\n\n' + entries.join('\n\n'));
+    return 'استان: ' + provinceName + '\nتاریخ: ' + jalaliDate + '\nبرنامه مراجعه\n\n' + entries.join('\n\n');
   }
   function generateReport() {
     const entries = codeList.map((code, index) => (index + 1) + '. سامانه ' + code + systemDescription(code) + ':\nشرح اقدام و نتیجه را وارد کنید.');
-    setReport('استان: ' + provinceName + '\nتاریخ: ' + jalaliDate + '\nگزارش تکمیلی پایان کار\n\nمراجعه موفق تعداد: [تعداد] مورد\n\n' + entries.join('\n\n') + '\n\nسایر اقدامات:\n[در صورت وجود وارد کنید]');
+    return 'استان: ' + provinceName + '\nتاریخ: ' + jalaliDate + '\nگزارش تکمیلی پایان کار\n\nمراجعه موفق تعداد: [تعداد] مورد\n\n' + entries.join('\n\n') + '\n\nسایر اقدامات:\n[در صورت وجود وارد کنید]';
+  }
+  async function saveCodesAndPrepare() {
+    if (!date || !province || codeList.length === 0) return;
+    const nextPlan = generatePlan();
+    const nextReport = generateReport();
+    setSaving('codes'); setError('');
+    try {
+      await rahcomApi.saveDailyWorkflow({ date, province, systemCodes: codeList.join('\n'), visitPlan: nextPlan, completionReport: nextReport, dailyNote: note, excelUpdated: excelDone, excelFileName: excelName });
+      setPlan(nextPlan); setReport(nextReport); setPrepared(true);
+      await onSaved();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save daily workflow.'); }
+    finally { setSaving(''); }
   }
   async function copyText(kind: 'plan' | 'report', text: string) {
     if (!text.trim()) return;
@@ -86,23 +106,35 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
     XLSX.writeFile(workbook, filename);
   }
 
-  return <section className="mb-5 space-y-3" aria-label={t('rahcomDailyWorkflow')}>
-    <h3 className="font-bold">{t('rahcomDailyWorkflow')}</h3>
+  return <section className="mb-5 space-y-3" aria-label={t('rahcomWorkflowRegisterCodes')}>
+    <h3 className="font-bold">{t('rahcomWorkflowRegisterCodes')}</h3>
     <div className="grid gap-3 lg:grid-cols-2">
       <div className={card}>
         <div className={title}><span>{t('rahcomWorkflowCodes')}</span><span className="text-xs text-muted-foreground">{records.SYSTEM_CODES ? t('rahcomWorkflowSaved') : t('rahcomWorkflowPending')}</span></div>
-        <textarea maxLength={10000} value={codes} onChange={e => setCodes(e.target.value)} placeholder={t('rahcomWorkflowCodesPlaceholder')} className="min-h-24 w-full resize-y rounded-lg border border-border bg-card p-3 text-sm text-foreground" dir="auto"/>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button type="button" disabled={!date || saving !== ''} onClick={() => void save('codes')} className={button}>{saving === 'codes' ? <LoaderCircle size={15} className="animate-spin"/> : <Save size={15}/>} {t('rahcomSave')}</button>
+        <div className="relative">
+          <div className="flex h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 focus-within:border-primary">
+            <Search size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+            <input value={systemQuery} onChange={event => setSystemQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && searchResults[0]) { event.preventDefault(); setCodes([...codeList, searchResults[0].systemCode].join('\n')); setSystemQuery(''); } }} placeholder={t('rahcomWorkflowSearchSystems')} className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" dir="auto" role="combobox" aria-expanded={searchResults.length > 0} aria-autocomplete="list" />
+          </div>
+          {searchResults.length > 0 && <div role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-xl border border-border bg-card p-1 shadow-xl">
+            {searchResults.map(system => <button key={system.id} type="button" role="option" aria-selected="false" onClick={() => { setCodes([...codeList, system.systemCode].join('\n')); setSystemQuery(''); }} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-start text-sm text-foreground hover:bg-primary/10">
+              <span className="min-w-0 truncate">{system.systemName}</span><bdi dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</bdi>
+            </button>)}
+          </div>}
+        </div>
+        {codeList.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{codeList.map(code => <button key={code} type="button" onClick={() => setCodes(codeList.filter(item => item !== code).join('\n'))} className="inline-flex h-8 items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 text-xs text-primary" aria-label={`${code} ×`}><bdi dir="ltr" className="font-mono">{code}</bdi><X size={13} aria-hidden="true" /></button>)}</div>}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" disabled={!date || saving !== '' || codeList.length === 0} onClick={() => void saveCodesAndPrepare()} className={button}>{saving === 'codes' ? <LoaderCircle size={15} className="animate-spin"/> : <Save size={15}/>} {t('rahcomSave')}</button>
           <span className="text-xs text-muted-foreground">{selectedSystems.length} / {codeList.length} سامانه</span>
           {missingCodes.length > 0 && <span className="text-xs text-amber-500">کدهای پیدا نشده: {missingCodes.join('، ')}</span>}
         </div>
       </div>
+      {prepared && <>
       <div className={card}>
         <div className={title}><span>{t('rahcomWorkflowPlan')}</span><span className="text-xs text-muted-foreground">{records.VISIT_PLAN ? t('rahcomWorkflowSaved') : t('rahcomWorkflowPending')}</span></div>
         <textarea maxLength={10000} value={plan} onChange={e => setPlan(e.target.value)} placeholder={t('rahcomWorkflowPlanPlaceholder')} className="min-h-32 w-full resize-y rounded-lg border border-border bg-card p-3 text-sm text-foreground" dir="auto"/>
         <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" disabled={!codeList.length} onClick={generatePlan} className={button}><Sparkles size={15}/>{t('rahcomWorkflowGeneratePlan')}</button>
+          <button type="button" disabled={!codeList.length} onClick={() => setPlan(generatePlan())} className={button}><Sparkles size={15}/>{t('rahcomWorkflowGeneratePlan')}</button>
           <button type="button" disabled={!plan.trim()} onClick={() => void copyText('plan', plan)} className={button}>{copied === 'plan' ? <Check size={15}/> : <Clipboard size={15}/ >}{copied === 'plan' ? t('rahcomWorkflowCopied') : t('rahcomWorkflowCopy')}</button>
           <button type="button" disabled={!date || saving !== ''} onClick={() => void save('plan')} className={button}>{saving === 'plan' ? <LoaderCircle size={15} className="animate-spin"/> : <Save size={15}/ >}{t('rahcomSave')}</button>
         </div>
@@ -111,7 +143,7 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
         <div className={title}><span>{t('rahcomWorkflowReport')}</span><span className="text-xs text-muted-foreground">{records.COMPLETION_REPORT ? t('rahcomWorkflowSaved') : t('rahcomWorkflowPending')}</span></div>
         <textarea maxLength={10000} value={report} onChange={e => setReport(e.target.value)} placeholder={t('rahcomWorkflowReportPlaceholder')} className="min-h-32 w-full resize-y rounded-lg border border-border bg-card p-3 text-sm text-foreground" dir="auto"/>
         <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" disabled={!codeList.length} onClick={generateReport} className={button}><Sparkles size={15}/>{t('rahcomWorkflowGenerateReport')}</button>
+          <button type="button" disabled={!codeList.length} onClick={() => setReport(generateReport())} className={button}><Sparkles size={15}/>{t('rahcomWorkflowGenerateReport')}</button>
           <button type="button" disabled={!report.trim()} onClick={() => void copyText('report', report)} className={button}>{copied === 'report' ? <Check size={15}/> : <Clipboard size={15}/ >}{copied === 'report' ? t('rahcomWorkflowCopied') : t('rahcomWorkflowCopy')}</button>
           <button type="button" disabled={!date || saving !== ''} onClick={() => void save('report')} className={button}>{saving === 'report' ? <LoaderCircle size={15} className="animate-spin"/> : <Save size={15}/ >}{t('rahcomSave')}</button>
         </div>
@@ -130,6 +162,7 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
           <button type="button" disabled={!date || saving !== ''} onClick={() => { const next = !excelDone; setExcelDone(next); void save('excel', next); }} className={button}>{saving === 'excel' ? <LoaderCircle size={15} className="animate-spin"/> : excelDone ? <Check size={15}/> : <FileSpreadsheet size={15}/ >}{excelDone ? t('rahcomWorkflowMarkExcelPending') : t('rahcomWorkflowMarkExcelDone')}</button>
         </div>
       </div>
+      </>}
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </section>;

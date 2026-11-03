@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, CircleOff, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { CircleOff, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -13,7 +13,6 @@ import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-rec
 import { RahcomCountCapsule } from '@/app/(workspace)/rahcom/_shared/rahcom-count-capsule';
 import { RahcomTrafficUpload } from '@/app/(workspace)/rahcom/daily-traffic/rahcom-traffic-upload';
 import { isRahcomIncidentValue, latestRahcomSolarSnapshotsByProvince, rahcomProvinceFromLabel, rahcomSystemKey, parseRahcomSolarList, tehranDateKey } from '@/lib/api/rahcom/solar-status';
-const pageSize = 50;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) >= 0x06f0 ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660)).replace(/[\u200c\s]/g, '');
 const isMarked = (value: string) => {
   const normalized = normalizeHeader(value);
@@ -26,7 +25,6 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
   const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [trafficLoading, setTrafficLoading] = useState(true);
   const [trafficError, setTrafficError] = useState('');
-  const [trafficPage, setTrafficPage] = useState(0);
   const [systemsByCode, setSystemsByCode] = useState<Record<string, RahcomSystem>>({});
   const [solarSnapshot, setSolarSnapshot] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedProvince, setSelectedProvince] = useState('isfahan');
@@ -94,6 +92,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
   const trafficAxisNameIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('\u0646\u0627\u0645\u0645\u062d\u0648\u0631') || header.includes('axisname'));
   const trafficCrmIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('crm') && (header.includes(normalizeHeader('\u062a\u0631\u062f\u062f')) || header.includes('traffic')) && (header.includes(normalizeHeader('\u0644\u062d\u0638\u0647\u0627\u06cc')) || header.includes('realtime') || header.includes('real-time')));
   const trafficSolarColumnIndex = normalizedTrafficHeaders.findIndex((header) => header.includes('\u0633\u0648\u0644\u0627\u0631') || header.includes('solar') || header.includes(normalizeHeader('\u0648\u0636\u0639\u06cc\u062a \u0644\u06cc\u0633\u062a \u062a\u0631\u062f\u062f')) || header.includes('trafficliststatus'));
+  const trafficTicketIssueIndex = normalizedTrafficHeaders.findIndex((header) => header.includes(normalizeHeader('\u0645\u0634\u06a9\u0644 \u062a\u06cc\u06a9\u062a')) || header.includes('ticketproblem') || header.includes('ticketissue'));
   const orderedTrafficColumnIndexes = useMemo(() => {
     const prioritized = [trafficCodeIndex, trafficSystemNameIndex, outageDurationIndex, trafficAxisCodeIndex, trafficAxisNameIndex].filter((index) => index >= 0 && index !== trafficSolarColumnIndex);
     const prioritizedSet = new Set(prioritized);
@@ -109,13 +108,23 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
     return header.includes(normalizeHeader('\u0633\u0631\u0642\u062a')) || header.includes(normalizeHeader('\u062a\u062e\u0631\u06cc\u0628')) || header.includes('theft') || header.includes('damage');
   });
   const trafficDisplayColumns = useMemo<Array<number | 'solarStatus'>>(() => {
-    const columns: Array<number | 'solarStatus'> = [trafficCrmIndex, trafficSolarColumnIndex].filter((index, position, indexes) => index >= 0 && indexes.indexOf(index) === position);
-    const movedIndexes = new Set([...trafficDisplayIncidentIndexes, latestDataIndex, trafficCrmIndex]);
+    const columns: Array<number | 'solarStatus'> = [trafficCrmIndex].filter((index) => index >= 0);
+    const movedIndexes = new Set([...trafficDisplayIncidentIndexes, latestDataIndex, trafficCrmIndex, trafficSolarColumnIndex]);
     let solarStatusAdded = false;
+    let importedSolarStatusAdded = false;
     let incidentColumnsAdded = false;
+    const addImportedSolarStatus = () => {
+      if (importedSolarStatusAdded || trafficSolarColumnIndex < 0) return;
+      columns.push(trafficSolarColumnIndex);
+      importedSolarStatusAdded = true;
+    };
     const addIncidentColumns = () => {
       if (incidentColumnsAdded) return;
-      for (const index of trafficDisplayIncidentIndexes) if (index !== trafficProvinceIndex && index !== trafficSolarColumnIndex) columns.push(index);
+      for (const index of trafficDisplayIncidentIndexes) {
+        if (index === trafficProvinceIndex || index === trafficSolarColumnIndex) continue;
+        columns.push(index);
+        if (index === trafficTicketIssueIndex) addImportedSolarStatus();
+      }
       incidentColumnsAdded = true;
     };
     const addSolarStatus = () => {
@@ -135,11 +144,13 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
       }
       if (index === trafficSolarColumnIndex || movedIndexes.has(index)) continue;
       columns.push(index);
+      if (index === trafficTicketIssueIndex) addImportedSolarStatus();
     }
     if (!solarStatusAdded) addSolarStatus();
     if (!incidentColumnsAdded) addIncidentColumns();
+    if (!importedSolarStatusAdded) addImportedSolarStatus();
     return columns;
-  }, [orderedTrafficColumnIndexes, trafficDisplayIncidentIndexes, trafficProvinceIndex, trafficAxisCodeIndex, trafficCrmIndex, trafficSolarColumnIndex, trafficSystemNameIndex, latestDataIndex]);
+  }, [orderedTrafficColumnIndexes, trafficDisplayIncidentIndexes, trafficProvinceIndex, trafficAxisCodeIndex, trafficCrmIndex, trafficSolarColumnIndex, trafficSystemNameIndex, trafficTicketIssueIndex, latestDataIndex]);
   const provinceForView = provinceFilter ?? selectedProvince;
   const selectedProvinceName = iranProvinces.find(([id]) => id === provinceForView)?.[1] ?? provinceForView;
   const provinceTrafficRows = useMemo(() => {
@@ -204,8 +215,6 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
     };
     return provinceTrafficRows.filter(matchesFilter);
   }, [locale, outageDurationIndex, overFiveDayOutageIndexes, provinceForView, provinceTrafficRows, showIncidents, solarStateByCode, systemsByCode, threeDayOutageIndexes, trafficCodeIndex, trafficCrmIndex, trafficFilters, trafficIncidentIndexes, trafficProvinceIndex, trafficSolarIndex]);
-  const trafficPageCount = Math.max(1, Math.ceil(filteredTrafficRows.length / pageSize));
-  const visibleTrafficRows = filteredTrafficRows.slice(Math.min(trafficPage, trafficPageCount - 1) * pageSize, (Math.min(trafficPage, trafficPageCount - 1) + 1) * pageSize);
   const filteredSystemCount = useMemo(() => new Set(filteredTrafficRows.flatMap((row) => {
     const code = (row[trafficCodeIndex] ?? '').trim().toUpperCase();
     if (!code) return [];
@@ -227,7 +236,6 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
     })}</span>;
   };
   const toggleTrafficFilter = () => {
-    setTrafficPage(0);
     setTrafficFilters((current) => current.includes('no-traffic') ? [] : ['no-traffic']);
   };
 
@@ -238,7 +246,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
         {solarSnapshotPicker}
         <RahcomCountCapsule count={filteredSystemCount} />
         <RahcomTrafficUpload />
-        <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentBoth')} title={t('rahcomIncidentBoth')} onClick={() => onShowIncidentsChange?.(!showIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
+        <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => onShowIncidentsChange?.(!showIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
         <div className="flex flex-wrap items-center gap-1.5">
           <button type="button" aria-pressed={trafficFilters.includes('no-traffic')} aria-label={t('rahcomTrafficNoRealtimeTraffic')} title={t('rahcomTrafficNoRealtimeTraffic')} onClick={toggleTrafficFilter} style={trafficFilters.includes('no-traffic') ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${trafficFilters.includes('no-traffic') ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><CircleOff size={16} /></button>
         </div>
@@ -246,8 +254,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
 
       {trafficLoading ? <div className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin" />{t('rahcomSystemsLoading')}</div> : trafficSnapshot ? <section className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={t('rahcomDailyTraffic')} fileName={trafficSnapshot.fileName} recordDate={trafficSnapshot.snapshotDate.slice(0, 10)} count={trafficSnapshot.rowCount} savedAt={trafficSnapshot.createdAt} /></div>
-          <div className="max-h-[68vh] overflow-auto"><table className="min-w-max text-xs"><thead className="sticky top-0 z-10 bg-muted"><tr><th scope="col" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomRowNumber')}</th>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <th key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomSystemSolar')}</th> : <th key={column} className="max-w-64 whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{column === trafficSolarColumnIndex ? t('rahcomTrafficImportedStatus') : trafficSnapshot.headers[column]}</th>)}</tr></thead><tbody>{visibleTrafficRows.length === 0 ? <tr><td colSpan={trafficDisplayColumns.length + 1} className="p-4 text-center text-muted-foreground">{t('rahcomTrafficNoMatches')}</td></tr> : visibleTrafficRows.map((row, rowIndex) => <tr key={rowIndex} className="border-t border-border hover:bg-accent/30"><td className="whitespace-nowrap px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(Math.min(trafficPage, trafficPageCount - 1) * pageSize + rowIndex + 1)}</td>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <td key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-medium text-foreground">{statusForTrafficRow(row)}</td> : <td key={column} className="max-w-64 truncate whitespace-nowrap px-3 py-2 text-center text-foreground">{row[column] || '—'}</td>)}</tr>)}</tbody></table></div>
-          <div className="flex items-center justify-between gap-2 border-t border-border p-3 text-xs text-muted-foreground"><span>{filteredTrafficRows.length.toLocaleString(locale)} {t('rahcomTrafficRows')}</span><div className="flex items-center gap-2"><button type="button" disabled={trafficPage <= 0} onClick={() => setTrafficPage((current) => Math.max(0, current - 1))} className="rounded-lg border border-border p-2 disabled:opacity-40" aria-label={t('rahcomPreviousPage')}><ChevronRight size={16} /></button><span>{new Intl.NumberFormat(locale).format(Math.min(trafficPage, trafficPageCount - 1) + 1)} / {new Intl.NumberFormat(locale).format(trafficPageCount)}</span><button type="button" disabled={trafficPage + 1 >= trafficPageCount} onClick={() => setTrafficPage((current) => Math.min(trafficPageCount - 1, current + 1))} className="rounded-lg border border-border p-2 disabled:opacity-40" aria-label={t('rahcomNextPage')}><ChevronLeft size={16} /></button></div></div>
+          <div className="max-h-[68vh] overflow-auto"><table className="w-full min-w-max text-xs"><thead className="sticky top-0 z-10 bg-muted"><tr><th scope="col" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomRowNumber')}</th>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <th key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomSystemSolar')}</th> : <th key={column} className="max-w-64 whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{column === trafficSolarColumnIndex ? t('rahcomTrafficImportedStatus') : trafficSnapshot.headers[column]}</th>)}</tr></thead><tbody>{filteredTrafficRows.length === 0 ? <tr><td colSpan={trafficDisplayColumns.length + 1} className="p-4 text-center text-muted-foreground">{t('rahcomTrafficNoMatches')}</td></tr> : filteredTrafficRows.map((row, rowIndex) => <tr key={rowIndex} className="border-t border-border hover:bg-accent/30"><td className="whitespace-nowrap px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <td key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-medium text-foreground">{statusForTrafficRow(row)}</td> : <td key={column} className="max-w-64 truncate whitespace-nowrap px-3 py-2 text-center text-foreground">{row[column] || '—'}</td>)}</tr>)}</tbody></table></div>
         </section> : !trafficError ? <p className="rounded-xl border border-dashed border-border bg-card p-5 text-center text-sm text-muted-foreground">{t('rahcomTrafficNoList')}</p> : <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{trafficError}</p>}
     </section>
   );

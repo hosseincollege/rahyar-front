@@ -37,6 +37,13 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
+function hasRegisteredMapLocation(system: Pick<RahcomSystem, 'latitude' | 'longitude'>) {
+  return Number.isFinite(system.latitude) && Number.isFinite(system.longitude)
+    && system.latitude >= -90 && system.latitude <= 90
+    && system.longitude >= -180 && system.longitude <= 180
+    && !(system.latitude === 0 && system.longitude === 0);
+}
+
 const popupIcons = {
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>',
@@ -92,7 +99,10 @@ function getStoredProvince() {
   return window.localStorage.getItem(`rahyar-selected-province:${userId || 'current'}`) || 'isfahan';
 }
 
-export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilterActive = false, mapFilterSource = 'solar', selectedSolarSnapshotId = '', showMapIncidents = true, axisSource = 'traffic', onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onIncidentCountChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
+export type UnmappedSolarDetail = { code: string; reason: 'unregistered' | 'no-coordinates' };
+export type IncidentMapSummary = { totalCodes: number; mappedCodes: number; details: UnmappedSolarDetail[] };
+
+export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilterActive = false, mapFilterSource = 'solar', selectedSolarSnapshotId = '', showMapIncidents = true, axisSource = 'traffic', onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentCountChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
   focusProvince: boolean;
   canManage?: boolean;
   mapSourceFilterActive?: boolean;
@@ -104,7 +114,9 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   onAxisOptionsChange?: (axes: string[]) => void;
   onSystemsCountChange?: (count: number) => void;
   onUnmappedSolarCountChange?: (count: number) => void;
+  onUnmappedSolarDetailsChange?: (details: UnmappedSolarDetail[]) => void;
   onIncidentCountChange?: (count: number) => void;
+  onIncidentMapSummaryChange?: (summary: IncidentMapSummary) => void;
   onSystemsErrorChange?: (error: string) => void;
   onLocationStatusChange?: (status: { locating: boolean; error: boolean }) => void;
   onSolarSnapshotsChange?: (snapshots: RahcomSolarSnapshot[] | null) => void;
@@ -194,13 +206,54 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   const axisOptions = useMemo(() => [...new Set(activeAxisBySystem.values())].sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })), [activeAxisBySystem]);
   const todaySolarSnapshot = useMemo(() => latestRahcomSolarSnapshotForToday(solarSnapshots, date || todayDateKey), [solarSnapshots, date, todayDateKey]);
   const selectedSolarSnapshot = solarSnapshots.find((snapshot) => snapshot.id === selectedSolarSnapshotId && tehranDateKey(snapshot.capturedAt) === (date || todayDateKey)) ?? todaySolarSnapshot;
+  const failedSolarCodes = useMemo(() => selectedSolarSnapshot ? failedRahcomSystemCodes(selectedSolarSnapshot) : new Set<string>(), [selectedSolarSnapshot]);
   const solarStatusCodes = useMemo(() => selectedSolarSnapshot
     ? failedRahcomSystemKeys([selectedSolarSnapshot], systems, tehranDateKey(selectedSolarSnapshot.capturedAt), province)
     : new Set<string>(), [selectedSolarSnapshot, systems, province]);
-  const unmappedSolarCount = useMemo(() => {
-    if (!mapSourceFilterActive || mapFilterSource !== 'solar' || !selectedSolarSnapshot) return 0;
-    return Math.max(0, failedRahcomSystemCodes(selectedSolarSnapshot).size - solarStatusCodes.size);
-  }, [mapSourceFilterActive, mapFilterSource, selectedSolarSnapshot, solarStatusCodes]);
+  const incidentSolarCodes = useMemo(() => {
+    const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\u200c_./-]/g, '');
+    const headers = trafficSnapshot?.headers ?? [];
+    const codeIndex = headers.findIndex((value) => { const key = normalize(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
+    const incidentIndexes = headers.flatMap((value, index) => { const key = normalize(value); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', '\u062a\u0639\u0631\u06cc\u0636', '\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc', 'theft', 'damage', 'widening', 'relocation'].some((term) => key.includes(normalize(term))) ? [index] : []; });
+    if (codeIndex < 0 || incidentIndexes.length === 0) return new Set<string>();
+    const provinceIndex = headers.findIndex((value) => /province|\u0627\u0633\u062a\u0627\u0646/i.test(value));
+    const codes = new Set<string>();
+    for (const row of trafficSnapshot?.rows ?? []) {
+      if (!incidentIndexes.some((index) => isRahcomIncidentValue(row[index]))) continue;
+      const code = (row[codeIndex] ?? '').normalize('NFKC').trim().toUpperCase();
+      if (!code) continue;
+      const rawProvince = provinceIndex >= 0 ? row[provinceIndex]?.trim() : '';
+      const rowProvince = rawProvince ? rahcomProvinceFromLabel(rawProvince) : null;
+      if (rawProvince && !rowProvince) continue;
+      if (rowProvince && province !== 'all' && rowProvince !== province) continue;
+      const matchProvince = rowProvince || (province !== 'all' ? province : '');
+      const matches = systems.filter((system) => system.systemCode.normalize('NFKC').trim().toUpperCase() === code && (!matchProvince || system.province === matchProvince));
+      // The traffic snapshot is province-scoped. Retain an unmatched code only when it
+      // also exists in the selected Solar snapshot so the incident toggle can hide it.
+      if (matches.length || failedSolarCodes.has(code)) codes.add(code);
+    }
+    return codes;
+  }, [trafficSnapshot, systems, province, failedSolarCodes]);
+  const solarCandidateCodes = useMemo(() => {
+    const codes = new Set(failedSolarCodes);
+    if (showMapIncidents) incidentSolarCodes.forEach((code) => codes.add(code));
+    else incidentSolarCodes.forEach((code) => codes.delete(code));
+    return codes;
+  }, [failedSolarCodes, incidentSolarCodes, showMapIncidents]);
+  const unmappedSolarDetails = useMemo<UnmappedSolarDetail[]>(() => {
+    if (!mapSourceFilterActive || mapFilterSource !== 'solar' || !selectedSolarSnapshot) return [];
+    const snapshotProvince = selectedSolarSnapshot.province || province;
+    const normalizeCode = (value: string) => value.normalize('NFKC').trim().toUpperCase();
+    const details: UnmappedSolarDetail[] = [];
+    for (const code of solarCandidateCodes) {
+      const matches = systems.filter((system) => normalizeCode(system.systemCode) === code
+        && (snapshotProvince === 'all' || system.province === snapshotProvince));
+      if (!matches.length) details.push({ code, reason: 'unregistered' });
+      else if (!matches.some(hasRegisteredMapLocation)) details.push({ code, reason: 'no-coordinates' });
+    }
+    return details.sort((a, b) => a.code.localeCompare(b.code, 'en', { numeric: true }));
+  }, [mapSourceFilterActive, mapFilterSource, selectedSolarSnapshot, province, systems, solarCandidateCodes]);
+  const unmappedSolarCount = unmappedSolarDetails.length;
   const incidentCodes = useMemo(() => {
     const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\u200c_./-]/g, '');
     const headers = trafficSnapshot?.headers ?? [];
@@ -222,19 +275,51 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
     }
     return keys;
   }, [trafficSnapshot, systems, province]);
-  const trafficDownCodes = useMemo(() => {
-    const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\u200c_./-]/g, '');
+  const incidentMapSummary = useMemo<IncidentMapSummary>(() => {
+    const normalize = (value: string) => value.normalize('NFKC').trim().toUpperCase();
+    const normalizeHeader = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\u200c_./-]/g, '');
+    const headers = trafficSnapshot?.headers ?? [];
+    const codeIndex = headers.findIndex((value) => { const key = normalizeHeader(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
+    const incidentIndexes = headers.flatMap((value, index) => { const key = normalizeHeader(value); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', '\u062a\u0639\u0631\u06cc\u0636', '\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc', 'theft', 'damage', 'widening', 'relocation'].some((term) => key.includes(normalizeHeader(term))) ? [index] : []; });
+    const provinceIndex = headers.findIndex((value) => /province|\u0627\u0633\u062a\u0627\u0646/i.test(value));
+    const codes = new Set<string>();
+    if (codeIndex >= 0 && incidentIndexes.length) for (const row of trafficSnapshot?.rows ?? []) {
+      if (!incidentIndexes.some((index) => isRahcomIncidentValue(row[index]))) continue;
+      const code = normalize(row[codeIndex] ?? '');
+      if (!code) continue;
+      const rawProvince = provinceIndex >= 0 ? row[provinceIndex]?.trim() ?? '' : '';
+      const rowProvince = rawProvince ? rahcomProvinceFromLabel(rawProvince) : null;
+      if (rawProvince && !rowProvince) continue;
+      if (rowProvince && province !== 'all' && rowProvince !== province) continue;
+      codes.add(code);
+    }
+    const details: UnmappedSolarDetail[] = [];
+    const mappedCodes = new Set<string>();
+    for (const code of codes) {
+      const matches = systems.filter((system) => normalize(system.systemCode) === code && (province === 'all' || system.province === province));
+      if (!matches.length) details.push({ code, reason: 'unregistered' });
+      else if (matches.some(hasRegisteredMapLocation)) mappedCodes.add(code);
+      else details.push({ code, reason: 'no-coordinates' });
+    }
+    details.sort((a, b) => a.code.localeCompare(b.code, 'en', { numeric: true }));
+    return { totalCodes: codes.size, mappedCodes: mappedCodes.size, details };
+  }, [trafficSnapshot, systems, province]);
+  const trafficNoTrafficCodes = useMemo(() => {
+    const normalize = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) >= 0x06f0 ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660)).replace(/[\u200c\s]/g, '');
     const headers = trafficSnapshot?.headers ?? [];
     const codeIndex = headers.findIndex((header) => { const key = normalize(header); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
-    const statusIndex = headers.findIndex((header) => { const key = normalize(header); return key.includes('status') || key.includes('\u0648\u0636\u0639\u06cc\u062a'); });
+    const crmIndex = headers.findIndex((header) => { const key = normalize(header); return key.includes('crm') && (key.includes(normalize('\u062a\u0631\u062f\u062f')) || key.includes('traffic')) && (key.includes(normalize('\u0644\u062d\u0638\u0647\u0627\u06cc')) || key.includes('realtime') || key.includes('real-time')); });
     const provinceIndex = headers.findIndex((header) => { const key = normalize(header); return key.includes('province') || key.includes('\u0627\u0633\u062a\u0627\u0646'); });
     const systemsByCode = new Map<string, RahcomSystem[]>();
     for (const system of systems) { const code = system.systemCode.normalize('NFKC').trim().toUpperCase(); systemsByCode.set(code, [...(systemsByCode.get(code) ?? []), system]); }
     const codes = new Set<string>();
-    if (codeIndex < 0 || statusIndex < 0) return codes;
+    if (codeIndex < 0 || crmIndex < 0) return codes;
+    const isNoTraffic = (value: string) => {
+      const normalized = normalize(value);
+      return normalized.includes(normalize('\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f')) || normalized.includes('notraffic') || normalized.includes('norealtime');
+    };
     for (const row of trafficSnapshot?.rows ?? []) {
-      const status = normalize(row[statusIndex] ?? '');
-      if (!/(down|\u0642\u0637\u0639|\u062e\u0631\u0627\u0628)/.test(status)) continue;
+      if (!isNoTraffic(row[crmIndex] ?? '')) continue;
       const code = (row[codeIndex] ?? '').normalize('NFKC').trim().toUpperCase();
       const candidates = systemsByCode.get(code) ?? [];
       const rawProvince = provinceIndex >= 0 ? row[provinceIndex]?.trim() ?? '' : '';
@@ -278,8 +363,8 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
     ? new Set([...solarStatusCodes, ...incidentCodes])
     : solarStatusCodes,
   [solarStatusCodes, incidentCodes, showMapIncidents]);
-  const aggregateMapCodes = useMemo(() => new Set([...trafficDownCodes, ...roadListCodes, ...solarStatusCodes, ...ticketSystemCodes]), [roadListCodes, solarStatusCodes, ticketSystemCodes, trafficDownCodes]);
-  const selectedMapSourceCodes = mapFilterSource === 'traffic' ? trafficDownCodes
+  const aggregateMapCodes = useMemo(() => new Set([...trafficNoTrafficCodes, ...roadListCodes, ...solarStatusCodes, ...ticketSystemCodes]), [roadListCodes, solarStatusCodes, ticketSystemCodes, trafficNoTrafficCodes]);
+  const selectedMapSourceCodes = mapFilterSource === 'traffic' ? trafficNoTrafficCodes
     : mapFilterSource === 'road-list' ? roadListCodes
       : mapFilterSource === 'solar' ? solarMapCodes
         : mapFilterSource === 'tickets' ? ticketSystemCodes
@@ -288,9 +373,8 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
     !mapSourceFilterActive || selectedMapSourceCodes.has(rahcomSystemKey(system.province, system.systemCode)),
   ), [mapSourceFilterActive, selectedMapSourceCodes, systems]);
   const incidentSystemsCount = useMemo(() => visibleSystems.filter((system) => incidentCodes.has(rahcomSystemKey(system.province, system.systemCode))).length, [visibleSystems, incidentCodes]);
-  const displayedSystems = useMemo(() => showMapIncidents
-    ? visibleSystems
-    : visibleSystems.filter((system) => !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode))),
+  const displayedSystems = useMemo(() => visibleSystems.filter((system) => hasRegisteredMapLocation(system)
+    && (showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode)))),
   [visibleSystems, incidentCodes, showMapIncidents]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
@@ -493,7 +577,9 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   useEffect(() => { onAxisOptionsChange?.(axisOptions); }, [axisOptions, onAxisOptionsChange]);
   useEffect(() => { onSystemsCountChange?.(displayedSystems.length); }, [onSystemsCountChange, displayedSystems.length]);
   useEffect(() => { onUnmappedSolarCountChange?.(unmappedSolarCount); }, [onUnmappedSolarCountChange, unmappedSolarCount]);
+  useEffect(() => { onUnmappedSolarDetailsChange?.(unmappedSolarDetails); }, [onUnmappedSolarDetailsChange, unmappedSolarDetails]);
   useEffect(() => { onIncidentCountChange?.(incidentSystemsCount); }, [onIncidentCountChange, incidentSystemsCount]);
+  useEffect(() => { onIncidentMapSummaryChange?.(incidentMapSummary); }, [incidentMapSummary, onIncidentMapSummaryChange]);
   useEffect(() => { onSystemsErrorChange?.(systemsError); }, [onSystemsErrorChange, systemsError]);
 
   useEffect(() => {

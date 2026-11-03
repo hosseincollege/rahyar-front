@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { ChevronLeft, ChevronRight, Download, FileUp, LoaderCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileUp, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
@@ -75,9 +75,21 @@ export function RahcomRoadList() {
   const [specialSystems, setSpecialSystems] = useState<RahcomSolarSpecialSystem[]>([]);
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedSolarSnapshotId, setSelectedSolarSnapshotId] = useState('');
+  const [showIncidents, setShowIncidents] = useState(true);
   const [page, setPage] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const initialized = window.localStorage.getItem('rahcom-show-incidents-default-v2') === 'true';
+    if (!initialized) {
+      window.localStorage.setItem('rahcom-show-incidents', 'true');
+      window.localStorage.setItem('rahcom-show-incidents-default-v2', 'true');
+      setShowIncidents(true);
+      return;
+    }
+    setShowIncidents(window.localStorage.getItem('rahcom-show-incidents') !== 'false');
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -188,14 +200,19 @@ export function RahcomRoadList() {
   }
 
   const headers = Array.isArray(snapshot?.headers) ? snapshot.headers : [];
-  const identifierIndex = headers.findIndex((header) => {
+  const stationCodeIndex = headers.findIndex((header) => {
+    const normalized = normalizeHeader(header);
+    return normalized.includes(normalizeHeader('\u06a9\u062f \u0627\u06cc\u0633\u062a\u06af\u0627\u0647'))
+      || normalized.includes(normalizeHeader('\u06a9\u062f \u062a\u062c\u0645\u06cc\u0639'))
+      || normalized.includes('stationcode')
+      || normalized.includes('aggregationcode')
+      || normalized.includes('aggregatecode');
+  });
+  const identifierIndex = stationCodeIndex >= 0 ? stationCodeIndex : headers.findIndex((header) => {
     const normalized = normalizeHeader(header);
     return normalized.includes(normalizeHeader('\u0634\u0646\u0627\u0633\u0647'))
-      || normalized.includes(normalizeHeader('\u06a9\u062f \u0627\u06cc\u0633\u062a\u06af\u0627\u0647'))
-      || normalized.includes(normalizeHeader('\u06a9\u062f \u062a\u062c\u0645\u06cc\u0639'))
       || normalized === 'id'
-      || normalized === 'stationcode'
-      || normalized === 'aggregationcode';
+      || normalized === 'identifier';
   });
   const positionIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0645\u0648\u0642\u0639\u06cc\u062a') || normalizeHeader(header).includes('position'));
   const cityIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0634\u0647\u0631') || normalizeHeader(header) === 'city');
@@ -223,17 +240,27 @@ export function RahcomRoadList() {
     return states;
   }, [province, selectedSolarSnapshot]);
   const activityIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0641\u0639\u0627\u0644\u06cc\u062a') || normalizeHeader(header).includes('activity'));
-  const prioritizedIndexes = [positionIndex, cityIndex, activityIndex].filter((index, order, indexes): index is number => index >= 0 && indexes.indexOf(index) === order);
-  const orderedDataIndexes = [...prioritizedIndexes, ...headers.map((_, index) => index).filter((index) => index !== identifierIndex && !prioritizedIndexes.includes(index))];
   const axisIndexes = headers.flatMap((header, index) => normalizeHeader(header).includes('\u0645\u062d\u0648\u0631') || normalizeHeader(header).includes('axis') ? [index] : []);
+  const stationNameIndex = headers.findIndex(isRoadListStationNameHeader);
+  const prioritizedIndexes = [positionIndex, cityIndex, stationNameIndex, ...axisIndexes, activityIndex].filter((index, order, indexes): index is number => index >= 0 && indexes.indexOf(index) === order);
+  const orderedDataIndexes = [...prioritizedIndexes, ...headers.map((_, index) => index).filter((index) => index !== identifierIndex && !prioritizedIndexes.includes(index))];
   const provinceIndex = headers.findIndex((header) => normalizeHeader(header).includes('\u0627\u0633\u062a\u0627\u0646') || normalizeHeader(header) === 'province');
   const contractorIndex = headers.findIndex((header) => {
     const normalized = normalizeHeader(header);
     return normalized.includes('\u067e\u06cc\u0645\u0627\u0646\u06a9\u0627\u0631') || normalized.includes('contractor') || normalized.includes('\u0634\u0631\u06a9\u062a') || normalized.includes('company');
   });
-  const lastAxisPosition = orderedDataIndexes.reduce((last, index, position) => axisIndexes.includes(index) ? position : last, -1);
+  const lastAxisPosition = orderedDataIndexes.reduce((last, index, position) => axisIndexes.includes(index) || index === cityIndex ? position : last, -1);
   const provincePosition = orderedDataIndexes.findIndex((index) => index === provinceIndex);
-  const solarInsertPosition = provincePosition >= 0 && provincePosition > lastAxisPosition ? provincePosition : lastAxisPosition >= 0 ? lastAxisPosition + 1 : provincePosition >= 0 ? provincePosition : orderedDataIndexes.length;
+  const activityPosition = orderedDataIndexes.findIndex((index) => index === activityIndex);
+  const solarInsertPosition = activityPosition >= 0
+    ? activityPosition
+    : provincePosition >= 0 && provincePosition > lastAxisPosition
+      ? provincePosition
+      : lastAxisPosition >= 0
+        ? lastAxisPosition + 1
+        : provincePosition >= 0
+          ? provincePosition
+          : orderedDataIndexes.length;
   const displayedDataColumns: Array<number | 'solar'> = [...orderedDataIndexes];
   displayedDataColumns.splice(solarInsertPosition, 0, 'solar');
   const contractorPosition = displayedDataColumns.indexOf(contractorIndex);
@@ -301,8 +328,14 @@ export function RahcomRoadList() {
     return match?.trafficIncident || '\u2014';
   };
   const filteredRows = useMemo(() => {
-    return Array.isArray(snapshot?.rows) ? snapshot.rows : [];
-  }, [snapshot]);
+    const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+    if (showIncidents) return rows;
+    return rows.filter((row) => {
+      const identifier = identifierIndex >= 0 ? normalizeIdentifier(row[identifierIndex]) : '';
+      const matches = identifier ? trafficMatches.get(identifier) ?? [] : [];
+      return !matches.some((match) => isRahcomIncidentValue(match.trafficIncident));
+    });
+  }, [identifierIndex, showIncidents, snapshot, trafficMatches]);
   const visibleRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const getSolarStatuses = (match: ReturnType<typeof getMatch>) => {
@@ -313,12 +346,12 @@ export function RahcomRoadList() {
   };
   const downloadExcel = () => {
     if (!snapshot) return;
-    const exportHeaders = [t('rahcomRowNumber'), t('rahcomRoadStationCode'), ...(identifierIndex >= 0 ? [isRoadListStationCodeHeader(headers[identifierIndex]) ? t('rahcomRoadStationCode') : headers[identifierIndex]] : []), t('rahcomRoadStationName'), t('rahcomTheftDamageStatus'),
-      ...displayedDataColumns.map((column) => column === 'solar' ? t('rahcomSystemSolar') : isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : isRoadListAxisHeader(headers[column]) ? t('rahcomAxis') : isRoadListStationCodeHeader(headers[column]) ? t('rahcomRoadStationCode') : isRoadListStationNameHeader(headers[column]) ? t('rahcomRoadStationName') : headers[column])];
+    const exportHeaders = [t('rahcomRowNumber'), t('rahcomSystemName'), t('rahcomSystemCode'), t('rahcomIncidentFilter'), ...(identifierIndex >= 0 ? [t('rahcomRoadStationCode')] : []),
+      ...displayedDataColumns.map((column) => column === 'solar' ? t('rahcomSystemSolar') : column === positionIndex ? t('rahcomRoadStationName') : column === cityIndex ? t('rahcomAxis') : isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : isRoadListAxisHeader(headers[column]) ? t('rahcomAxis') : isRoadListStationCodeHeader(headers[column]) ? t('rahcomRoadStationCode') : isRoadListStationNameHeader(headers[column]) ? t('rahcomRoadStationName') : headers[column])];
     const exportRows = filteredRows.map((row, rowIndex) => {
       const match = getMatch(row);
       const solarText = getSolarStatuses(match).map(({ equipment, state }) => `${equipment}: ${t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable')}`).join(', ') || '\u2014';
-      return [rowIndex + 1, match?.systemCode || '\u2014', ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []), match?.systemName || '\u2014', getIncidentText(match),
+      return [rowIndex + 1, match?.systemName || '\u2014', match?.systemCode || '\u2014', getIncidentText(match), ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []),
         ...displayedDataColumns.map((column) => column === 'solar' ? solarText : row[column] ?? '')];
     });
     const worksheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...exportRows]);
@@ -327,15 +360,16 @@ export function RahcomRoadList() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Road list');
     XLSX.writeFile(workbook, `road-list-${province}-${selectedDate}.xlsx`);
   };
-  if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
-  if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
+  if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
+  if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
-  return <main dir={getLocaleDirection(locale)} className="mx-auto max-w-6xl space-y-4">
+  return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none space-y-4">
     <header className="flex flex-wrap justify-start gap-3">
       <RahcomHeaderDate loadMarkedDates={loadRoadListDates} />
       {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} />}
       <RahcomCountCapsule count={filteredRows.length} />
       <div className="flex flex-wrap items-center gap-2">
+        <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
         {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
@@ -350,25 +384,25 @@ export function RahcomRoadList() {
     {!province ? <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListChooseProvince')}</p> : loading ? <p role="status" className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : error ? null : !snapshot ? <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListNoData')}</p> : <section className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={t('rahcomRoadList')} fileName={snapshot.fileName} recordDate={snapshot.listDate.slice(0, 10)} count={snapshot.rowCount} savedAt={snapshot.importedAt} /></div>
       <div className="max-h-[68vh] overflow-auto">
-        <table className="w-max min-w-max border-separate border-spacing-0 text-sm">
+        <table className="w-full min-w-max border-separate border-spacing-0 text-sm">
           <thead className="sticky top-0 z-10 bg-muted text-start text-xs text-muted-foreground"><tr>
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomRowNumber')}</th>
-            <th scope="col" className="min-w-[100px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomRoadStationCode')}</th>
-            {identifierIndex >= 0 && <th scope="col" className="min-w-[88px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{isRoadListStationCodeHeader(headers[identifierIndex]) ? t('rahcomRoadStationCode') : headers[identifierIndex]}</th>}
-            <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomRoadStationName')}</th>
-            <th scope="col" className="min-w-[180px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomTheftDamageStatus')}</th>
+            <th scope="col" className="min-w-[220px] border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomSystemName')}</th>
+            <th scope="col" className="min-w-[120px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemCode')}</th>
+            <th scope="col" className="min-w-[140px] max-w-[140px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-normal">{t('rahcomIncidentFilter')}</th>
+            {identifierIndex >= 0 && <th scope="col" className="min-w-[100px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomRoadStationCode')}</th>}
             {displayedDataColumns.map((column, index) => column === 'solar'
               ? <th key="solar-status" scope="col" className="min-w-[180px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemSolar')}</th>
-              : <th key={`${headers[column]}-${column}-${index}`} scope="col" className={`border-b border-border px-3 py-2.5 font-semibold ${positionIndex === column ? 'min-w-[240px] whitespace-nowrap' : cityIndex === column ? 'min-w-[160px] whitespace-nowrap' : wideSingleLineIndexes.includes(column) ? 'min-w-[200px] whitespace-nowrap' : 'max-w-64 whitespace-normal'}`}>{isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : isRoadListAxisHeader(headers[column]) ? t('rahcomAxis') : isRoadListStationCodeHeader(headers[column]) ? t('rahcomRoadStationCode') : isRoadListStationNameHeader(headers[column]) ? t('rahcomRoadStationName') : headers[column]}</th>)}
+              : <th key={`${headers[column]}-${column}-${index}`} scope="col" className={`border-b border-border px-3 py-2.5 font-semibold ${positionIndex === column ? 'min-w-[240px] whitespace-nowrap' : cityIndex === column ? 'min-w-[160px] whitespace-nowrap' : wideSingleLineIndexes.includes(column) ? 'min-w-[200px] whitespace-nowrap' : 'max-w-64 whitespace-normal'}`}>{column === positionIndex ? t('rahcomRoadStationName') : column === cityIndex ? t('rahcomAxis') : isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : isRoadListAxisHeader(headers[column]) ? t('rahcomAxis') : isRoadListStationCodeHeader(headers[column]) ? t('rahcomRoadStationCode') : isRoadListStationNameHeader(headers[column]) ? t('rahcomRoadStationName') : headers[column]}</th>)}
           </tr></thead>
           <tbody>{visibleRows.map((row, rowIndex) => {
             const match = getMatch(row);
             return <tr key={page * PAGE_SIZE + rowIndex} className="odd:bg-background even:bg-muted/30">
               <td className="border-b border-border/70 px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(page * PAGE_SIZE + rowIndex + 1)}</td>
-              <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
-              {identifierIndex >= 0 && <td className="min-w-[88px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{row[identifierIndex] ?? ''}</td>}
-              <td className="min-w-[280px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
-              <td className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>
+              <td className="min-w-[220px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
+              <td dir="ltr" className="min-w-[120px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
+              <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>
+              {identifierIndex >= 0 && <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle font-mono text-foreground">{row[identifierIndex] ?? ''}</td>}
               {displayedDataColumns.map((column, index) => column === 'solar'
                 ? <td key="solar-status" className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const equipmentStatuses = getSolarStatuses(match); return equipmentStatuses.length ? <span className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" title={`${equipment}: ${label}`} aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'; })()}</td>
                 : <td key={`${column}-${index}`} className={`border-b border-border/70 px-3 py-2 align-top text-foreground ${positionIndex === column || cityIndex === column || wideSingleLineIndexes.includes(column) ? 'whitespace-nowrap' : 'max-w-80 whitespace-pre-wrap'}`}>{row[column] ?? ''}</td>)}

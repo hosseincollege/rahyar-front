@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Clock3, LoaderCircle, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Clock3, LoaderCircle, Trash2 } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
@@ -11,7 +11,7 @@ import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { RahcomDailyWorkflow } from './rahcom-daily-workflow';
-export function RahcomActions({ canManage = false, canRecord = false, selectedProvince = 'all' }: { canManage?: boolean; canRecord?: boolean; selectedProvince?: string }) {
+export function RahcomActions({ canManage = false, canRecord = false, selectedProvince = 'all', workflowOpen = false }: { canManage?: boolean; canRecord?: boolean; selectedProvince?: string; workflowOpen?: boolean }) {
   const { locale } = usePreferences();
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const { date } = useRahcomDate();
@@ -25,7 +25,6 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
     ? activityProvinceState.province
     : selectedProvince === 'all' ? 'isfahan' : selectedProvince;
   const [historySystemId, setHistorySystemId] = useState('');
-  const [workflowOpen, setWorkflowOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const load = useCallback(async () => {
@@ -47,7 +46,6 @@ async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm')
   const latestActivityAt = visibleItems.reduce<string | null>((latest, item) => !latest || new Date(item.createdAt) > new Date(latest) ? item.createdAt : latest, null);
   return <section className="space-y-4" dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'}>
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><h2 className="font-bold">{t('rahcomActions')}</h2>{date && <span className="text-sm text-muted-foreground">{formatJalaliDate(date)}</span>}{!date && <span className="text-xs text-destructive">{t('rahcomInvalidJalaliDate')}</span>}</div>{canRecord && <button type="button" onClick={() => setWorkflowOpen((open) => !open)} aria-label={t('rahcomDailyWorkflow')} title={t('rahcomDailyWorkflow')} aria-expanded={workflowOpen} className="grid size-9 place-items-center rounded-full border border-border bg-background text-foreground transition hover:border-primary hover:text-primary"><Plus size={18} aria-hidden="true" /></button>}</div>
       {selectedProvince === 'all' && <label className="mb-4 grid max-w-sm gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => setActivityProvinceState({ selection: selectedProvince, province: e.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
       {visibleItems.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={visibleItems.length} savedAt={latestActivityAt} />}
       {canRecord && workflowOpen && <RahcomDailyWorkflow date={date} province={activityProvince} items={items} systems={systems.filter(system => system.province === activityProvince)} onSaved={load} />}
