@@ -165,16 +165,18 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
     });
   }, [normalizedTrafficHeaders, provinceForView, selectedProvinceName, systemsByCode, trafficProvinceIndex, trafficRows]);
   const solarStateByCode = useMemo(() => {
-    const grouped = new Map<string, Array<{ equipment: string; state: 'down' | 'unreachable' }>>();
+    const grouped = new Map<string, Map<string, { equipment: string; state: 'down' | 'unreachable' }>>();
     for (const snapshot of solarSnapshot) {
       for (const entry of [...parseRahcomSolarList(snapshot.downText, 'down'), ...parseRahcomSolarList(snapshot.unreachableText, 'unreachable')]) {
         const key = rahcomSystemKey(snapshot.province ?? entry.province ?? '', entry.site);
-        const values = grouped.get(key) ?? [];
-        values.push({ equipment: entry.equipment, state: entry.state });
+        const values = grouped.get(key) ?? new Map<string, { equipment: string; state: 'down' | 'unreachable' }>();
+        const equipmentKey = entry.equipment.trim().toUpperCase();
+        const existing = values.get(equipmentKey);
+        if (!existing || entry.state === 'down') values.set(equipmentKey, { equipment: entry.equipment, state: entry.state });
         grouped.set(key, values);
       }
     }
-    return grouped;
+    return new Map([...grouped].map(([key, equipment]) => [key, [...equipment.values()]]));
   }, [solarSnapshot]);
   const filteredTrafficRows = useMemo(() => {
     const rowSystem = (row: string[]) => {

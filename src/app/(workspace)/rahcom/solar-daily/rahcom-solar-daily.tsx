@@ -361,7 +361,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const columnCount = 9 + equipmentGroups.length + Number(showIncidents);
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
-  return <div className="space-y-3">{toolbarControls}<div className="overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
+  return <div className={currentSnapshot ? 'flex min-h-0 flex-1 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className={currentSnapshot ? 'min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card' : 'overflow-x-auto rounded-2xl border border-border bg-card'}><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
     <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : axisSource === 'zones' ? 'rahcomZoneAxisColumn' : 'rahcomOperationalAxisColumn')}</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
@@ -501,7 +501,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     setError('');
   }
 
-  return <section className="space-y-5">
+  return <section className="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
     {formOpen && canManage && <>
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t(editingSnapshotId ? 'solarEditSnapshot' : 'solarAddSnapshot')}</h2><button type="button" onClick={() => void fillDemoData()} disabled={saving || loading || !canManage} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><ClipboardList size={16} />{t('solarFillDemoData')}</button></div>
     <div className="grid gap-4 md:grid-cols-2">
@@ -519,7 +519,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} axisSource={axisSource} /></div>}
     </>}
 
-    <div className="space-y-3">{loading ? <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
+    <div className="flex min-h-0 flex-1 flex-col gap-3">{loading ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
       <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} axisSource={axisSource} onRowCountChange={onSystemCountChange} />
     </>}</div>
   </section>;

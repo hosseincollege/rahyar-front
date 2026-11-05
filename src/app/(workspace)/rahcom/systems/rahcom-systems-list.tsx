@@ -273,8 +273,8 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
   const latestSystemUpdate = systems.reduce<string | null>((latest, system) => !latest || new Date(system.updatedAt) > new Date(latest) ? system.updatedAt : latest, null);
 
   return (
-    <section aria-label={t('rahcomSystemsList')} className="min-w-0 max-w-full space-y-4">
-      <div className="rahcom-mobile-toolbar flex flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
+    <section aria-label={t('rahcomSystemsList')} className="flex h-full min-h-0 min-w-0 max-w-full flex-col gap-4 overflow-hidden">
+      <div className="rahcom-mobile-toolbar flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
         <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(systems.length)} ${t('rahcomSystemsList')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground"><MapPinned size={16} className="text-primary" />{new Intl.NumberFormat(locale).format(systems.length)}</span>
         <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(groups.length)} ${t('rahcomAxisCount')}`} title={`${new Intl.NumberFormat(locale).format(groups.length)} ${t('rahcomAxisCount')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Rows3 size={16} className="text-primary" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(groups.length)}</strong><span>{t('rahcomAxis')}</span></span>
         <label className="inline-flex h-9 w-44 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-foreground focus-within:border-primary">
@@ -296,14 +296,14 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
       </div>
       {canManage && editMode && selectedProvince !== 'all' && <div className="space-y-3 rounded-xl border border-border bg-card p-3"><RahcomAxesManager province={selectedProvince} canManage={canManage} /><button type="button" onClick={async () => { if (window.confirm(t('rahcomDeleteProvinceConfirm'))) { await rahcomApi.deleteSystems({ province: selectedProvince }); setSystemsRevision((value) => value + 1); } }} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs text-destructive">{t('rahcomDeleteProvinceSystems')}</button></div>}
 
-      {loading ? <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</div> : null}
-      {error ? <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
-      {!loading && !error && !anyRows ? <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
+      {loading ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</div> : null}
+      {error ? <div role="alert" className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
+      {!loading && !error && !anyRows ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
 
-      {systemRows.length > 0 && <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="max-h-[78vh] overflow-auto">
-          <table className="w-full min-w-[1040px] table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup><col className="w-12" /><col className="w-28" /><col className="w-56" /><col className="w-20" /><col className="w-40" /><col className="w-28" /><col className="w-32" /></colgroup>
+      {systemRows.length > 0 && <section className="me-auto flex min-h-0 w-fit max-w-full min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-max table-fixed border-separate border-spacing-0 text-sm">
+            <colgroup><col className="w-11" /><col className="w-28" /><col className="w-48" /><col className="w-18" /><col className="w-36" /><col className="w-20" /><col className="w-32" /></colgroup>
             <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground"><tr>
               {[t('rahcomRowNumber'), t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomProvince'), t('rahcomBillId')].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap border-b border-border px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}
             </tr></thead>
@@ -313,19 +313,11 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
               return (
                 <tr
                   key={system.id}
-                  tabIndex={0}
                   aria-selected={selectedSystemId === system.id}
-                  onClick={() => setSelectedSystemId((current) => current === system.id ? null : system.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedSystemId((current) => current === system.id ? null : system.id);
-                    }
-                  }}
-                  className="group cursor-pointer odd:bg-background even:bg-muted/30 hover:bg-primary/5 focus-visible:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  className="odd:bg-background even:bg-muted/30"
                 >
-                  <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>
-                  <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono font-bold tracking-wide text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">
+                  <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>
+                  <td dir="ltr" role="button" tabIndex={0} aria-label={`${t('rahcomSystemCode')}: ${system.systemCode}`} onClick={() => setSelectedSystemId((current) => current === system.id ? null : system.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSystemId((current) => current === system.id ? null : system.id); } }} className="cursor-pointer whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono font-bold tracking-wide text-foreground hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                   {selectedSystemId === system.id && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSystemId(null); }}>
                     <section role="dialog" aria-modal="true" aria-labelledby={`rahcom-system-title-${system.id}`} style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="w-full max-w-[360px] rounded-xl border border-border p-2 shadow-2xl">
                       <div className="rahcom-system-popup">
@@ -363,11 +355,11 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
                   </div>, document.body) : null}
                   {system.systemCode}
                   </td>
-                  <td title={system.systemName} className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-semibold text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">{system.systemName}</td>
-                  <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">{axisCode || '—'}</td>
-                  <td title={axisName} className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">{axisName || '—'}</td>
-                  <td className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">{provinceName(system.province)}</td>
-                  <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-xs text-foreground group-hover:bg-primary/10 group-focus-visible:bg-primary/10">{system.electricityBillId || '—'}</td>
+                  <td title={system.systemName} role="button" tabIndex={0} aria-label={`${t('rahcomSystemName')}: ${system.systemName}`} onClick={() => setSelectedSystemId((current) => current === system.id ? null : system.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSystemId((current) => current === system.id ? null : system.id); } }} className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-semibold text-foreground hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">{system.systemName}</td>
+                  <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-foreground">{axisCode || '—'}</td>
+                  <td title={axisName} className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{axisName || '—'}</td>
+                  <td className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{provinceName(system.province)}</td>
+                  <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-xs text-foreground">{system.electricityBillId || '—'}</td>
                 </tr>
               );
             })}</tbody>

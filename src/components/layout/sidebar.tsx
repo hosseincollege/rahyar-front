@@ -57,6 +57,7 @@ const navigation: NavigationItem[] = [
       { titleKey: 'rahcomTickets', href: '/rahcom/tickets' },
       { titleKey: 'rahcomAggregateList', href: '/rahcom/aggregate' },
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
+      { titleKey: 'rahcomBillIdentifiers', href: '/rahcom/bill-identifiers' },
     ],
   },
   {

@@ -26,6 +26,12 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isRahcomMap = pathname === '/rahcom/map';
+  const isRahcomSystems = pathname === '/rahcom/systems';
+  const isRahcomSolarDaily = pathname === '/rahcom/solar-daily';
+  const isRahcomTickets = pathname === '/rahcom/tickets';
+  const isRahcomAggregate = pathname === '/rahcom/aggregate';
+  const isRahcomBillIdentifiers = pathname === '/rahcom/bill-identifiers';
+  const isRahcomFixedHeightPage = isRahcomMap || isRahcomSystems || isRahcomSolarDaily || isRahcomTickets || isRahcomAggregate || isRahcomBillIdentifiers;
   const {
     locale,
     workspaceMode,
@@ -218,9 +224,9 @@ export function AppShell({ children }: AppShellProps) {
 
         <main
           dir={direction === 'rtl' ? 'ltr' : 'rtl'}
-          className={`erp-scrollbar min-h-0 min-w-0 flex-1 bg-[color:var(--background)] ${isRahcomMap ? 'overflow-y-hidden' : ''}`}
+          className={`erp-scrollbar min-h-0 min-w-0 flex-1 bg-[color:var(--background)] ${isRahcomFixedHeightPage ? 'overflow-y-hidden' : ''}`}
         >
-          <div dir={direction} className={`${isRahcomMap ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-2 text-right sm:p-3' : 'min-h-full min-w-0 w-full p-3 text-right sm:p-4 lg:p-6'}`}>
+          <div dir={direction} className={`${isRahcomMap ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-2 text-right sm:p-3' : isRahcomFixedHeightPage ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-3 text-right sm:p-4 lg:p-6' : 'min-h-full min-w-0 w-full p-3 text-right sm:p-4 lg:p-6'}`}>
             {missionMode ? <div className="grid min-h-full min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]"><div className="min-w-0">{children}</div><MissionQuickActions key={missionMode} initialMode={missionMode} onSelectMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }} onClose={() => { void saveWorkspaceMode('form').catch((error) => console.error('Could not save workspace mode:', error)); }} /></div> : children}
           </div>
         </main>

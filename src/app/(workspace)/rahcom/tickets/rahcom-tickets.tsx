@@ -182,14 +182,14 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     }).format(timestamp);
   };
 
-  return <section className="space-y-4">
+  return <section className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <input ref={uploadInputRef} type="file" disabled={importing} accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void handleExcelUpload(file); }} />
-    {importing && <p role="status" className="text-sm text-muted-foreground">{uiMessage(locale, 'rolesUploading')}</p>}
-    {!importedTickets && !error && <p role="status" className="p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {visibleTickets.length ? <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /><button type="button" onClick={downloadExcel} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={16} /></button></div>
-      <div className="overflow-x-auto"><table ref={tableRef} className="w-full min-w-[2500px] text-sm">
+    {importing && <p role="status" className="shrink-0 text-sm text-muted-foreground">{uiMessage(locale, 'rolesUploading')}</p>}
+    {!importedTickets && !error && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
+    {error && <p role="alert" className="shrink-0 text-sm text-destructive">{error}</p>}
+    {visibleTickets.length ? <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /><button type="button" onClick={downloadExcel} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={16} /></button></div>
+      <div className="min-h-0 flex-1 overflow-auto"><table ref={tableRef} className="w-full min-w-[2500px] text-sm">
         <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemCode','System'],['rahcomSystemName','Name'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
           const system = systemsByCode.get(ticket.systemCode.trim().toLocaleUpperCase(locale));
@@ -220,7 +220,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
           </tr>;
         })}</tbody>
       </table></div>
-    </div> : importedTickets && <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
+    </div> : importedTickets && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
     {descriptionTicket && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingDescriptionId) setDescriptionTicketId(null); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="rahcom-ticket-description-title" className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-xl sm:p-5">
         <header className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-3">
