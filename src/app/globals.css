@@ -3,6 +3,39 @@
 
 @import "tailwindcss";
 
+/* Keep data rows at the same compact height as the Solar table. */
+table tbody > tr > td:not([colspan]) {
+  box-sizing: border-box;
+  height: 36px;
+  padding-block: 8px !important;
+}
+
+@media (max-width: 639px) {
+  .rahcom-mobile-toolbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  .rahcom-mobile-toolbar > * {
+    flex-shrink: 0;
+  }
+
+  .rahcom-mobile-toolbar::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .rahcom-mobile-toolbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .rahcom-mobile-toolbar::-webkit-scrollbar-thumb {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--border-strong);
+    background-clip: padding-box;
+  }
+}
+
 :root {
   --background: #f6f8fc;
   --foreground: #172033;

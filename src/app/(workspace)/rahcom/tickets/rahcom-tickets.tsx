@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Check, Clock3, LoaderCircle, Pencil, X } from 'lucide-react';
+import { Check, Clock3, Download, LoaderCircle, Pencil, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
@@ -52,6 +52,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [savingDescriptionId, setSavingDescriptionId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const importedRequestId = useRef(0);
 
   const loadImported = useCallback(async (province: string) => {
@@ -106,6 +107,11 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const visibleSystemCount = useMemo(() => new Set(visibleTickets.map((ticket) => ticket.systemCode.trim().toLocaleUpperCase(locale)).filter(Boolean)).size, [locale, visibleTickets]);
   const systemsByCode = useMemo(() => new Map(systems.map((system) => [system.systemCode.trim().toLocaleUpperCase(locale), system])), [locale, systems]);
   useEffect(() => { onSystemCountChange(visibleSystemCount); }, [onSystemCountChange, visibleSystemCount]);
+  const downloadExcel = () => {
+    if (!tableRef.current) return;
+    const workbook = XLSX.utils.table_to_book(tableRef.current, { sheet: 'Tickets' });
+    XLSX.writeFile(workbook, `rahcom-tickets-${date ?? tehranDateKey()}.xlsx`);
+  };
   const descriptionTicket = visibleTickets.find((ticket) => ticket.id === descriptionTicketId) ?? null;
   useEffect(() => {
     if (!descriptionTicketId) return;
@@ -182,8 +188,8 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     {!importedTickets && !error && <p role="status" className="p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {visibleTickets.length ? <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[2500px] text-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /><button type="button" onClick={downloadExcel} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={16} /></button></div>
+      <div className="overflow-x-auto"><table ref={tableRef} className="w-full min-w-[2500px] text-sm">
         <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemCode','System'],['rahcomSystemName','Name'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
           const system = systemsByCode.get(ticket.systemCode.trim().toLocaleUpperCase(locale));

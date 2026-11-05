@@ -102,11 +102,11 @@ function getStoredProvince() {
 export type UnmappedSolarDetail = { code: string; reason: 'unregistered' | 'no-coordinates' };
 export type IncidentMapSummary = { totalCodes: number; mappedCodes: number; details: UnmappedSolarDetail[] };
 
-export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilterActive = false, mapFilterSource = 'solar', selectedSolarSnapshotId = '', showMapIncidents = true, axisSource = 'traffic', onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentCountChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
+export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilterActive = false, mapFilterSource = 'none', selectedSolarSnapshotId = '', showMapIncidents = true, axisSource = 'traffic', onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentCountChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
   focusProvince: boolean;
   canManage?: boolean;
   mapSourceFilterActive?: boolean;
-  mapFilterSource?: 'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate';
+  mapFilterSource?: 'none' | 'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate';
   selectedSolarSnapshotId?: string;
   showMapIncidents?: boolean;
   axisSource?: 'traffic' | 'rahyar' | 'zones';
@@ -364,7 +364,8 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
     : solarStatusCodes,
   [solarStatusCodes, incidentCodes, showMapIncidents]);
   const aggregateMapCodes = useMemo(() => new Set([...trafficNoTrafficCodes, ...roadListCodes, ...solarStatusCodes, ...ticketSystemCodes]), [roadListCodes, solarStatusCodes, ticketSystemCodes, trafficNoTrafficCodes]);
-  const selectedMapSourceCodes = mapFilterSource === 'traffic' ? trafficNoTrafficCodes
+  const selectedMapSourceCodes = mapFilterSource === 'none' ? new Set<string>()
+    : mapFilterSource === 'traffic' ? trafficNoTrafficCodes
     : mapFilterSource === 'road-list' ? roadListCodes
       : mapFilterSource === 'solar' ? solarMapCodes
         : mapFilterSource === 'tickets' ? ticketSystemCodes

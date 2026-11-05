@@ -294,7 +294,12 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       return hasTrafficIncident || solarSiteSet.has(site);
     }).sort();
   useEffect(() => { onRowCountChange?.(sites.length); }, [onRowCountChange, sites.length]);
-  const bySiteEquipment = new Map(validEntries.map((entry) => [`${entry.site.toUpperCase()}:${entry.equipment.toUpperCase()}`, entry.state]));
+  const bySiteEquipment = new Map<string, 'down' | 'unreachable'>();
+  for (const entry of validEntries) {
+    const key = `${entry.site.toUpperCase()}:${entry.equipment.toUpperCase()}`;
+    const previous = bySiteEquipment.get(key);
+    bySiteEquipment.set(key, previous === 'down' || entry.state === 'down' ? 'down' : 'unreachable');
+  }
   const fixedEquipment = ['LTE', 'LTE-1', 'LTE-2', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2'];
   const extraEquipment = [...selectedColumns].filter((item) => !fixedEquipment.includes(item)).sort((a, b) => a.localeCompare(b));
   const selectedRouters = ['RTR-1', 'RTR-2'].filter((equipment) => selectedColumns.has(equipment));

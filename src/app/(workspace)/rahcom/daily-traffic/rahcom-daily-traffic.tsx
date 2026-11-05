@@ -240,14 +240,14 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
   };
 
   return (
-    <section dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'} className="space-y-4">
-      <div className="flex flex-wrap items-center justify-start gap-2">
+    <section dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'} className="min-w-0 max-w-full space-y-4">
+      <div className="rahcom-mobile-toolbar flex flex-nowrap items-center justify-start gap-2 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
         <RahcomHeaderDate loadMarkedDates={loadTrafficDatesForCalendar} />
         {solarSnapshotPicker}
         <RahcomCountCapsule count={filteredSystemCount} />
         <RahcomTrafficUpload />
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => onShowIncidentsChange?.(!showIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-nowrap items-center gap-1.5">
           <button type="button" aria-pressed={trafficFilters.includes('no-traffic')} aria-label={t('rahcomTrafficNoRealtimeTraffic')} title={t('rahcomTrafficNoRealtimeTraffic')} onClick={toggleTrafficFilter} style={trafficFilters.includes('no-traffic') ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${trafficFilters.includes('no-traffic') ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><CircleOff size={16} /></button>
         </div>
       </div>

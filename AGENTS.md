@@ -19,6 +19,9 @@ Help authorized users across provinces find their assigned systems, understand o
 
 ### Preserve the application shell
 - Keep the existing `AppShell`, `TopHeader`, sidebar structure, module navigation, and page frame intact unless the user explicitly asks for a specific structural change.
+- Make only the changes the user requested for the current task. Preserve unrelated code, UI, labels, ordering, data, and behavior.
+- Do not make optional cleanups, redesigns, or adjacent improvements on your own. Share those as suggestions and wait for the user's approval before applying them.
+- **Stable UI contract:** Rahyar has reached a stable UI state. Treat existing icons and their behavior, tables, table titles, column labels, column order, and placement/layout as user-approved and fixed. Do not rename, remove, add, move, reorder, or otherwise alter these elements as part of unrelated work, cleanup, responsive adjustments, or inferred improvements. Change them only when the user explicitly asks for that specific change. If an improvement seems useful, describe the proposed change and wait for the user's approval before applying it. Preserve all unaffected UI and behavior when an explicitly requested change is made.
 - Treat each module's main destination (`href`) as its landing/overview page. Keep its submenu focused on distinct workflows and resources; never duplicate that landing page as an "Overview" submenu item. Put useful overview content on the module landing page itself, and keep submenu entries separate only when they represent genuinely distinct tasks. Apply this rule consistently across every module.
 - Improve settings and module page contents within the current shell; global preferences must be additive and preserve responsive behavior.
 - Persian and RTL remain the default. Apply English/LTR only when the user selects English.
