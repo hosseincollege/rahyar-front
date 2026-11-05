@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { ChevronLeft, ChevronRight, Download, FileUp, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSolarSpecialSystem, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
+import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, rahcomSystemKey, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
@@ -16,6 +17,22 @@ import { RahcomCountCapsule } from '@/app/(workspace)/rahcom/_shared/rahcom-coun
 import { SolarSnapshotPicker } from '@/app/(workspace)/rahcom/_shared/rahcom-section';
 
 const PAGE_SIZE = 100;
+const buildRoadListImagePrompt = (jalaliDate: string) => `از تصویر پیوست‌شده، جدول راهداری را با دقت از روی تصویر استخراج کن و نتیجه را به صورت یک فایل Excel با پسوند .xlsx تحویل بده.
+
+تاریخ این فهرست ${jalaliDate} است. فایل را با نام road-list-${jalaliDate.replaceAll('/', '-')}.xlsx ذخیره کن. این تاریخ را به عنوان تاریخ فهرست در نظر بگیر؛ آن را به شکل سطر عنوان یا ستون جدید وارد جدول نکن، مگر اینکه خود تصویر چنین ستونی داشته باشد.
+
+قواعد استخراج:
+- فقط ردیف‌ها و ستون‌هایی را وارد کن که در تصویر دیده می‌شوند. فلش‌های فیلتر، نوار ابزار اکسل و عناصر رابط کاربری را داده حساب نکن.
+- هر ردیف جدول دقیقاً یک ردیف در اکسل باشد. ردیف عنوان ستون‌ها فقط یک‌بار و در سطر اول فایل بیاید؛ عنوان یا توضیح اضافه بالای جدول نگذار.
+- عنوان ستون کدهای هشت‌رقمی را دقیقاً «کد ایستگاه» بگذار و کد را به صورت متن نگه دار تا صفر ابتدایی یا رقم آن تغییر نکند.
+- عنوان ستون نام ایستگاه را دقیقاً «نام ایستگاه» بگذار.
+- عنوان ستون محور را دقیقاً «محور ایستگاه» بگذار.
+- سایر ستون‌ها را با همان عنوان قابل‌خواندن در تصویر و به همان ترتیب چپ‌به‌راست جدول نگه دار؛ از جمله مواردی مثل «وضعیت فعالیت»، «استان» و «سیستم» اگر در تصویر وجود دارند. ستون‌ها یا اطلاعات تازه حدس نزن.
+- اعداد فارسی و عربی را درست بخوان. کدها و مقادیر را بدون گردکردن، تبدیل قالب، حذف رقم یا تغییر محتوا ثبت کن.
+- بخش ناخوانا یا نامشخص را خالی بگذار و حدس نزن. ردیف‌های تکراریِ واقعی را حذف نکن.
+- سلول‌ها را به‌صورت جدول ساده و قابل بارگذاری بساز؛ از ادغام سلول‌ها، تصویر داخل فایل، فرمول، سطر جمع و قالب‌بندی پیچیده استفاده نکن.
+
+فایل نهایی باید یک برگه داشته باشد و سطر اول آن عنوان ستون‌ها باشد. فایل Excel را برای دریافت ارائه کن.`;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
   .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u200c\s_\-./()]/g, '');
 const isRoadListAxisHeader = (value: string) => normalizeHeader(value).includes('\u0645\u062d\u0648\u0631') || normalizeHeader(value).includes('axis');
@@ -79,6 +96,7 @@ export function RahcomRoadList() {
   const [page, setPage] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [roadListPromptCopyState, setRoadListPromptCopyState] = useState<'copied' | 'failed' | null>(null);
 
   useEffect(() => {
     const initialized = window.localStorage.getItem('rahcom-show-incidents-default-v2') === 'true';
@@ -360,6 +378,15 @@ export function RahcomRoadList() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Road list');
     XLSX.writeFile(workbook, `road-list-${province}-${selectedDate}.xlsx`);
   };
+  const copyRoadListImagePrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(buildRoadListImagePrompt(formatJalaliDate(selectedDate)));
+      setRoadListPromptCopyState('copied');
+    } catch {
+      setRoadListPromptCopyState('failed');
+    }
+    window.setTimeout(() => setRoadListPromptCopyState(null), 1800);
+  };
   if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
@@ -371,6 +398,7 @@ export function RahcomRoadList() {
       <div className="flex flex-nowrap items-center gap-2">
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
+        <button type="button" onClick={() => void copyRoadListImagePrompt()} aria-label={locale === 'fa' ? 'کپی پرامپت استخراج تصویر راهداری' : 'Copy road list image extraction prompt'} title={roadListPromptCopyState === 'copied' ? locale === 'fa' ? 'پرامپت کپی شد' : 'Prompt copied' : roadListPromptCopyState === 'failed' ? locale === 'fa' ? 'کپی انجام نشد' : 'Copy failed' : locale === 'fa' ? 'کپی پرامپت استخراج تصویر راهداری' : 'Copy road list image extraction prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary">{roadListPromptCopyState === 'copied' ? <Check size={17} aria-hidden="true" className="text-primary" /> : <ClipboardCopy size={17} aria-hidden="true" />}</button>
         {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
           <span>{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
