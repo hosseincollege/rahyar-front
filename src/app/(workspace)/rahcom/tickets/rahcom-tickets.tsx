@@ -205,7 +205,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
               </button>
             </td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{system?.axisCode || '—'}</td>
-            <td className="min-w-[180px] whitespace-nowrap p-3">{system?.announcedAxis || system?.axis || '—'}</td>
+            <td className="min-w-[180px] whitespace-nowrap p-3">{system?.announcedAxis || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td>
             <td className="whitespace-nowrap p-3" dir="auto">{ticket.createdOn || '—'}</td>
             <td className="whitespace-nowrap p-3"><span className="inline-flex items-center gap-1.5"><Clock3 size={14} className="text-muted-foreground" />{formatImportedAt(ticket.importedAt)}</span></td>

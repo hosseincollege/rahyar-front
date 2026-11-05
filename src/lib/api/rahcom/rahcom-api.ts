@@ -9,12 +9,6 @@ async function afterSystemsMutation<T>(request: Promise<T>): Promise<T> {
   notifySystemsChanged();
   return result;
 }
-async function afterAxesMutation<T>(request: Promise<T>): Promise<T> {
-  const result = await request;
-  notifySystemsChanged();
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:axes-changed'));
-  return result;
-}
 async function afterSolarSnapshotMutation<T>(request: Promise<T>): Promise<T> {
   const result = await request;
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:solar-snapshots-changed'));
@@ -22,6 +16,12 @@ async function afterSolarSnapshotMutation<T>(request: Promise<T>): Promise<T> {
 }
 async function afterTrafficSnapshotMutation<T>(request: Promise<T>): Promise<T> {
   const result = await request;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:traffic-snapshot-changed'));
+  return result;
+}
+async function afterTrafficAxesMutation<T>(request: Promise<T>): Promise<T> {
+  const result = await request;
+  notifySystemsChanged();
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:traffic-snapshot-changed'));
   return result;
 }
@@ -37,7 +37,7 @@ async function afterTicketsMutation<T>(request: Promise<T>): Promise<T> {
 }
 
 export type RahcomSystem = {
-  id: string; province: string; systemName: string; systemCode: string; axis: string | null; axisCode: string | null; announcedAxis: string | null;
+  id: string; province: string; systemName: string; systemCode: string; axisCode: string | null; announcedAxis: string | null;
   createdAt: string; updatedAt: string;
   incidentType: 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | 'WIDENING_RELOCATION' | null; incidentDetails: string | null;
   latitude: number; longitude: number; details: string | null;
@@ -51,7 +51,6 @@ export type RahcomActivity = {
   accompaniedBy: string | null; handedOverTo: string | null; performedBy: string | null;
   system?: Pick<RahcomSystem, 'id' | 'systemName' | 'systemCode' | 'province'> | null;
 };
-export type RahcomAxis = { id: string; province: string; name: string };
 export type RahcomSolarSnapshot = {
   id: string; province: string | null; capturedAt: string; createdAt: string; downText: string;
   unreachableText: string; equipmentColumns: string[];
@@ -90,11 +89,6 @@ export const rahcomApi = {
   setSelectedProvince: (province: string) => apiClient.put<{ rahcomSelectedProvince: string }>('/rahcom/me/province', { province }),
   memberProvinces: () => apiClient.get<RahcomMemberProvince[]>('/rahcom/members'),
   setMemberProvince: (id: string, province: string | null) => apiClient.put<{ id: string; rahcomProvince: string | null }>(`/rahcom/members/${encodeURIComponent(id)}/province`, { province }),
-  axes: (province: string) => apiClient.get<RahcomAxis[]>(`/rahcom/axes?province=${encodeURIComponent(province)}`),
-  createAxis: (province: string, name: string) => afterAxesMutation(apiClient.post<RahcomAxis>('/rahcom/axes', { province, name })),
-  updateAxis: (id: string, name: string) => afterAxesMutation(apiClient.put<RahcomAxis>(`/rahcom/axes/${encodeURIComponent(id)}`, { name })),
-  deleteAxis: (id: string) => afterAxesMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/axes/${encodeURIComponent(id)}`)),
-  mergeAxes: (sourceId: string, targetAxisId: string) => afterAxesMutation(apiClient.post<{ merged: boolean }>(`/rahcom/axes/${encodeURIComponent(sourceId)}/merge`, { targetAxisId })),
   systems: (province?: string) => apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems'),
   solarSnapshots: (province?: string, date?: string) => apiClient.get<RahcomSolarSnapshot[]>(`/rahcom/solar-snapshots?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   createSolarSnapshot: (data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),
@@ -112,7 +106,7 @@ export const rahcomApi = {
   roadList: (province: string, date: string) => apiClient.get<RahcomRoadListSnapshot | null>(`/rahcom/road-list?province=${encodeURIComponent(province)}&date=${encodeURIComponent(date)}`),
   roadListDates: (province: string, from: string, to: string) => apiClient.get<string[]>(`/rahcom/road-list/dates?${new URLSearchParams({ province, from, to })}`),
   replaceRoadList: (data: Pick<RahcomRoadListSnapshot, 'province' | 'listDate' | 'fileName' | 'sheetName' | 'headers' | 'rows'>) => apiClient.put<RahcomRoadListSnapshot>('/rahcom/road-list', data),
-  applyTrafficAxes: (date: string) => afterAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>(`/rahcom/traffic-snapshot/apply-axes?date=${encodeURIComponent(date)}`, {})),
+  applyTrafficAxes: (date: string) => afterTrafficAxesMutation(apiClient.post<{ updatedSystems: number; unmatchedSystems: number; axisGroups: number }>(`/rahcom/traffic-snapshot/apply-axes?date=${encodeURIComponent(date)}`, {})),
   importSystems: (province: string, systems: Array<Record<string, unknown>>) => afterSystemsMutation(apiClient.post<{ imported: number }>('/rahcom/systems/import', { province, systems })),
   updateSystem: (id: string, data: Partial<RahcomSystem>) => afterSystemsMutation(apiClient.put<RahcomSystem>(`/rahcom/systems/${id}`, data)),
   deleteSystem: (id: string) => afterSystemsMutation(apiClient.delete<{ deleted: boolean }>(`/rahcom/systems/${id}`)),

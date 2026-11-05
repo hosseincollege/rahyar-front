@@ -64,7 +64,7 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
   }
   function systemDescription(code: string) {
     const system = systems.find(item => item.systemCode.toLocaleLowerCase() === code.toLocaleLowerCase());
-    return system ? '، ' + system.systemName + (system.announcedAxis || system.axis ? '، محور ' + (system.announcedAxis || system.axis) : '') : '';
+    return system ? '، ' + system.systemName + (system.announcedAxis ? '، محور ' + system.announcedAxis : '') : '';
   }
   function generatePlan() {
     const entries = codeList.map((code, index) => (index + 1) + '. سامانه ' + code + systemDescription(code) + ':\nشرح برنامه مراجعه را وارد کنید.');
@@ -99,7 +99,7 @@ export function RahcomDailyWorkflow({ date, province, items, systems, onSaved }:
     setExcelDone(true); setExcelName(filename);
     const workbook = XLSX.utils.book_new();
     const systemRows = selectedSystems.length
-      ? selectedSystems.map((system, index) => [index + 1, system.systemCode, system.systemName, system.announcedAxis || system.axis || '', system.axisCode || '', system.province])
+      ? selectedSystems.map((system, index) => [index + 1, system.systemCode, system.systemName, system.announcedAxis || '', system.axisCode || '', system.province])
       : codeList.map((code, index) => [index + 1, code, '', '', '', province]);
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['ردیف', 'کد سامانه', 'نام سامانه', 'نام محور', 'کد محور', 'استان'], ...systemRows]), 'سامانه‌ها');
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['استان', provinceName], ['تاریخ', jalaliDate], [], ['برنامه مراجعه'], [plan], [], ['گزارش تکمیلی پایان کار'], [report], [], ['یادداشت روزانه'], [note]]), 'گزارش روزانه');

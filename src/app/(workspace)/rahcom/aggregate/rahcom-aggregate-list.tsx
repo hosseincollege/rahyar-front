@@ -6,13 +6,13 @@ import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, tehranDateKey, latestRahcomSolarSnapshotsByProvince, rahcomTicketDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
-import { rahcomOperationalAxis, rahcomOperationalZone } from '@/lib/api/rahcom/rahcom-axes';
+import { rahcomZoneForSystem } from '@/lib/api/rahcom/rahcom-axes';
 
 const normalize = (value: string) => value.trim().toLocaleLowerCase('fa').replace(/[\u200c\s_-]/g, '').replace(/[ي]/g, 'ی').replace(/[ك]/g, 'ک');
 const has = (value: string, ...terms: string[]) => terms.some((term) => value.includes(term));
 const defaultSolarEquipment = new Set(['LTE', 'RTR-1', 'CAM-1', 'RAD-1']);
 
-type AxisSource = 'traffic' | 'rahyar' | 'zones';
+type AxisSource = 'traffic' | 'zones';
 type AggregateSources = { traffic: boolean; road: boolean; solar: boolean; tickets: boolean };
 
 export function RahcomAggregateList({ onSystemCountChange, selectedProvince, axisSource, showIncidents, setOperation, sources }: { onSystemCountChange: (count: number) => void; selectedProvince: string; axisSource: AxisSource; showIncidents: boolean; setOperation: 'union' | 'intersection'; sources: AggregateSources }) {
@@ -156,7 +156,7 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, axi
       const trafficRow = trafficRowsByCode.get(code);
             const axisCode = system?.axisCode || (axisCodeIndex >= 0 ? trafficRow?.[axisCodeIndex] : '') || '';
       const trafficAxisName = (system?.announcedAxis || (axisNameIndex >= 0 ? trafficRow?.[axisNameIndex] : '') || '').replace(/^محور\s*/u, '').trim();
-      const axisName = axisSource === 'traffic' ? trafficAxisName : axisSource === 'zones' ? rahcomOperationalZone(system ?? {}) : rahcomOperationalAxis(system?.latitude, system?.longitude, system?.province);
+      const axisName = axisSource === 'traffic' ? trafficAxisName : rahcomZoneForSystem(system ?? {});
       return { key: code, code: system?.systemCode ?? code, system, trafficRow, trafficNoRealtime: trafficNoRealtimeCodes.has(code), roadActivity: roadActivityByCode.get(code) ?? '', solarEquipment: [...(solarByCode.get(code) ?? [])], ticketTitles: ticketTitlesByCode.get(code) ?? [], name: system?.systemName || (nameIndex >= 0 ? trafficRow?.[nameIndex] : '') || '\u2014', axisCode, axisName };
     }).sort((a, b) => a.axisName.localeCompare(b.axisName, locale, { numeric: true, sensitivity: 'base' }) || a.code.localeCompare(b.code));
     return resultRows;
@@ -167,7 +167,7 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, axi
   return <section dir="auto" className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     {error && <p role="alert" className="shrink-0 text-sm text-destructive">{error}</p>}
     <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card"><table className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-      <th className="p-3 text-start">{t('rahcomRowNumber')}</th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomProvince')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'zones' ? 'rahcomZoneAxisColumn' : axisSource === 'rahyar' ? 'rahcomOperationalAxisColumn' : 'rahcomAxisName')}</th>
+      <th className="p-3 text-start">{t('rahcomRowNumber')}</th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomProvince')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'zones' ? 'rahcomZoneAxisColumn' : 'rahcomAxisName')}</th>
       {sources.traffic && <th className="p-3 text-start">{locale === 'fa' ? '\u062a\u0631\u062f\u062f \u0644\u062d\u0638\u0647\u0627\u06cc CRM' : t('rahcomDailyTraffic')}</th>}{sources.road && <th className="p-3 text-start">{t('rahcomRoadList')}</th>}{sources.tickets && <th className="p-3 text-start">{t('rahcomTickets')}</th>}{sources.solar && <th className="p-3 text-start">{t('rahcomSystemSolar')}</th>}
     </tr></thead><tbody>{loading ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('rahcomSystemsLoading')}</td></tr> : rows.length === 0 ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : rows.map((row, index) => <tr key={row.key} className="border-t border-border"><td className="p-3 text-center tabular-nums">{(index + 1).toLocaleString(locale)}</td><td className="p-3 font-mono" dir="ltr">{row.code}</td><td className="p-3">{iranProvinces.find(([id]) => id === row.system?.province)?.[1] ?? row.system?.province}</td><td className="p-3">{row.name}</td><td className="p-3 font-mono" dir="ltr">{row.axisCode || '\u2014'}</td><td className="p-3">{row.axisName || '\u2014'}</td>{sources.traffic && <td className="p-3">{row.trafficNoRealtime ? locale === 'fa' ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : t('rahcomTrafficNoRealtimeTraffic') : '\u2014'}</td>}{sources.road && <td className="p-3">{row.roadActivity || '\u2014'}</td>}{sources.tickets && <td className="max-w-72 p-3">{row.ticketTitles.length ? row.ticketTitles.join(' \u00b7 ') : '\u2014'}</td>}{sources.solar && <td className="p-3">{row.solarEquipment.length ? <span className="inline-flex flex-nowrap items-center gap-3 whitespace-nowrap" dir="ltr">{row.solarEquipment.map((item) => { const [equipment, state] = item.split(':'); const statusLabel = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={item} className="inline-flex items-center gap-1.5" title={`${equipment}: ${statusLabel}`} aria-label={`${equipment}: ${statusLabel}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'}</td>}</tr>)}</tbody></table></div>
   </section>;

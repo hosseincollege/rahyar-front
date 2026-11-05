@@ -8,7 +8,7 @@ import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList as parseList, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
-import { rahcomOperationalAxis, rahcomOperationalZone } from '@/lib/api/rahcom/rahcom-axes';
+import { rahcomZoneForSystem } from '@/lib/api/rahcom/rahcom-axes';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 const commonEquipment = ['LTE', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2', 'PC', 'RLY', 'RLY-1', 'WL-1', 'WLP2P'];
@@ -235,7 +235,7 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
   });
 }
 
-function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, axisSource, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; axisSource: 'traffic' | 'rahyar' | 'zones'; onRowCountChange?: (count: number) => void }) {
+function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, axisSource, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; axisSource: 'traffic' | 'zones'; onRowCountChange?: (count: number) => void }) {
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -317,9 +317,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     const trafficRow = trafficRowsByCode.get(site);
     const axisCode = system?.axisCode || ((axisCodeIndex >= 0 ? trafficRow?.[axisCodeIndex]?.trim() : '') || '');
     const trafficAxisName = system?.announcedAxis || ((axisNameIndex >= 0 ? trafficRow?.[axisNameIndex]?.trim() : '') || '');
-    const axisName = axisSource === 'traffic'
-      ? trafficAxisName
-      : system ? axisSource === 'zones' ? rahcomOperationalZone(system) : rahcomOperationalAxis(system.latitude, system.longitude, system.province) : '';
+    const axisName = axisSource === 'traffic' ? trafficAxisName : system ? rahcomZoneForSystem(system) : '';
     const groupKey = axisCode || '__no_axis__';
     return { site, system, trafficRow, axisCode, axisName, groupKey };
   });
@@ -362,7 +360,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
   return <div className={currentSnapshot ? 'flex min-h-0 flex-1 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className={currentSnapshot ? 'min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card' : 'overflow-x-auto rounded-2xl border border-border bg-card'}><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : axisSource === 'zones' ? 'rahcomZoneAxisColumn' : 'rahcomOperationalAxisColumn')}</th>
+    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : 'rahcomZoneAxisColumn')}</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
@@ -400,7 +398,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents = true, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents?: boolean; axisSource: 'traffic' | 'rahyar' | 'zones'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents = true, axisSource, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents?: boolean; axisSource: 'traffic' | 'zones'; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void }) {
   const { locale } = usePreferences();
   const { dateText, date } = useRahcomDate();
   const [downText, setDownText] = useState('');

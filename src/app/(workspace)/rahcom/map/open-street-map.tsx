@@ -12,13 +12,13 @@ import 'leaflet/dist/leaflet.css';
 import { formatRahcomCoordinates, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
-import { canonicalRahcomAxis, rahcomAxisColor, rahcomOperationalAxis, rahcomOperationalZone } from '@/lib/api/rahcom/rahcom-axes';
+import { rahcomAxisColor, rahcomZoneForSystem } from '@/lib/api/rahcom/rahcom-axes';
 import { failedRahcomSystemCodes, failedRahcomSystemKeys, rahcomSystemKey, rahcomProvinceFromLabel, isRahcomIncidentValue, latestRahcomSolarSnapshotForToday, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 type Point = { lat: number; lng: number };
 type PopupLabels = {
-  name: string; code: string; axis: string; axisCode: string; announcedAxis: string; latitude: string; longitude: string; copy: string; copyCode: string; copyCoordinates: string; copyAll: string; copied: string;
+  name: string; code: string; axisCode: string; announcedAxis: string; latitude: string; longitude: string; copy: string; copyCode: string; copyCoordinates: string; copyAll: string; copied: string;
   electricityBillId: string; simIp: string; radarIp: string; cameraIp: string; pcIp: string; routerIp: string; laptopIp: string;
   edit: string; save: string; cancel: string; close: string; remove: string; route: string; history: string;
   dragHint: string; deleteConfirm: string; updateFailed: string; deleteFailed: string;
@@ -60,22 +60,16 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
   const coordinatePair = formatRahcomCoordinates(system.latitude, system.longitude);
   const axisCode = system.axisCode?.trim() ?? '';
   const announcedAxis = system.announcedAxis?.trim() ?? '';
-  const savedAxis = system.axis?.trim() ?? '';
-  const axis = savedAxis && savedAxis !== announcedAxis
-    ? canonicalRahcomAxis(savedAxis, system.latitude, system.longitude, system.province)
-    : rahcomOperationalAxis(system.latitude, system.longitude, system.province);
   const copyBasics = [
     `${labels.name}: ${system.systemName}`,
     `${labels.code}: ${system.systemCode}`,
     `${labels.axisCode}: ${axisCode || '—'}`,
     `${labels.announcedAxis}: ${announcedAxis || '—'}`,
-    `${labels.axis}: ${axis || '—'}`,
   ].join('\n');
   const editFields = editing && canManage ? `<div class="rahcom-popup-edit-fields">
     <label>${escapeHtml(labels.name)}<input data-system-field="systemName" value="${escapeHtml(system.systemName)}"></label>
     <label>${escapeHtml(labels.code)}<input data-system-field="systemCode" dir="ltr" value="${escapeHtml(system.systemCode)}"></label>
     <label>${escapeHtml(labels.axisCode)}<input data-system-field="axisCode" dir="ltr" value="${escapeHtml(axisCode)}"></label>
-    <label>${escapeHtml(labels.axis)}<input data-system-field="axis" value="${escapeHtml(axis)}"></label>
     <label>${escapeHtml(labels.latitude)}<input data-system-field="latitude" dir="ltr" inputmode="decimal" value="${system.latitude}"></label>
     <label>${escapeHtml(labels.longitude)}<input data-system-field="longitude" dir="ltr" inputmode="decimal" value="${system.longitude}"></label>
   </div>` : '';
@@ -84,7 +78,7 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
     [labels.cameraIp, system.cameraIp], [labels.pcIp, system.pcIp], [labels.routerIp, system.routerIp], [labels.laptopIp, system.laptopIp],
   ] as const).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => row(label, value, labels.copy, true));
   const basics = `<div class="rahcom-popup-basics">${copyButton(copyBasics, labels.copyAll)}</div>`;
-  const axisRows = `${axisCode ? row(labels.axisCode, axisCode) : ''}${announcedAxis ? row(labels.announcedAxis, announcedAxis) : ''}${axis ? row(labels.axis, axis) : ''}`;
+  const axisRows = `${axisCode ? row(labels.axisCode, axisCode) : ''}${announcedAxis ? row(labels.announcedAxis, announcedAxis) : ''}`;
   const coordinates = `<div class="rahcom-popup-data">${axisRows}<div class="rahcom-popup-row"><span>${escapeHtml(labels.copyCoordinates)}</span><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
   const actions = editing && canManage
     ? `${editFields}<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save" aria-label="${escapeHtml(labels.save)}" title="${escapeHtml(labels.save)}">${popupIcons.save}</button><button type="button" data-popup-action="cancel" aria-label="${escapeHtml(labels.cancel)}" title="${escapeHtml(labels.cancel)}">${popupIcons.close}</button><button type="button" data-popup-action="delete" class="danger" aria-label="${escapeHtml(labels.remove)}" title="${escapeHtml(labels.remove)}">${popupIcons.delete}</button></div>`
@@ -109,7 +103,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   mapFilterSource?: 'none' | 'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate';
   selectedSolarSnapshotId?: string;
   showMapIncidents?: boolean;
-  axisSource?: 'traffic' | 'rahyar' | 'zones';
+  axisSource?: 'traffic' | 'zones';
   onLocateMeReady?: (locate: (() => void) | null) => void;
   onAxisOptionsChange?: (axes: string[]) => void;
   onSystemsCountChange?: (count: number) => void;
@@ -149,18 +143,10 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
-  const rahyarAxisBySystem = useMemo(() => {
-    const labels = new Map<string, string>();
-    for (const system of systems) {
-      const label = rahcomOperationalAxis(system.latitude, system.longitude, system.province);
-      if (label) labels.set(rahcomSystemKey(system.province, system.systemCode), label);
-    }
-    return labels;
-  }, [systems]);
   const zonesBySystem = useMemo(() => {
     const labels = new Map<string, string>();
     for (const system of systems) {
-      const label = rahcomOperationalZone(system);
+      const label = rahcomZoneForSystem(system);
       if (label) labels.set(rahcomSystemKey(system.province, system.systemCode), label);
     }
     return labels;
@@ -202,7 +188,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
     }
     return labels;
   }, [systems, trafficSnapshot]);
-  const activeAxisBySystem = axisSource === 'traffic' ? trafficAxisBySystem : axisSource === 'zones' ? zonesBySystem : rahyarAxisBySystem;
+  const activeAxisBySystem = axisSource === 'traffic' ? trafficAxisBySystem : zonesBySystem;
   const axisOptions = useMemo(() => [...new Set(activeAxisBySystem.values())].sort((left, right) => left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' })), [activeAxisBySystem]);
   const todaySolarSnapshot = useMemo(() => latestRahcomSolarSnapshotForToday(solarSnapshots, date || todayDateKey), [solarSnapshots, date, todayDateKey]);
   const selectedSolarSnapshot = solarSnapshots.find((snapshot) => snapshot.id === selectedSolarSnapshotId && tehranDateKey(snapshot.capturedAt) === (date || todayDateKey)) ?? todaySolarSnapshot;
@@ -379,7 +365,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   [visibleSystems, incidentCodes, showMapIncidents]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
-    name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axis: t('rahcomAxesTitle'), axisCode: t('rahcomAxisCode'), announcedAxis: t('rahcomTrafficList'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'), copy: t('rahcomCopy'), copyAll: t('rahcomCopyAll'),
+    name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axisCode: t('rahcomAxisCode'), announcedAxis: t('rahcomTrafficList'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'), copy: t('rahcomCopy'), copyAll: t('rahcomCopyAll'),
     copyCode: t('rahcomCopyCode'), copyCoordinates: t('rahcomCopyCoordinates'), copied: t('rahcomCopied'),
     electricityBillId: t('rahcomElectricityBillId'), simIp: t('rahcomSimIp'), radarIp: t('rahcomRadarIp'), cameraIp: t('rahcomCameraIp'), pcIp: t('rahcomPcIp'), routerIp: t('rahcomRouterIp'), laptopIp: t('rahcomLaptopIp'), edit: t('rahcomEditSystem'),
     save: t('rahcomSaveCoordinates'), cancel: t('rahcomCancel'), close: t('closeSidebar'), remove: t('rahcomDelete'),
@@ -699,7 +685,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
                 renderPopup();
                 return;
               }
-              await rahcomApi.updateSystem(system.id, { systemName: field('systemName').trim(), systemCode: field('systemCode').trim(), axisCode: field('axisCode').trim() || null, axis: field('axis').trim() || null, latitude, longitude });
+              await rahcomApi.updateSystem(system.id, { systemName: field('systemName').trim(), systemCode: field('systemCode').trim(), axisCode: field('axisCode').trim() || null, latitude, longitude });
                 marker.off('drag', onDrag);
                 marker.dragging?.disable();
                 editing = false;
