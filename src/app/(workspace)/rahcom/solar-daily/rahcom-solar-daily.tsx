@@ -174,7 +174,7 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
   return XLSX.CFB.write(archive, { fileType: 'zip', type: 'array' });
 }
 
-function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boolean) {
+function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boolean, displayedTable?: HTMLTableElement | null) {
   const worksheet = workbook.Sheets.Solar;
   if (!worksheet?.['!ref']) return;
   const range = XLSX.utils.decode_range(worksheet['!ref']);
@@ -216,8 +216,14 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
     const naturalWidth = Math.ceil(longestValue * 1.15 + 2);
     return Math.min(maximum, Math.max(minimum, naturalWidth));
   });
-  worksheet['!cols'] = columnWidths.map((wch) => ({ wch }));
+  const displayedColumnWidths = displayedTable
+    ? Array.from(displayedTable.querySelectorAll('thead th'), (header) => Math.max(8, Math.ceil((header.getBoundingClientRect().width - 5) / 7)))
+    : [];
+  worksheet['!cols'] = columnWidths.map((wch, columnIndex) => ({ wch: displayedColumnWidths[columnIndex] ?? wch }));
+  const displayedRows = displayedTable ? Array.from(displayedTable.querySelectorAll('tr')) : [];
   worksheet['!rows'] = Array.from({ length: range.e.r + 1 }, (_, rowIndex) => {
+    const displayedHeight = displayedRows[rowIndex]?.getBoundingClientRect().height;
+    if (displayedHeight) return { hpt: Math.max(18, Math.ceil(displayedHeight * 0.75)) };
     if (rowIndex === 0) return { hpt: 28 };
     let estimatedLines = 1;
     let hasStatusDot = false;
@@ -342,7 +348,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       status.append(document.createTextNode(`[[RAHCOM_STATUS_${status.dataset.exportState?.toUpperCase()}]]`));
     });
     const workbook = XLSX.utils.table_to_book(exportTable, { sheet: 'Solar' });
-    sizeSolarWorksheetColumns(workbook, showIncidents);
+    sizeSolarWorksheetColumns(workbook, showIncidents, tableRef.current);
     const timestamp = (currentSnapshot?.capturedAt ?? new Date().toISOString()).replace(/[-:T.Z]/g, '').slice(0, 14);
     const fileData = workbookWithColoredSolarStatuses(workbook);
     const fileBytes = new Uint8Array(fileData as ArrayBuffer);
@@ -361,7 +367,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
   return <div className={currentSnapshot ? 'flex min-h-0 flex-1 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className={currentSnapshot ? 'min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card' : 'overflow-x-auto rounded-2xl border border-border bg-card'}><table ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
     <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
-    {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
+    {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className={`whitespace-nowrap p-3 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`} dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : 'rahcomZoneAxisColumn')}</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
@@ -383,7 +389,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
 
 
-        {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-2 text-center">{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className="inline-flex items-center gap-1.5" dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
+        {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className={`whitespace-nowrap p-2 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`}>{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment, equipmentIndex, visibleEquipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className={`inline-flex items-center gap-1.5 ${equipmentIndex < visibleEquipment.length - 1 ? 'mx-1.5' : ''}`} dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
         <td className="p-2 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
         <td className="p-2 font-mono" dir="ltr">{axisCode || '—'}</td>
         <td className="p-2">{axisName || '—'}</td>

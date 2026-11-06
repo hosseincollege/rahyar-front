@@ -19,6 +19,14 @@ table tbody > tr > td:not([colspan]) {
   line-height: 20px !important;
 }
 
+/* Bill identifiers may belong to multiple systems; stack them and let only those rows grow. */
+.rahcom-sticky-table.rahcom-bill-identifiers-table tbody > tr > td.bill-assignment-cell:not([colspan]) {
+  height: auto !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: pre-line !important;
+}
+
 .rahcom-page-toolbar {
   align-items: center;
 }
@@ -28,6 +36,12 @@ table tbody > tr > td:not([colspan]) {
 .rahcom-page-toolbar > [role="group"] {
   box-sizing: border-box;
   height: 36px;
+}
+
+.rahcom-traffic-table-frame {
+  flex: 0 1 auto;
+  height: fit-content;
+  max-height: calc(100% - 3rem);
 }
 
 .rahcom-search-capsule:focus-within {
@@ -44,6 +58,11 @@ table tbody > tr > td:not([colspan]) {
 
 .rahcom-search-capsule input:focus-visible {
   outline: none;
+}
+
+.rahcom-capsule-select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ring);
 }
 
 .rahcom-page-toolbar [role="group"] > button {

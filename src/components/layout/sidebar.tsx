@@ -298,7 +298,7 @@ export function Sidebar({
           bg-[var(--surface)]
           py-3
           transition-all duration-300
-          ${isMainCollapsed ? 'w-14 items-center px-2' : 'w-42 px-1.5'}
+          ${isMainCollapsed ? 'w-14 items-center px-2' : 'w-[9.45rem] px-1.5'}
         `}
       >
         <div className="flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain no-scrollbar">
@@ -345,8 +345,9 @@ export function Sidebar({
 
       {/* ستون دوم: اولویت رندر: پنل پروفایل | زیرمنوی ماژول فعال | پیشخوان خانه */}
       <div
+        style={{ paddingInlineStart: '0.5rem' }}
         className="
-          flex min-h-0 w-50 shrink-0 flex-col
+          flex min-h-0 w-[10rem] shrink-0 flex-col
           border-e border-[var(--border)]
           bg-[var(--surface)]/95
           p-4 shadow-sm backdrop-blur
@@ -413,7 +414,7 @@ export function Sidebar({
                 href={activeGroup.href}
                 onClick={() => { setOptimisticPath(activeGroup.href); onMobileClose?.(); }}
                 aria-current={isModuleLandingActive ? 'page' : undefined}
-                className="block rounded-sm text-start transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                className="block rounded-sm ps-2 text-start transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
                 {activeGroup.title}
               </Link>
