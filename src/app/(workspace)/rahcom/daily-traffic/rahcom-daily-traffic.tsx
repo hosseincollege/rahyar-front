@@ -54,6 +54,18 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
     window.addEventListener('rahyar:traffic-snapshot-changed', loadTrafficSnapshot);
     return () => window.removeEventListener('rahyar:traffic-snapshot-changed', loadTrafficSnapshot);
   }, [loadTrafficSnapshot]);
+  useEffect(() => {
+    if (trafficLoading) return;
+    const frame = window.requestAnimationFrame(() => {
+      const root = document.documentElement;
+      window.scrollTo({ left: 0, top: window.scrollY, behavior: 'instant' });
+      root.scrollLeft = 0;
+      document.body.scrollLeft = 0;
+      const contentViewport = document.querySelector<HTMLElement>('.erp-scrollbar');
+      if (contentViewport) contentViewport.scrollLeft = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [trafficLoading, trafficSnapshot]);
 
   const loadTrafficDatesForCalendar = useCallback((from: string, to: string) => rahcomApi.trafficSnapshotDates(provinceFilter ?? selectedProvince, from, to), [provinceFilter, selectedProvince]);
 

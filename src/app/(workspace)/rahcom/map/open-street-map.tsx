@@ -56,12 +56,12 @@ const popupIcons = {
   delete: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m4 4v6m6-6v6"/></svg>',
 } as const;
 
-function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: boolean, editing: boolean, status: string, copiedValue = '') {
+function systemPopupHtml(system: RahcomSystem, axisName: string, labels: PopupLabels, canManage: boolean, editing: boolean, status: string, copiedValue = '') {
   const copyButton = (value: string, label: string, icon: string = popupIcons.copy) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value).replace(/\r?\n/g, '&#10;')}" aria-label="${escapeHtml(copiedValue === value ? labels.copied : label)}" title="${escapeHtml(copiedValue === value ? labels.copied : label)}">${copiedValue === value ? popupIcons.save : icon}</button>`;
   const coordinatePair = formatRahcomCoordinates(system.latitude, system.longitude);
   const axisCode = system.axisCode?.trim() ?? '';
-  const announcedAxis = system.announcedAxis?.trim() ?? '';
-  const systemDetails = `${labels.code}: ${system.systemCode}\n${labels.name}: ${system.systemName}\n${labels.announcedAxis}: ${announcedAxis || '—'}${axisCode ? ` / ${axisCode}` : ''}`;
+  const resolvedAxisName = axisName.trim();
+  const systemDetails = `${labels.code}: ${system.systemCode}\n${labels.name}: ${system.systemName}\n${labels.announcedAxis}: ${resolvedAxisName || '—'}${axisCode ? ` / ${axisCode}` : ''}`;
   const editFields = editing && canManage ? `<div class="rahcom-popup-edit-fields">
     <label>${escapeHtml(labels.name)}<input data-system-field="systemName" value="${escapeHtml(system.systemName)}"></label>
     <label>${escapeHtml(labels.code)}<input data-system-field="systemCode" dir="ltr" value="${escapeHtml(system.systemCode)}"></label>
@@ -69,7 +69,7 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
     <label>${escapeHtml(labels.latitude)}<input data-system-field="latitude" dir="ltr" inputmode="decimal" value="${system.latitude}"></label>
     <label>${escapeHtml(labels.longitude)}<input data-system-field="longitude" dir="ltr" inputmode="decimal" value="${system.longitude}"></label>
   </div>` : '';
-  const axisRows = `<div class="rahcom-popup-data"><div class="rahcom-popup-row rahcom-popup-axis"><span>${escapeHtml(labels.announcedAxis)}:</span><b class="rahcom-popup-axis-value"><span>${escapeHtml(announcedAxis || '—')}</span>${axisCode ? `<span aria-hidden="true">/</span><bdi dir="ltr">${escapeHtml(axisCode)}</bdi>` : ''}</b></div></div>`;
+  const axisRows = `<div class="rahcom-popup-data"><div class="rahcom-popup-row rahcom-popup-axis"><span>${escapeHtml(labels.announcedAxis)}:</span><b class="rahcom-popup-axis-value"><span>${escapeHtml(resolvedAxisName || '—')}</span>${axisCode ? `<span aria-hidden="true">/</span><bdi dir="ltr">${escapeHtml(axisCode)}</bdi>` : ''}</b></div></div>`;
   const actions = editing && canManage
     ? `${editFields}<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save" aria-label="${escapeHtml(labels.save)}" title="${escapeHtml(labels.save)}">${popupIcons.save}</button><button type="button" data-popup-action="cancel" aria-label="${escapeHtml(labels.cancel)}" title="${escapeHtml(labels.cancel)}">${popupIcons.close}</button><button type="button" data-popup-action="delete" class="danger" aria-label="${escapeHtml(labels.remove)}" title="${escapeHtml(labels.remove)}">${popupIcons.delete}</button></div>`
     : `<div class="rahcom-popup-actions">${copyButton(coordinatePair, labels.copyCoordinates, popupIcons.coordinates)}${canManage ? `<button type="button" data-popup-action="edit" aria-label="${escapeHtml(labels.edit)}" title="${escapeHtml(labels.edit)}">${popupIcons.edit}</button>` : ''}<button type="button" data-popup-action="route" aria-label="${escapeHtml(labels.route)}" title="${escapeHtml(labels.route)}">${popupIcons.route}</button><button type="button" data-popup-action="history" aria-label="${escapeHtml(labels.history)}" title="${escapeHtml(labels.history)}">${popupIcons.history}</button></div>`;
@@ -591,6 +591,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
       displayedSystems.forEach((system) => {
         const systemCode = rahcomSystemKey(system.province, system.systemCode);
         const axisLabel = activeAxisBySystem.get(systemCode);
+        const popupAxisName = axisSource === 'traffic' ? system.announcedAxis?.trim() ?? '' : rahcomZoneForSystem(system);
         const markerColor = axisLabel ? rahcomAxisColor(axisLabel, axisOptions) : '#64748b';
         const systemIcon = divIcon({
           className: '', iconSize: [19, 24], iconAnchor: [9.5, 23],
@@ -598,7 +599,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
         });
         const marker = leafletMarker([system.latitude, system.longitude], { icon: systemIcon, draggable: false })
           .bindTooltip(axisSource === 'zones' ? `<span dir="ltr">${escapeHtml(system.systemCode.trim())}</span><br><span class="rahcom-zone-tooltip-name" dir="rtl">${escapeHtml(axisLabel || '')}</span>` : escapeHtml(system.systemCode.trim()), { permanent: true, direction: 'top', offset: [0, -2], className: 'rahcom-system-code-tooltip', opacity: 1, interactive: true })
-          .bindPopup(systemPopupHtml(system, popupLabels, canManage, false, ''), { closeButton: false, minWidth: Math.min(220, window.innerWidth - 40), maxWidth: Math.min(window.innerWidth - 40, 340), className: 'rahcom-map-system-popup', autoPanPadding: [16, 16] });
+          .bindPopup(systemPopupHtml(system, popupAxisName, popupLabels, canManage, false, ''), { closeButton: false, minWidth: Math.min(220, window.innerWidth - 32), maxWidth: Math.min(window.innerWidth - 32, 340), className: 'rahcom-map-system-popup', autoPanPadding: [16, 16] });
         marker.on('tooltipopen', (event) => event.tooltip.getElement()?.style.setProperty('--rahcom-axis-code-color', markerColor));
         marker.addTo(layer);
         markers.push(marker);
@@ -629,7 +630,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
             marker.setLatLng([system.latitude, system.longitude]);
           });
           const renderPopup = () => {
-            popup.setContent(systemPopupHtml(system, popupLabels, canManage, editing, status, copiedValue));
+            popup.setContent(systemPopupHtml(system, popupAxisName, popupLabels, canManage, editing, status, copiedValue));
             popup.update();
             const root = popup.getElement()?.querySelector<HTMLElement>('.rahcom-system-popup');
             if (!root) return;

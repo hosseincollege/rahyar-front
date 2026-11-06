@@ -157,6 +157,18 @@ export function RahcomRoadList() {
 
   const loadRoadListDates = useCallback((from: string, to: string) => province ? rahcomApi.roadListDates(province, from, to) : Promise.resolve([]), [province]);
   useEffect(() => { setSelectedSolarSnapshotId((current) => solarSnapshots.some((snapshot) => snapshot.id === current) ? current : solarSnapshots[0]?.id ?? ''); }, [solarSnapshots]);
+  useEffect(() => {
+    if (loading) return;
+    const frame = window.requestAnimationFrame(() => {
+      const root = document.documentElement;
+      window.scrollTo({ left: 0, top: window.scrollY, behavior: 'instant' });
+      root.scrollLeft = 0;
+      document.body.scrollLeft = 0;
+      const contentViewport = document.querySelector<HTMLElement>('.erp-scrollbar');
+      if (contentViewport) contentViewport.scrollLeft = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, snapshot]);
 
   async function uploadFile(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
@@ -390,7 +402,7 @@ export function RahcomRoadList() {
   if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
-  return <main dir={getLocaleDirection(locale)} className="rahcom-horizontal-overflow-page mx-auto flex h-full min-h-0 min-w-0 w-full max-w-full flex-col gap-3 overflow-hidden">
+  return <main dir={getLocaleDirection(locale)} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 w-full max-w-full flex-col gap-3 overflow-hidden">
     <header className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
       <RahcomHeaderDate compact loadMarkedDates={loadRoadListDates} />
       {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} />}
@@ -399,7 +411,7 @@ export function RahcomRoadList() {
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
         <button type="button" onClick={() => void copyRoadListImagePrompt()} aria-label={locale === 'fa' ? 'کپی پرامپت استخراج تصویر راهداری' : 'Copy road list image extraction prompt'} title={roadListPromptCopyState === 'copied' ? locale === 'fa' ? 'پرامپت کپی شد' : 'Prompt copied' : roadListPromptCopyState === 'failed' ? locale === 'fa' ? 'کپی انجام نشد' : 'Copy failed' : locale === 'fa' ? 'کپی پرامپت استخراج تصویر راهداری' : 'Copy road list image extraction prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary">{roadListPromptCopyState === 'copied' ? <Check size={17} aria-hidden="true" className="text-primary" /> : <ClipboardCopy size={17} aria-hidden="true" />}</button>
-        {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+        {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
           <span>{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
           <input type="file" accept=".xlsx,.xls" disabled={busy || !province} onChange={(event) => void uploadFile(event)} className="sr-only" />

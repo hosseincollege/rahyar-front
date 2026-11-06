@@ -52,6 +52,7 @@ import { HeaderProvinceSelector } from './header-province-selector';
 import type { MissionEntryMode } from './mission-quick-actions';
 
 interface TopHeaderProps {
+  enableMobileHorizontalElasticDrag?: boolean;
   isCollapsed?: boolean;
   isMobileMenuOpen?: boolean;
   isSidebarLocked?: boolean;
@@ -65,6 +66,7 @@ interface TopHeaderProps {
 }
 
 export function TopHeader({
+  enableMobileHorizontalElasticDrag = false,
   isCollapsed = true,
   isMobileMenuOpen = false,
   isSidebarLocked = false,
@@ -80,6 +82,8 @@ export function TopHeader({
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const missionMenuRef = useRef<HTMLDivElement>(null);
+  const headerDragRef = useRef<{ pointerId: number; startX: number; startY: number; shell: HTMLElement; previousTransform: string; previousTransition: string; previousWillChange: string; moved: boolean } | null>(null);
+  const suppressClickAfterHeaderDragRef = useRef(false);
   const [isMissionMenuOpen, setIsMissionMenuOpen] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
@@ -104,6 +108,79 @@ export function TopHeader({
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const isMissionModeVisible = (_mode: MissionEntryMode) => shellVisibility.headerControls?.missionTools !== false;
+
+  useEffect(() => {
+    if (!enableMobileHorizontalElasticDrag) return;
+    const finishDrag = (event: PointerEvent) => {
+      const drag = headerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      headerDragRef.current = null;
+      if (!drag.moved) return;
+
+      drag.shell.style.transition = 'transform 220ms cubic-bezier(.2,.8,.2,1)';
+      drag.shell.style.transform = drag.previousTransform;
+      window.setTimeout(() => {
+        drag.shell.style.transition = drag.previousTransition;
+        drag.shell.style.willChange = drag.previousWillChange;
+      }, 240);
+      suppressClickAfterHeaderDragRef.current = true;
+      window.requestAnimationFrame(() => {
+        suppressClickAfterHeaderDragRef.current = false;
+      });
+    };
+    const moveDrag = (event: PointerEvent) => {
+      const drag = headerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+      if (!drag.moved && Math.abs(dx) <= Math.abs(dy)) {
+        headerDragRef.current = null;
+        return;
+      }
+      if (!drag.moved) {
+        drag.shell.style.willChange = 'transform';
+        drag.shell.style.transition = 'none';
+      }
+      drag.moved = true;
+      event.preventDefault();
+      const resistedOffset = Math.sign(dx) * Math.min(52, Math.abs(dx) * 0.32);
+      drag.shell.style.transform = `translate3d(${resistedOffset}px, 0, 0)`;
+    };
+    document.addEventListener('pointermove', moveDrag, { passive: false });
+    document.addEventListener('pointerup', finishDrag);
+    document.addEventListener('pointercancel', finishDrag);
+    return () => {
+      document.removeEventListener('pointermove', moveDrag);
+      document.removeEventListener('pointerup', finishDrag);
+      document.removeEventListener('pointercancel', finishDrag);
+    };
+  }, [enableMobileHorizontalElasticDrag]);
+
+  const beginHeaderDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (!enableMobileHorizontalElasticDrag || !window.matchMedia('(max-width: 767px)').matches || event.button !== 0) return;
+    const origin = event.target;
+    if (origin instanceof Element && origin.closest('input, textarea, select, [contenteditable="true"]')) return;
+    const shell = document.querySelector<HTMLElement>('.erp-app-shell');
+    if (!shell) return;
+    headerDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      shell,
+      previousTransform: shell.style.transform,
+      previousTransition: shell.style.transition,
+      previousWillChange: shell.style.willChange,
+      moved: false,
+    };
+  };
+
+  const handleHeaderClickCapture = (event: React.MouseEvent<HTMLElement>) => {
+    if (!suppressClickAfterHeaderDragRef.current) return;
+    suppressClickAfterHeaderDragRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   useEffect(() => {
     const query = headerSearchQuery.trim();
@@ -390,12 +467,15 @@ export function TopHeader({
     <header
       data-app-top-header
       dir={direction}
-      className="
+      onPointerDown={beginHeaderDrag}
+      onClickCapture={handleHeaderClickCapture}
+      className={`
         sticky top-0 z-50 relative flex h-16
         items-center border-b border-[var(--border)]
         bg-[var(--surface)]/90 px-5
         backdrop-blur-md transition-colors duration-200
-      "
+        ${enableMobileHorizontalElasticDrag ? 'max-md:touch-pan-y max-md:cursor-grab' : ''}
+      `}
     >
       {/* در موبایل کنترل‌ها کنار هم در سمت شروع و کپسول حساب در سمت مقابل می‌ماند. */}
       <div
@@ -484,8 +564,8 @@ export function TopHeader({
           <div className="relative flex h-9 w-9 shrink-0 items-center justify-center max-sm:h-8 max-sm:w-8">
             <button type="button" onClick={() => { setMobileSearchExpanded((expanded) => !expanded); setMobileToolsOpen(false); setMobileTool(null); setHeaderSearchOpen(Boolean(headerSearchQuery.trim())); }} aria-label={message('headerSearch')} title={message('headerSearch')} aria-expanded={mobileSearchExpanded} style={mobileSearchExpanded ? { backgroundColor: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] max-sm:h-8 max-sm:w-8"><Search size={18}/></button>
             {mobileSearchExpanded && <div className="absolute -left-10 top-[calc(100%+0.5rem)] z-[130] w-[min(18rem,calc(100vw-2rem))]">
-              <form onSubmit={(event) => { submitHeaderSearch(event); setMobileSearchExpanded(false); }} role="search" style={{ backgroundColor: 'var(--gray-header,var(--surface))', color: 'var(--foreground)', borderColor: 'var(--primary)' }} className="flex h-12 min-w-0 items-center gap-2 rounded-full border px-3 text-foreground shadow-lg transition-colors">
-                <input autoFocus type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ outline: 'none', boxShadow: 'none' }} className="h-full min-w-0 flex-1 bg-transparent text-sm text-inherit outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0" />
+              <form onSubmit={(event) => { submitHeaderSearch(event); setMobileSearchExpanded(false); }} role="search" style={{ backgroundColor: 'var(--gray-header,var(--surface))', color: 'var(--foreground)' }} className="rahcom-search-capsule rahcom-search-capsule--outer-focus flex h-12 min-w-0 items-center gap-2 rounded-full border border-[var(--border)] px-3 text-foreground shadow-lg transition-colors focus-within:border-[var(--primary)]">
+                <input autoFocus type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-full min-w-0 flex-1 rounded-full bg-transparent text-sm text-inherit outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0" />
                 {headerSearchQuery && <button type="button" onClick={() => setHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="grid size-7 shrink-0 place-items-center rounded-full text-inherit hover:bg-muted focus-visible:outline-none"><X size={16}/></button>}
                 <button type="submit" aria-label={message('headerSearch')} title={message('headerSearch')} className="grid size-8 shrink-0 place-items-center rounded-full text-inherit focus-visible:outline-none"><Search size={18}/></button>
               </form>
@@ -493,13 +573,16 @@ export function TopHeader({
             </div>}
           </div>
           <button type="button" onClick={() => { setMobileSearchExpanded(false); setMobileToolsOpen((open) => !open); setMobileTool(null); }} aria-label={message('missionShortcutTitle')} title={message('missionShortcutTitle')} aria-expanded={mobileToolsOpen && mobileTool === null} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] max-sm:h-8 max-sm:w-8"><MoreHorizontal size={19}/></button>
-          {mobileToolsOpen && <div dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="fixed left-2 top-14 z-[100] w-[min(10rem,calc(100vw-1rem))] max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-2xl border border-[var(--border)] p-2 shadow-2xl">
-            {mobileTool === null ? <div className="grid gap-2">{([['accountSwitcher','settingsHeaderAccountSwitcher'],['province','settingsHeaderProvinceSelector'],['profile','viewProfile'],['mission','missionShortcutTitle']] as const).filter(([id]) => id !== 'province' || isReducedEdition).map(([id,label]) => <button key={id} type="button" onClick={() => setMobileTool(id)} className="min-h-12 rounded-xl border border-[var(--border)] px-4 text-start text-sm font-medium text-[var(--foreground)] hover:bg-[var(--primary-soft)]">{locale === 'fa' && id === 'profile' ? 'پروفایل' : locale === 'fa' && id === 'mission' ? 'فرم و دستیار' : message(label)}</button>)}</div> : <div>
-              <button type="button" onClick={() => setMobileTool(null)} aria-label={message('closeSidebar')} className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"><ChevronLeft size={18}/>{direction === 'rtl' ? '→' : '←'}</button>
+          {mobileToolsOpen && <div dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="fixed left-2 top-14 z-[100] w-[min(9.5rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1.5 shadow-2xl">
+            {mobileTool === null ? <div>{([['accountSwitcher','settingsHeaderAccountSwitcher'],['province','settingsHeaderProvinceSelector'],['profile','viewProfile'],['mission','missionShortcutTitle']] as const).filter(([id]) => id !== 'province' || isReducedEdition).map(([id,label], index, items) => <button key={id} type="button" onClick={() => setMobileTool(id)} className={`min-h-10 w-full px-3 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] ${index < items.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>{locale === 'fa' && id === 'profile' ? 'پروفایل' : locale === 'fa' && id === 'mission' ? 'فرم و دستیار' : message(label)}</button>)}</div> : <div>
+              <button type="button" onClick={() => setMobileTool(null)} aria-label="بازگشت" title="بازگشت" className="mb-1 inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"><span>بازگشت</span><ChevronLeft size={16}/></button>
               {mobileTool === 'search' && <div className="relative"><form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><div className="relative min-w-0 flex-1"><input autoFocus type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 w-full rounded-xl border border-[var(--border)] bg-background px-3 pe-10 text-sm text-foreground"/>{headerSearchQuery && <button type="button" onClick={() => setHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={16}/></button>}</div><button type="submit" aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>{renderHeaderSystemSuggestions(true)}</div>}
               {mobileTool === 'accountSwitcher' && shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded/>}
               {mobileTool === 'province' && shellVisibility.headerControls?.provinceSelector !== false && <div className="p-1"><HeaderProvinceSelector userId={user?.id} embedded/></div>}
-              {mobileTool === 'profile' && <div className="flex items-center justify-between gap-3 p-2"><span className="min-w-0 truncate text-sm font-semibold">{[user?.firstName,user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}</span><button type="button" onClick={() => { setMobileToolsOpen(false); setMobileTool(null); void handleSignOut(); }} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400"><LogOut size={16}/>{message('sidebarSignOut')}</button></div>}
+              {mobileTool === 'profile' && <div className="grid gap-1">
+                <span className="min-w-0 truncate px-2 py-1 text-xs font-semibold text-[var(--muted-foreground)]">{[user?.firstName,user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}</span>
+                <button type="button" onClick={() => { setMobileToolsOpen(false); setMobileTool(null); void handleSignOut(); }} className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400"><LogOut size={14}/>{message('sidebarSignOut')}</button>
+              </div>}
               {mobileTool === 'mission' && <div className="grid gap-1">{([['form',FilePlus2,'missionModeForm'],['command',SquareTerminal,'missionModeCommand'],['ai',Bot,'missionModeAI']] as const).filter(([mode])=>isMissionModeVisible(mode)).map(([mode,Icon,label])=><button key={mode} type="button" onClick={()=>{setMobileToolsOpen(false);setMobileTool(null);onSelectMissionMode?.(mode);}} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-start text-sm ${activeMissionMode===mode?'bg-[var(--primary-soft)] text-[var(--primary)]':'text-foreground hover:bg-[var(--primary-soft)]'}`}><Icon size={16}/>{message(label)}</button>)}</div>}
             </div>}
           </div>}
@@ -557,19 +640,19 @@ export function TopHeader({
           </div>
           </button>
           {isAccountMenuOpen && (
-            <div role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="pointer-events-auto absolute end-0 top-full z-[110] mt-2 w-[min(11rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1.5 shadow-lg sm:w-44">
-              <div className="md:hidden">
+            <div role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="pointer-events-auto absolute end-0 top-full z-[110] mt-2 w-[min(10rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1 shadow-lg sm:w-44">
+              <div className="grid gap-1 md:hidden">
                 {shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded />}
-                {shellVisibility.headerControls?.provinceSelector !== false && <div className="px-2 py-1"><HeaderProvinceSelector userId={user?.id} embedded/></div>}
+                {shellVisibility.headerControls?.provinceSelector !== false && <HeaderProvinceSelector userId={user?.id} embedded/>}
                 <div className="my-1 border-t border-[var(--border)]" />
               </div>
               <button
                 type="button"
                 role="menuitem"
                 onClick={handleSignOut}
-                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-2 text-center text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 md:min-h-8 md:gap-1.5 md:px-2 md:text-xs"
+                className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg px-2 text-center text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 md:min-h-8 md:gap-1.5 md:px-2 md:text-xs"
               >
-                <LogOut size={16} />
+                <LogOut size={14} />
                 {message('sidebarSignOut')}
               </button>
             </div>
@@ -653,8 +736,8 @@ export function TopHeader({
             ] as const).filter(([mode]) => isMissionModeVisible(mode)).map(([mode, Icon, label]) => <button key={mode} type="button" role="menuitemradio" aria-checked={activeMissionMode === mode} onClick={() => { setIsMissionMenuOpen(false); onSelectMissionMode?.(mode); }} className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-start text-sm font-medium ${activeMissionMode === mode ? 'bg-[var(--primary-soft)] text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}><Icon className="size-4 shrink-0"/>{message(label)}</button>)}
           </div>}
         </div>}
-        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="pointer-events-auto relative flex min-w-0">
-          <input type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-xl border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
+        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule pointer-events-auto relative flex min-w-0 rounded-full">
+          <input type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
           {headerSearchQuery && <button type="button" onClick={() => setHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={15}/></button>}
           {renderHeaderSystemSuggestions()}
         </form>

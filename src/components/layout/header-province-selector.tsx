@@ -151,7 +151,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
     return (
       <label dir={getLocaleDirection(locale)} className="pointer-events-auto block shrink-0">
         <span className="sr-only">{label}</span>
-        <select aria-label={label} value={province} onChange={(event) => selectProvince(event.target.value)} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 max-w-36 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--primary)] sm:max-w-44 sm:px-3 sm:text-sm">
+        <select aria-label={label} value={province} onChange={(event) => selectProvince(event.target.value)} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-8 max-w-full rounded-lg border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--primary)] sm:h-9 sm:max-w-44 sm:rounded-xl sm:px-3 sm:text-sm">
           <option value="all">{uiMessage(locale, 'rahcomAllProvinces')}</option>
           {sortedOffices.map(({ id, name }, index) => <option key={id} value={id}>{numberFormat.format(index + 1)} ـ {name}</option>)}
         </select>

@@ -118,7 +118,7 @@ export function RahcomBillIdentifiers() {
 
   return <section dir={direction} className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
     <header className="rahcom-page-toolbar flex shrink-0 flex-wrap items-center justify-start gap-3">
-      <label className="relative block w-full max-w-[15rem]">
+      <label className="rahcom-search-capsule relative block w-full max-w-[15rem] rounded-full">
         <Search aria-hidden="true" size={17} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiMessage(locale, 'headerSearch')} aria-label={uiMessage(locale, 'rahcomBillIdentifiersSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
       </label>

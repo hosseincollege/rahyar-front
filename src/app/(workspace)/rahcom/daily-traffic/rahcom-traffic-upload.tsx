@@ -78,7 +78,7 @@ export function RahcomTrafficUpload() {
   if (accessLoading || !isAdmin) return null;
 
   return <div className="inline-flex shrink-0 items-center gap-2">
-    <label aria-label={t('rahcomTrafficChooseFile')} title={t('rahcomTrafficChooseFile')} className={`grid size-9 place-items-center rounded-full border border-border bg-background text-foreground transition hover:bg-muted ${busy ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
+    <label aria-label={t('rahcomTrafficChooseFile')} title={t('rahcomTrafficChooseFile')} className={`relative grid size-9 place-items-center rounded-full border border-border bg-background text-foreground transition hover:bg-muted ${busy ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
       {busy ? <LoaderCircle size={17} className="animate-spin" aria-hidden="true" /> : <FileUp size={17} aria-hidden="true" />}
       <input type="file" accept=".xlsx,.xls" disabled={busy} onChange={(event) => void uploadFile(event)} className="sr-only" />
     </label>

@@ -158,6 +158,28 @@ export function AppShell({ children }: AppShellProps) {
   }, [isMobileNavOpen]);
 
   useEffect(() => {
+    if (!isRahcomMobileOverflowPage) return;
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    const resetHorizontalScroll = () => {
+      const root = document.documentElement;
+      window.scrollTo({ left: 0, top: window.scrollY, behavior: 'instant' });
+      root.scrollLeft = 0;
+      document.body.scrollLeft = 0;
+      const contentViewport = document.querySelector<HTMLElement>('.erp-scrollbar');
+      if (contentViewport) contentViewport.scrollLeft = 0;
+    };
+    resetHorizontalScroll();
+    const frame = window.requestAnimationFrame(resetHorizontalScroll);
+    const timer = window.setTimeout(resetHorizontalScroll, 120);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, [isMobileNavOpen, isRahcomMobileOverflowPage, pathname]);
+
+  useEffect(() => {
     const desktop = window.matchMedia('(min-width: 768px)');
     const closeOnDesktop = (event: MediaQueryListEvent) => {
       if (event.matches) setIsMobileNavOpen(false);
@@ -193,6 +215,7 @@ export function AppShell({ children }: AppShellProps) {
       className="erp-app-shell flex h-screen min-h-0 flex-col overflow-hidden bg-[color:var(--background)] text-[color:var(--foreground)] transition-colors duration-200"
     >
       <TopHeader
+        enableMobileHorizontalElasticDrag={isRahcomMobileOverflowPage}
         onSelectMissionMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }}
         activeMissionMode={workspaceMode}
         isCollapsed={isCollapsed}
