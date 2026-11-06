@@ -776,6 +776,7 @@ export type UiMessage =
   | "rahcomRoadStationCode"
   | "rahcomRoadStationName"
   | "rahcomAxis"
+  | "rahcomNoAxis"
   | "rahcomZones"
   | "rahcomAxisCode"
   | "rahcomAnnouncedAxisColumn"
