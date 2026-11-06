@@ -390,8 +390,8 @@ export function RahcomRoadList() {
   if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
-  return <main dir={getLocaleDirection(locale)} className="mx-auto min-w-0 w-full max-w-full overflow-x-clip space-y-3">
-    <header className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
+  return <main dir={getLocaleDirection(locale)} className="rahcom-horizontal-overflow-page mx-auto flex h-full min-h-0 min-w-0 w-full max-w-full flex-col gap-3 overflow-hidden">
+    <header className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
       <RahcomHeaderDate compact loadMarkedDates={loadRoadListDates} />
       {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} />}
       <RahcomCountCapsule count={filteredRows.length} />
@@ -407,11 +407,11 @@ export function RahcomRoadList() {
       </div>
     </header>
 
-    {error && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
-    {message && <p role="status" className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">{message}</p>}
-    {!province ? <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListChooseProvince')}</p> : loading ? <p role="status" className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : error ? null : !snapshot ? <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListNoData')}</p> : <section className="overflow-hidden rounded-2xl border border-border bg-card">
+    {error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
+    {message && <p role="status" className="shrink-0 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">{message}</p>}
+    {!province ? <p className="shrink-0 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListChooseProvince')}</p> : loading ? <p role="status" className="shrink-0 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : error ? null : !snapshot ? <p className="shrink-0 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListNoData')}</p> : <section className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card">
       <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={t('rahcomRoadList')} fileName={snapshot.fileName} recordDate={snapshot.listDate.slice(0, 10)} count={snapshot.rowCount} savedAt={snapshot.importedAt} /></div>
-      <div className="max-h-[68vh] overflow-auto">
+      <div className="rahcom-contained-table-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-auto">
         <table className="rahcom-sticky-table w-full min-w-max border-separate border-spacing-0 text-sm">
           <thead className="bg-card text-start text-xs text-muted-foreground"><tr>
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomRowNumber')}</th>

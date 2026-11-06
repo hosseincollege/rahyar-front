@@ -36,6 +36,24 @@ table tbody > tr > td:not([colspan]) {
   justify-content: center;
 }
 
+/* Keep horizontal table gestures inside the two wide imported-data pages. */
+@media (max-width: 767px) {
+  .rahcom-horizontal-overflow-page {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+  }
+
+  .rahcom-contained-table-scroll {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+  }
+}
+
 @media (max-width: 639px) {
   .rahcom-mobile-toolbar {
     scrollbar-width: thin;
@@ -860,7 +878,7 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 }
 
 .rahcom-map-system-popup .leaflet-popup-content {
-  width: min(22.5rem, calc(100vw - 3rem)) !important;
+  width: min(21.25rem, calc(100vw - 3rem)) !important;
   max-height: min(90vh, 52rem);
   margin: 0;
   overflow: auto;
@@ -872,6 +890,7 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 }
 
 .rahcom-system-popup {
+  position: relative;
   display: grid;
   gap: .35rem;
   padding: .45rem;
@@ -897,10 +916,24 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   gap: .5rem;
 }
 
-.rahcom-popup-header > div {
+.rahcom-popup-header {
+  align-items: flex-start;
+}
+
+.rahcom-popup-heading {
   display: grid;
   min-width: 0;
   gap: .2rem;
+  row-gap: .35rem;
+}
+
+.rahcom-popup-header-actions {
+  position: absolute;
+  top: .45rem;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
 }
 
 .rahcom-popup-title {
@@ -921,15 +954,15 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   display: flex;
   align-items: center;
   gap: .3rem;
-  direction: ltr;
+  direction: rtl;
+  justify-content: flex-start;
 }
 
 .rahcom-popup-data {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: .2rem;
-  border-block: 1px solid var(--border);
-  padding-block: .3rem;
+  padding-block: 0;
 }
 
 .rahcom-popup-row {
@@ -938,7 +971,7 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   border-radius: .6rem;
   background: color-mix(in srgb, var(--muted) 42%, transparent);
   padding: .2rem .3rem;
-  font-size: .68rem;
+  font-size: .65rem;
 }
 
 .rahcom-popup-row-compact {
@@ -982,18 +1015,27 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 
 .rahcom-popup-axis {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: .3rem;
+  background: transparent;
 }
 
 .rahcom-popup-axis > span {
   color: var(--muted-foreground);
-  font-size: .65rem;
+  font-size: .68rem;
 }
 
 .rahcom-popup-axis > b {
   text-align: start;
+}
+
+.rahcom-popup-axis-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .25rem;
+  direction: rtl;
 }
 
 .rahcom-popup-copy {

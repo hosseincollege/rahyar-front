@@ -6,11 +6,11 @@ import { Check, Clock3, Download, LoaderCircle, Pencil, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
-import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
-import { tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { isRahcomIncidentValue, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 
 type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate' | 'description'>;
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_-]/g, '');
@@ -43,6 +43,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const [selectedProvince, setSelectedProvince] = useState('isfahan');
   const [importedTickets, setImportedTickets] = useState<RahcomImportedTicket[] | null>(null);
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
+  const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [importing, setImporting] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
   const [error, setError] = useState('');
@@ -96,6 +97,15 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   }, [access, loadImported, selectedProvince]);
 
   useEffect(() => {
+    let active = true;
+    setTrafficSnapshot(null);
+    void rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined)
+      .then((snapshot) => { if (active) setTrafficSnapshot(snapshot); })
+      .catch(() => { if (active) setTrafficSnapshot(null); });
+    return () => { active = false; };
+  }, [date, selectedProvince]);
+
+  useEffect(() => {
     const openUpload = () => { if (access?.canManageAssignments && !importing) uploadInputRef.current?.click(); };
     window.addEventListener('rahyar:tickets-upload-click', openUpload);
     return () => window.removeEventListener('rahyar:tickets-upload-click', openUpload);
@@ -106,6 +116,34 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   ), [importedTickets, locale, systemFilter, date]);
   const visibleSystemCount = useMemo(() => new Set(visibleTickets.map((ticket) => ticket.systemCode.trim().toLocaleUpperCase(locale)).filter(Boolean)).size, [locale, visibleTickets]);
   const systemsByCode = useMemo(() => new Map(systems.map((system) => [system.systemCode.trim().toLocaleUpperCase(locale), system])), [locale, systems]);
+  const trafficIncidentsByCode = useMemo(() => {
+    const headers = trafficSnapshot?.headers ?? [];
+    const rows = trafficSnapshot?.rows ?? [];
+    const normalizedHeaders = headers.map(normalize);
+    const codeIndex = normalizedHeaders.findIndex((header) => header.includes('کدسامانه') || header === 'systemcode' || header === 'stationcode');
+    if (codeIndex < 0) return new Map<string, string>();
+    const incidentIndexes = normalizedHeaders.flatMap((header, index) => ['سرقت', 'تخریب', 'theft', 'damage', 'تعریض', 'جابجایی', 'widening', 'relocation'].some((term) => header.includes(normalize(term))) ? [index] : []);
+    const incidentsByCode = new Map<string, string>();
+    for (const row of rows) {
+      const code = normalize(row[codeIndex] ?? '');
+      if (!code) continue;
+      const incidents = incidentIndexes.flatMap((index) => {
+        const value = String(row[index] ?? '').trim();
+        if (!isRahcomIncidentValue(value)) return [];
+        const normalizedValue = normalize(value);
+        const header = normalizedHeaders[index];
+        const hasTheft = normalizedValue.includes('سرقت') || normalizedValue.includes('theft') || header.includes('سرقت') || header.includes('theft');
+        const hasDamage = normalizedValue.includes('تخریب') || normalizedValue.includes('damage') || header.includes('تخریب') || header.includes('damage');
+        if (normalizedValue.includes('تعریض') || normalizedValue.includes('جابجایی') || normalizedValue.includes('widening') || normalizedValue.includes('relocation') || header.includes('تعریض') || header.includes('جابجایی') || header.includes('widening') || header.includes('relocation')) return [uiMessage(locale, 'solarWideningRelocation')];
+        if (hasTheft && hasDamage) return [uiMessage(locale, 'rahcomIncidentBoth')];
+        if (hasTheft) return [uiMessage(locale, 'rahcomIncidentTheft')];
+        if (hasDamage) return [uiMessage(locale, 'rahcomIncidentDamage')];
+        return [value];
+      });
+      if (incidents.length) incidentsByCode.set(code, [...new Set([...(incidentsByCode.get(code)?.split(' · ') ?? []), ...incidents])].join(' · '));
+    }
+    return incidentsByCode;
+  }, [locale, trafficSnapshot]);
   useEffect(() => { onSystemCountChange(visibleSystemCount); }, [onSystemCountChange, visibleSystemCount]);
   const downloadExcel = () => {
     if (!tableRef.current) return;
@@ -190,7 +228,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     {visibleTickets.length ? <div className="flex max-h-[68vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /><button type="button" onClick={downloadExcel} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={16} /></button></div>
       <div className="max-h-[calc(68vh-5rem)] overflow-auto"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-[2500px] text-sm">
-        <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemName','Name'],['rahcomSystemCode','System'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
+        <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemName','Name'],['rahcomSystemCode','System'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomIncidentFilter','Incident'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
           const system = systemsByCode.get(ticket.systemCode.trim().toLocaleUpperCase(locale));
           return <tr key={ticket.id} className="border-t border-border">
@@ -204,6 +242,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
                 {access?.canManageAssignments && <Pencil size={14} className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />}
               </button>
             </td>
+            <td className="whitespace-nowrap p-3">{trafficIncidentsByCode.get(normalize(ticket.systemCode)) || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{system?.axisCode || '—'}</td>
             <td className="min-w-[180px] whitespace-nowrap p-3">{system?.announcedAxis || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td>

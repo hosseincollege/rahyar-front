@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { Check, ClipboardCopy, ClipboardList, Download, ExternalLink, LoaderCircle, MapIcon, MapPin, MapPinned, Pencil, Rows3, Save, Search, Trash2, Upload, X } from 'lucide-react';
+import { Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapIcon, MapPin, MapPinned, Pencil, Rows3, Save, Search, Trash2, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
@@ -296,7 +296,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
                   <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono font-bold tracking-wide text-foreground">
                   {selectedSystemId === system.id && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSystemId(null); }}>
-                    <section role="dialog" aria-modal="true" aria-labelledby={`rahcom-system-title-${system.id}`} style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="w-full max-w-[360px] rounded-xl border border-border p-2 shadow-2xl">
+                    <section role="dialog" aria-modal="true" aria-labelledby={`rahcom-system-title-${system.id}`} style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="w-full max-w-[340px] rounded-xl border border-border p-2 shadow-2xl">
                       <div className="rahcom-system-popup">
                         {canManage && editingSystemId === system.id && editForm ? <>
                           <header className="rahcom-popup-header"><strong className="rahcom-popup-title">{t('rahcomEditSystem')}</strong><button type="button" onClick={() => { setEditingSystemId(null); setEditForm(null); }} aria-label={t('rahcomCancel')} className="rahcom-popup-copy"><X size={16}/></button></header>
@@ -307,15 +307,17 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all',
                           <div className="rahcom-popup-actions"><button type="button" data-popup-action="save" disabled={savingSystem} onClick={() => void saveEdit(system.id)} title={t('rahcomSave')} aria-label={t('rahcomSave')}><Save size={16}/></button><button type="button" onClick={() => { setEditingSystemId(null); setEditForm(null); }} title={t('rahcomCancel')} aria-label={t('rahcomCancel')}><X size={16}/></button><button type="button" className="danger" onClick={() => void removeSystem(system)} title={t('rahcomDelete')} aria-label={t('rahcomDelete')}><Trash2 size={16}/></button></div>
                         </> : <>
                           <header className="rahcom-popup-header">
-                            <div><strong className="rahcom-popup-subtitle" dir="ltr">{system.systemCode}</strong><strong id={`rahcom-system-title-${system.id}`} className="rahcom-popup-title">{system.systemName}</strong></div>
-                            <button type="button" onClick={() => setSelectedSystemId(null)} aria-label={t('closeSidebar')} className="rahcom-popup-copy"><X size={16}/></button>
+                            <div className="rahcom-popup-heading"><span className="rahcom-popup-code"><strong className="rahcom-popup-subtitle" dir="ltr">{system.systemCode}</strong><button type="button" onClick={() => void copyValue(`code-${system.id}`, system.systemCode)} title={copiedKey === `code-${system.id}` ? t('rahcomCopied') : t('rahcomCopy')} aria-label={t('rahcomCopy')} className="rahcom-popup-copy">{copiedKey === `code-${system.id}` ? <Check size={16}/> : <Copy size={16}/>}</button></span><strong id={`rahcom-system-title-${system.id}`} className="rahcom-popup-title">{system.systemName}</strong></div>
+                            <div className="rahcom-popup-header-actions">
+                              <button type="button" onClick={() => void copyValue(`details-${system.id}`, `${t('rahcomSystemCode')}: ${system.systemCode}\n${t('rahcomSystemName')}: ${system.systemName}\n${t('rahcomAxis')}: ${axisName || '—'}${axisCode ? ` / ${axisCode}` : ''}`)} title={copiedKey === `details-${system.id}` ? t('rahcomCopied') : t('rahcomCopy')} aria-label={t('rahcomCopy')} className="rahcom-popup-copy">{copiedKey === `details-${system.id}` ? <Check size={16}/> : <ClipboardCopy size={16}/>}</button>
+                              <button type="button" onClick={() => setSelectedSystemId(null)} aria-label={t('closeSidebar')} className="rahcom-popup-copy"><X size={16}/></button>
+                            </div>
                           </header>
                           <div className="rahcom-popup-data">
-                            <div className="rahcom-popup-row rahcom-popup-axis"><span>{t('rahcomAxis')}</span><b>{axisName || '—'}</b><span>{t('rahcomAxisCode')}</span><b dir="ltr">{axisCode || '—'}</b></div>
+                            <div className="rahcom-popup-row rahcom-popup-axis"><span>{t('rahcomAxis')}:</span><b className="rahcom-popup-axis-value"><span>{axisName || '—'}</span>{axisCode && <><span aria-hidden="true">/</span><bdi dir="ltr">{axisCode}</bdi></>}</b></div>
                           </div>
                           <div role="status" className="rahcom-popup-status"></div>
                           <div className="rahcom-popup-actions">
-                            <button type="button" onClick={() => void copyValue(`details-${system.id}`, `${t('rahcomSystemCode')}: ${system.systemCode}\n${t('rahcomSystemName')}: ${system.systemName}\n${t('rahcomAxis')}: ${axisName || '—'}\n${t('rahcomAxisCode')}: ${axisCode || '—'}`)} title={copiedKey === `details-${system.id}` ? t('rahcomCopied') : t('rahcomCopy')} aria-label={t('rahcomCopy')}>{copiedKey === `details-${system.id}` ? <Check size={16}/> : <ClipboardCopy size={16}/>}</button>
                             <button type="button" onClick={() => void copyValue(coordinatesKey, formatRahcomCoordinates(system.latitude, system.longitude))} title={copiedKey === coordinatesKey ? t('rahcomCopied') : t('rahcomCopyCoordinates')} aria-label={t('rahcomCopyCoordinates')}>{copiedKey === coordinatesKey ? <Check size={16}/> : <MapPin size={16}/>}</button>
                             {canManage && <button type="button" data-popup-action="edit" onClick={() => startEdit(system)} title={t('rahcomEditSystem')} aria-label={t('rahcomEditSystem')}><Pencil size={16}/></button>}
                             <button type="button" data-popup-action="route" onClick={() => setRouteSystem(system)} title={t('rahcomRoute')} aria-label={t('rahcomRoute')}><MapPinned size={16}/></button>
