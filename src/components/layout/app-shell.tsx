@@ -14,10 +14,13 @@ import { getLocaleDirection, getOrganizationAccentStyle, usePreferences } from '
 import { MissionQuickActions, type MissionEntryMode } from './mission-quick-actions';
 import { loadOrganizationModuleVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
+import { uiMessage } from '@/lib/ui-messages';
 
 const SIDEBAR_COLLAPSED_KEY = 'erp-sidebar-collapsed';
 const SIDEBAR_LOCKED_KEY = 'erp-sidebar-locked';
 const NAVIGATE_ON_CLICK_KEY = 'erp-navigate-on-click';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0';
+const APP_BUILD_DATE = process.env.NEXT_PUBLIC_APP_BUILD_DATE ?? '2026-11-05';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -26,6 +29,8 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isRahcomMap = pathname === '/rahcom/map';
+  const isRahcomPage = pathname.startsWith('/rahcom/');
+  const isRahcomMobileOverflowPage = pathname === '/rahcom/daily-traffic' || pathname === '/rahcom/road-list';
   const isRahcomSystems = pathname === '/rahcom/systems';
   const isRahcomSolarDaily = pathname === '/rahcom/solar-daily';
   const isRahcomTickets = pathname === '/rahcom/tickets';
@@ -43,6 +48,7 @@ export function AppShell({ children }: AppShellProps) {
     brightnessPreferences,
     brightnessPreview,
   } = usePreferences();
+  const formattedBuildDate = new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR-u-ca-persian' : locale, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${APP_BUILD_DATE}T12:00:00Z`));
   const missionMode: MissionEntryMode | null = workspaceMode === 'form' ? null : workspaceMode;
   const activeAppearance = appearancePreview ?? organizationAppearance;
   const activeContrast = contrastPreview ?? contrastPreferences;
@@ -224,11 +230,16 @@ export function AppShell({ children }: AppShellProps) {
 
         <main
           dir={direction === 'rtl' ? 'ltr' : 'rtl'}
-          className="erp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto bg-[color:var(--background)]"
+          className={`erp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto bg-[color:var(--background)] ${isRahcomMobileOverflowPage ? 'max-sm:!overflow-x-hidden' : ''}`}
         >
-          <div dir={direction} className={`${isRahcomMap ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-2 text-right sm:p-3' : isRahcomFixedHeightPage ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-3 text-right sm:p-4 lg:p-6' : 'min-h-full min-w-0 w-full p-3 text-right sm:p-4 lg:p-6'}`}>
+          <div dir={direction} className={`${isRahcomMap ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-2 text-right sm:p-3' : isRahcomFixedHeightPage ? 'flex h-full min-h-0 min-w-0 w-full flex-col px-3 pt-2 pb-3 text-right sm:px-4 sm:pt-3 sm:pb-4 lg:px-6 lg:pt-3 lg:pb-6' : isRahcomMobileOverflowPage ? 'min-h-full min-w-0 w-full max-w-full overflow-x-clip px-3 pt-2 pb-3 text-right sm:px-4 sm:pt-3 sm:pb-4 lg:px-6 lg:pt-3 lg:pb-6' : isRahcomPage ? 'min-h-full min-w-0 w-full px-3 pt-2 pb-3 text-right sm:px-4 sm:pt-3 sm:pb-4 lg:px-6 lg:pt-3 lg:pb-6' : 'min-h-full min-w-0 w-full p-3 text-right sm:p-4 lg:p-6'}`}>
             {missionMode ? <div className="grid min-h-full min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]"><div className="min-w-0">{children}</div><MissionQuickActions key={missionMode} initialMode={missionMode} onSelectMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }} onClose={() => { void saveWorkspaceMode('form').catch((error) => console.error('Could not save workspace mode:', error)); }} /></div> : children}
           </div>
+          <footer dir={direction} className="flex h-[55px] shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-0 border-t border-border/70 px-3 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{uiMessage(locale, 'appFooterBrand')}</span>
+            <span>{uiMessage(locale, 'appFooterVersion')}: <bdi dir="ltr" className="font-mono">{APP_VERSION}</bdi></span>
+            <span>{uiMessage(locale, 'appFooterLastUpdated')}: <time dateTime={APP_BUILD_DATE}>{formattedBuildDate}</time></span>
+          </footer>
         </main>
       </div>
     </div>

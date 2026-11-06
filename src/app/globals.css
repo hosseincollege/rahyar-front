@@ -10,6 +10,32 @@ table tbody > tr > td:not([colspan]) {
   padding-block: 8px !important;
 }
 
+.rahcom-sticky-table tbody > tr > td:not([colspan]) {
+  height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap !important;
+  line-height: 20px !important;
+}
+
+.rahcom-page-toolbar {
+  align-items: center;
+}
+
+.rahcom-page-toolbar > button,
+.rahcom-page-toolbar > label,
+.rahcom-page-toolbar > [role="group"] {
+  box-sizing: border-box;
+  height: 36px;
+}
+
+.rahcom-page-toolbar [role="group"] > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 639px) {
   .rahcom-mobile-toolbar {
     scrollbar-width: thin;
@@ -854,6 +880,14 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   text-align: right;
 }
 
+.rahcom-sticky-table thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  background-color: var(--card);
+  opacity: 1;
+}
+
 .rahcom-popup-header,
 .rahcom-popup-row,
 .rahcom-popup-actions {
@@ -872,14 +906,15 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 .rahcom-popup-title {
   overflow-wrap: anywhere;
   color: var(--foreground);
-  font-size: .95rem;
-  font-weight: 700;
+  font-size: .8rem;
+  font-weight: 600;
 }
 
 .rahcom-popup-subtitle {
-  color: var(--muted-foreground);
+  color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: .75rem;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .rahcom-popup-code {
@@ -943,6 +978,22 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .74rem;
   text-align: end;
+}
+
+.rahcom-popup-axis {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: .3rem;
+}
+
+.rahcom-popup-axis > span {
+  color: var(--muted-foreground);
+  font-size: .65rem;
+}
+
+.rahcom-popup-axis > b {
+  text-align: start;
 }
 
 .rahcom-popup-copy {

@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
+import packageJson from "./package.json";
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: packageJson.version,
+    NEXT_PUBLIC_APP_BUILD_DATE: new Date().toISOString().slice(0, 10),
+  },
   async redirects() {
     return [
       { source: '/dashboard/notifications', destination: '/dashboard/events', permanent: true },

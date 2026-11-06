@@ -18,7 +18,7 @@ import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 type Point = { lat: number; lng: number };
 type PopupLabels = {
-  name: string; code: string; axisCode: string; announcedAxis: string; latitude: string; longitude: string; copy: string; copyCode: string; copyCoordinates: string; copyAll: string; copied: string;
+  name: string; code: string; axisCode: string; announcedAxis: string; latitude: string; longitude: string; copy: string; copyCoordinates: string; copied: string;
   electricityBillId: string; simIp: string; radarIp: string; cameraIp: string; pcIp: string; routerIp: string; laptopIp: string;
   edit: string; save: string; cancel: string; close: string; remove: string; route: string; history: string;
   dragHint: string; deleteConfirm: string; updateFailed: string; deleteFailed: string;
@@ -46,6 +46,7 @@ function hasRegisteredMapLocation(system: Pick<RahcomSystem, 'latitude' | 'longi
 
 const popupIcons = {
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>',
+  coordinates: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>',
   route: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 19-9-9 19-2-8-8-2Z"/></svg>',
   history: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>',
@@ -55,17 +56,11 @@ const popupIcons = {
 } as const;
 
 function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: boolean, editing: boolean, status: string, copiedValue = '') {
-  const copyButton = (value: string, label: string) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value).replace(/\r?\n/g, '&#10;')}" aria-label="${escapeHtml(copiedValue === value ? labels.copied : label)}" title="${escapeHtml(copiedValue === value ? labels.copied : label)}">${copiedValue === value ? popupIcons.save : popupIcons.copy}</button>`;
-  const row = (label: string, value: string, copyLabel = labels.copy, compact = false) => `<div class="rahcom-popup-row${compact ? ' rahcom-popup-row-compact' : ''}"><span>${escapeHtml(label)}</span><b dir="ltr">${escapeHtml(value)}</b>${copyButton(value, copyLabel)}</div>`;
+  const copyButton = (value: string, label: string, icon = popupIcons.copy) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value).replace(/\r?\n/g, '&#10;')}" aria-label="${escapeHtml(copiedValue === value ? labels.copied : label)}" title="${escapeHtml(copiedValue === value ? labels.copied : label)}">${copiedValue === value ? popupIcons.save : icon}</button>`;
   const coordinatePair = formatRahcomCoordinates(system.latitude, system.longitude);
   const axisCode = system.axisCode?.trim() ?? '';
   const announcedAxis = system.announcedAxis?.trim() ?? '';
-  const copyBasics = [
-    `${labels.name}: ${system.systemName}`,
-    `${labels.code}: ${system.systemCode}`,
-    `${labels.axisCode}: ${axisCode || '—'}`,
-    `${labels.announcedAxis}: ${announcedAxis || '—'}`,
-  ].join('\n');
+  const systemDetails = `${labels.code}: ${system.systemCode}\n${labels.name}: ${system.systemName}\n${labels.announcedAxis}: ${announcedAxis || '—'}\n${labels.axisCode}: ${axisCode || '—'}`;
   const editFields = editing && canManage ? `<div class="rahcom-popup-edit-fields">
     <label>${escapeHtml(labels.name)}<input data-system-field="systemName" value="${escapeHtml(system.systemName)}"></label>
     <label>${escapeHtml(labels.code)}<input data-system-field="systemCode" dir="ltr" value="${escapeHtml(system.systemCode)}"></label>
@@ -73,18 +68,12 @@ function systemPopupHtml(system: RahcomSystem, labels: PopupLabels, canManage: b
     <label>${escapeHtml(labels.latitude)}<input data-system-field="latitude" dir="ltr" inputmode="decimal" value="${system.latitude}"></label>
     <label>${escapeHtml(labels.longitude)}<input data-system-field="longitude" dir="ltr" inputmode="decimal" value="${system.longitude}"></label>
   </div>` : '';
-  const optionalRows = ([
-    [labels.electricityBillId, system.electricityBillId], [labels.simIp, system.simIp], [labels.radarIp, system.radarIp],
-    [labels.cameraIp, system.cameraIp], [labels.pcIp, system.pcIp], [labels.routerIp, system.routerIp], [labels.laptopIp, system.laptopIp],
-  ] as const).filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => row(label, value, labels.copy, true));
-  const basics = `<div class="rahcom-popup-basics">${copyButton(copyBasics, labels.copyAll)}</div>`;
-  const axisRows = `${axisCode ? row(labels.axisCode, axisCode) : ''}${announcedAxis ? row(labels.announcedAxis, announcedAxis) : ''}`;
-  const coordinates = `<div class="rahcom-popup-data">${axisRows}<div class="rahcom-popup-row"><span>${escapeHtml(labels.copyCoordinates)}</span><b data-coordinate-pair dir="ltr">${escapeHtml(coordinatePair)}</b>${copyButton(coordinatePair, labels.copyCoordinates).replace('data-copy-value=', 'data-coordinate-copy data-copy-value=')}</div>${optionalRows.join('')}</div>`;
+  const axisRows = `<div class="rahcom-popup-data"><div class="rahcom-popup-row rahcom-popup-axis"><span>${escapeHtml(labels.announcedAxis)}</span><b>${escapeHtml(announcedAxis || '—')}</b><span>${escapeHtml(labels.axisCode)}</span><b dir="ltr">${escapeHtml(axisCode || '—')}</b></div></div>`;
   const actions = editing && canManage
     ? `${editFields}<p class="rahcom-popup-hint">${escapeHtml(labels.dragHint)}</p><div class="rahcom-popup-actions"><button type="button" data-popup-action="save" aria-label="${escapeHtml(labels.save)}" title="${escapeHtml(labels.save)}">${popupIcons.save}</button><button type="button" data-popup-action="cancel" aria-label="${escapeHtml(labels.cancel)}" title="${escapeHtml(labels.cancel)}">${popupIcons.close}</button><button type="button" data-popup-action="delete" class="danger" aria-label="${escapeHtml(labels.remove)}" title="${escapeHtml(labels.remove)}">${popupIcons.delete}</button></div>`
-    : `<div class="rahcom-popup-actions">${canManage ? `<button type="button" data-popup-action="edit" aria-label="${escapeHtml(labels.edit)}" title="${escapeHtml(labels.edit)}">${popupIcons.edit}</button>` : ''}<button type="button" data-popup-action="route" aria-label="${escapeHtml(labels.route)}" title="${escapeHtml(labels.route)}">${popupIcons.route}</button><button type="button" data-popup-action="history" aria-label="${escapeHtml(labels.history)}" title="${escapeHtml(labels.history)}">${popupIcons.history}</button></div>`;
-  const header = `<header class="rahcom-popup-header"><div><strong class="rahcom-popup-title">${escapeHtml(system.systemName)}</strong><div class="rahcom-popup-code"><span class="rahcom-popup-subtitle" dir="ltr">${escapeHtml(system.systemCode)}</span>${copyButton(system.systemCode, labels.copyCode)}</div></div>${basics}<button type="button" class="rahcom-popup-copy rahcom-popup-close" data-popup-action="close" aria-label="${escapeHtml(labels.close)}" title="${escapeHtml(labels.close)}">${popupIcons.close}</button></header>`;
-  return `<div class="rahcom-system-popup" dir="rtl">${header}${editing && canManage ? '' : coordinates}<div data-popup-status role="status" class="rahcom-popup-status">${escapeHtml(status)}</div>${actions}</div>`;
+    : `<div class="rahcom-popup-actions">${copyButton(systemDetails, labels.copy)}${copyButton(coordinatePair, labels.copyCoordinates, popupIcons.coordinates)}${canManage ? `<button type="button" data-popup-action="edit" aria-label="${escapeHtml(labels.edit)}" title="${escapeHtml(labels.edit)}">${popupIcons.edit}</button>` : ''}<button type="button" data-popup-action="route" aria-label="${escapeHtml(labels.route)}" title="${escapeHtml(labels.route)}">${popupIcons.route}</button><button type="button" data-popup-action="history" aria-label="${escapeHtml(labels.history)}" title="${escapeHtml(labels.history)}">${popupIcons.history}</button></div>`;
+  const header = `<header class="rahcom-popup-header"><div><strong class="rahcom-popup-subtitle" dir="ltr">${escapeHtml(system.systemCode)}</strong><strong class="rahcom-popup-title">${escapeHtml(system.systemName)}</strong></div><button type="button" class="rahcom-popup-copy rahcom-popup-close" data-popup-action="close" aria-label="${escapeHtml(labels.close)}" title="${escapeHtml(labels.close)}">${popupIcons.close}</button></header>`;
+  return `<div class="rahcom-system-popup" dir="rtl">${header}${editing && canManage ? '' : axisRows}<div data-popup-status role="status" class="rahcom-popup-status">${escapeHtml(status)}</div>${actions}</div>`;
 }
 
 function getStoredProvince() {
@@ -365,8 +354,8 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   [visibleSystems, incidentCodes, showMapIncidents]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
-    name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axisCode: t('rahcomAxisCode'), announcedAxis: t('rahcomTrafficList'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'), copy: t('rahcomCopy'), copyAll: t('rahcomCopyAll'),
-    copyCode: t('rahcomCopyCode'), copyCoordinates: t('rahcomCopyCoordinates'), copied: t('rahcomCopied'),
+    name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axisCode: t('rahcomAxisCode'), announcedAxis: t('rahcomAxis'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'),
+    copy: t('rahcomCopy'), copyCoordinates: t('rahcomCopyCoordinates'), copied: t('rahcomCopied'),
     electricityBillId: t('rahcomElectricityBillId'), simIp: t('rahcomSimIp'), radarIp: t('rahcomRadarIp'), cameraIp: t('rahcomCameraIp'), pcIp: t('rahcomPcIp'), routerIp: t('rahcomRouterIp'), laptopIp: t('rahcomLaptopIp'), edit: t('rahcomEditSystem'),
     save: t('rahcomSaveCoordinates'), cancel: t('rahcomCancel'), close: t('closeSidebar'), remove: t('rahcomDelete'),
     route: t('rahcomRoute'), history: t('rahcomHistory'), dragHint: t('rahcomDragMarkerHint'), deleteConfirm: t('rahcomDeleteConfirm'),

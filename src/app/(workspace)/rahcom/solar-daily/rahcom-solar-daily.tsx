@@ -359,10 +359,10 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const columnCount = 9 + equipmentGroups.length + Number(showIncidents);
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
-  return <div className={currentSnapshot ? 'flex min-h-0 flex-1 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className={currentSnapshot ? 'min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card' : 'overflow-x-auto rounded-2xl border border-border bg-card'}><table ref={tableRef} className="w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : 'rahcomZoneAxisColumn')}</th>
+  return <div className={currentSnapshot ? 'flex min-h-0 flex-1 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className={currentSnapshot ? 'min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card' : 'overflow-x-auto rounded-2xl border border-border bg-card'}><table ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
+    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className="whitespace-nowrap p-3 text-center" dir="ltr">{group.label}</th>)}
-    <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
+    <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t(axisSource === 'traffic' ? 'rahcomAnnouncedAxisColumn' : 'rahcomZoneAxisColumn')}</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
       const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
@@ -380,11 +380,14 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         {showIncidents && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{incidentText || '\u2014'}</td>}
         <td className="p-2 font-mono" dir="ltr">{site}</td>
         <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
-        <td className="p-2 font-mono" dir="ltr">{axisCode || '—'}</td>
-        <td className="p-2">{axisName || '—'}</td>
+        <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
+
+
         {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className="whitespace-nowrap p-2 text-center">{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className="inline-flex items-center gap-1.5" dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
         <td className="p-2 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
-        <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
+        <td className="p-2 font-mono" dir="ltr">{axisCode || '—'}</td>
+        <td className="p-2">{axisName || '—'}</td>
+
         <td className="w-32 max-w-32 whitespace-nowrap p-2 text-center align-middle">{solarIndex >= 0 ? trafficRow?.[solarIndex]?.trim() || '—' : '—'}</td>
         <td className="whitespace-nowrap p-2 text-xs"><time className="me-2 inline text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{historyChanges.length === 0 ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <span className="inline-flex flex-nowrap items-center gap-3">{historyChanges.map(({ equipment, from, to }) => <span key={equipment} className="shrink-0" dir="auto"><bdi dir="ltr">{equipment}</bdi>: {from ? statusText(from) + ' → ' : ''}{statusText(to)}</span>)}</span>}</td>
       </tr>;

@@ -127,6 +127,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
       }
       incidentColumnsAdded = true;
     };
+    addIncidentColumns();
     const addSolarStatus = () => {
       if (!solarStatusAdded) { columns.push('solarStatus'); solarStatusAdded = true; }
     };
@@ -242,9 +243,9 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
   };
 
   return (
-    <section dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'} className="min-w-0 max-w-full space-y-4">
-      <div className="rahcom-mobile-toolbar flex flex-nowrap items-center justify-start gap-2 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
-        <RahcomHeaderDate loadMarkedDates={loadTrafficDatesForCalendar} />
+    <section dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'} className="min-w-0 max-w-full space-y-3">
+      <div className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex flex-nowrap items-center justify-start gap-2 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
+        <RahcomHeaderDate compact loadMarkedDates={loadTrafficDatesForCalendar} />
         {solarSnapshotPicker}
         <RahcomCountCapsule count={filteredSystemCount} />
         <RahcomTrafficUpload />
@@ -256,7 +257,7 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
 
       {trafficLoading ? <div className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground"><LoaderCircle size={16} className="animate-spin" />{t('rahcomSystemsLoading')}</div> : trafficSnapshot ? <section className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={t('rahcomDailyTraffic')} fileName={trafficSnapshot.fileName} recordDate={trafficSnapshot.snapshotDate.slice(0, 10)} count={trafficSnapshot.rowCount} savedAt={trafficSnapshot.createdAt} /></div>
-          <div className="max-h-[68vh] overflow-auto"><table className="w-full min-w-max text-xs"><thead className="sticky top-0 z-10 bg-muted"><tr><th scope="col" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomRowNumber')}</th>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <th key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomSystemSolar')}</th> : <th key={column} className="max-w-64 whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{column === trafficSolarColumnIndex ? t('rahcomTrafficImportedStatus') : trafficSnapshot.headers[column]}</th>)}</tr></thead><tbody>{filteredTrafficRows.length === 0 ? <tr><td colSpan={trafficDisplayColumns.length + 1} className="p-4 text-center text-muted-foreground">{t('rahcomTrafficNoMatches')}</td></tr> : filteredTrafficRows.map((row, rowIndex) => <tr key={rowIndex} className="border-t border-border hover:bg-accent/30"><td className="whitespace-nowrap px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <td key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-medium text-foreground">{statusForTrafficRow(row)}</td> : <td key={column} className="max-w-64 truncate whitespace-nowrap px-3 py-2 text-center text-foreground">{row[column] || '—'}</td>)}</tr>)}</tbody></table></div>
+          <div className="max-h-[68vh] overflow-auto"><table className="rahcom-sticky-table w-full min-w-max text-xs"><thead className="bg-card"><tr><th scope="col" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomRowNumber')}</th>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <th key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{t('rahcomSystemSolar')}</th> : <th key={column} className="max-w-64 whitespace-nowrap px-3 py-2 text-center font-semibold text-foreground">{column === trafficSolarColumnIndex ? t('rahcomTrafficImportedStatus') : trafficSnapshot.headers[column]}</th>)}</tr></thead><tbody>{filteredTrafficRows.length === 0 ? <tr><td colSpan={trafficDisplayColumns.length + 1} className="p-4 text-center text-muted-foreground">{t('rahcomTrafficNoMatches')}</td></tr> : filteredTrafficRows.map((row, rowIndex) => <tr key={rowIndex} className="border-t border-border hover:bg-accent/30"><td className="whitespace-nowrap px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>{trafficDisplayColumns.map((column) => column === 'solarStatus' ? <td key="solar-status" className="whitespace-nowrap px-3 py-2 text-center font-medium text-foreground">{statusForTrafficRow(row)}</td> : <td key={column} className="max-w-64 truncate whitespace-nowrap px-3 py-2 text-center text-foreground">{row[column] || '—'}</td>)}</tr>)}</tbody></table></div>
         </section> : !trafficError ? <p className="rounded-xl border border-dashed border-border bg-card p-5 text-center text-sm text-muted-foreground">{t('rahcomTrafficNoList')}</p> : <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{trafficError}</p>}
     </section>
   );

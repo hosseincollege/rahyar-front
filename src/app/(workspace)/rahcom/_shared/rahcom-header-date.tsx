@@ -37,7 +37,7 @@ function startOfPersianWeek(isoDate: string) {
   return shiftIsoDay(isoDate, -((dayOfWeek + 1) % 7));
 }
 
-export function RahcomHeaderDate({ loadMarkedDates }: { loadMarkedDates?: (from: string, to: string) => Promise<string[]> }) {
+export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMarkedDates?: (from: string, to: string) => Promise<string[]>; compact?: boolean }) {
   const { locale } = usePreferences();
   const { dateText, setDateText, date } = useRahcomDate();
   const direction = getLocaleDirection(locale);
@@ -127,7 +127,7 @@ export function RahcomHeaderDate({ loadMarkedDates }: { loadMarkedDates?: (from:
     setOpen(false);
   };
 
-  return <div ref={wrapperRef} className="grid h-10 w-[11.5rem] shrink-0 grid-cols-[0.9fr_1fr] overflow-hidden rounded-full border border-border bg-background">
+  return <div ref={wrapperRef} className={`grid ${compact ? 'h-9' : 'h-10'} w-[11.5rem] shrink-0 grid-cols-[0.9fr_1fr] overflow-hidden rounded-full border border-border bg-background`}>
     <button type="button" aria-expanded={weekOpen} aria-label={weekday} onClick={() => {
       setOpen(false);
       setWeekStart(startOfPersianWeek(date ?? fallbackDate));
