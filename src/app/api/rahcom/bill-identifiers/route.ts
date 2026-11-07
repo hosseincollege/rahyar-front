@@ -65,10 +65,11 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json() as { rowIndex?: number; systemCode?: string; systemCodes?: unknown };
+    const rowIndex = body.rowIndex;
     const systemCodes = Array.isArray(body.systemCodes)
       ? body.systemCodes
       : typeof body.systemCode === 'string' ? [body.systemCode] : null;
-    if (!Number.isInteger(body.rowIndex) || (body.rowIndex ?? -1) < 0 || !systemCodes
+    if (typeof rowIndex !== 'number' || !Number.isInteger(rowIndex) || rowIndex < 0 || !systemCodes
       || systemCodes.length > 50 || systemCodes.some((code) => typeof code !== 'string')) {
       return NextResponse.json({ error: 'invalid_assignment' }, { status: 400 });
     }
@@ -88,7 +89,7 @@ export async function PUT(request: NextRequest) {
     if (codeColumn < 0) return NextResponse.json({ error: 'system_code_column_missing' }, { status: 400 });
 
     const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    const target = records[body.rowIndex];
+    const target = records[rowIndex];
     if (!target) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
     const range = XLSX.utils.decode_range(worksheet['!ref']);
     let nonEmptyIndex = -1;
@@ -99,7 +100,7 @@ export async function PUT(request: NextRequest) {
         return String(cell?.w ?? cell?.v ?? '').trim();
       }).some(Boolean);
       if (rowHasData) nonEmptyIndex += 1;
-      if (nonEmptyIndex === body.rowIndex) { targetSheetRow = sheetRow; break; }
+      if (nonEmptyIndex === rowIndex) { targetSheetRow = sheetRow; break; }
     }
     if (targetSheetRow < 0) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
 
@@ -109,7 +110,7 @@ export async function PUT(request: NextRequest) {
     const updated = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     await writeFile(filePath, updated);
 
-    return NextResponse.json({ saved: true, rowIndex: body.rowIndex, systemCodes: normalizedSystemCodes });
+    return NextResponse.json({ saved: true, rowIndex, systemCodes: normalizedSystemCodes });
   } catch (error) {
     console.error('Could not save bill identifier workbook assignment:', error);
     return NextResponse.json({ error: 'workbook_write_failed' }, { status: 500 });
