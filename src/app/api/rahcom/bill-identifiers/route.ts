@@ -231,7 +231,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json() as { rowIndex?: number; fields?: unknown; systemCodes?: unknown };
-    if (!Number.isInteger(body.rowIndex) || (body.rowIndex ?? -1) < 0
+    const rowIndex = body.rowIndex;
+    if (typeof rowIndex !== 'number' || !Number.isInteger(rowIndex) || rowIndex < 0
       || !body.fields || typeof body.fields !== 'object' || Array.isArray(body.fields)
       || Object.values(body.fields).some((value) => typeof value !== 'string')
       || (body.systemCodes !== undefined && (!Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((code) => typeof code !== 'string')))) {
@@ -248,7 +249,7 @@ export async function PATCH(request: NextRequest) {
     const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
       .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
     const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    const target = records[body.rowIndex];
+    const target = records[rowIndex];
     if (!target) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
 
     const normalizeDigits = (value: string) => value.replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => {
@@ -272,7 +273,7 @@ export async function PATCH(request: NextRequest) {
     const requestedBillId = fieldUpdates.get(billIdentifierColumn);
     if (requestedBillId !== undefined) {
       const normalized = normalizeDigits(requestedBillId).replace(/\s/g, '');
-      const duplicate = records.some((row, index) => index !== body.rowIndex
+      const duplicate = records.some((row, index) => index !== rowIndex
         && normalizeDigits(String(row[billIdentifierColumn] ?? '')).replace(/\s/g, '') === normalized);
       if (duplicate) return NextResponse.json({ error: 'duplicate_bill_identifier' }, { status: 409 });
     }
@@ -286,7 +287,7 @@ export async function PATCH(request: NextRequest) {
         return String(cell?.w ?? cell?.v ?? '').trim();
       }).some(Boolean);
       if (rowHasData) nonEmptyIndex += 1;
-      if (nonEmptyIndex === body.rowIndex) { targetSheetRow = sheetRow; break; }
+      if (nonEmptyIndex === rowIndex) { targetSheetRow = sheetRow; break; }
     }
     if (targetSheetRow < 0) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
 
@@ -331,7 +332,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json() as { rowIndex?: number };
-    if (!Number.isInteger(body.rowIndex) || (body.rowIndex ?? -1) < 0) {
+    const rowIndex = body.rowIndex;
+    if (typeof rowIndex !== 'number' || !Number.isInteger(rowIndex) || rowIndex < 0) {
       return NextResponse.json({ error: 'invalid_row' }, { status: 400 });
     }
 
@@ -342,7 +344,7 @@ export async function DELETE(request: NextRequest) {
 
     const values = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
     const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    if (!records[body.rowIndex]) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
+    if (!records[rowIndex]) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
 
     const range = XLSX.utils.decode_range(worksheet['!ref']);
     let nonEmptyIndex = -1;
@@ -353,7 +355,7 @@ export async function DELETE(request: NextRequest) {
         return String(cell?.w ?? cell?.v ?? '').trim();
       }).some(Boolean);
       if (rowHasData) nonEmptyIndex += 1;
-      if (nonEmptyIndex === body.rowIndex) { targetSheetRow = sheetRow; break; }
+      if (nonEmptyIndex === rowIndex) { targetSheetRow = sheetRow; break; }
     }
     if (targetSheetRow < 0) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
 
@@ -386,7 +388,7 @@ export async function DELETE(request: NextRequest) {
     }
     worksheet['!ref'] = XLSX.utils.encode_range({ ...range, e: { ...range.e, r: range.e.r - 1 } });
     await writeFile(filePath, XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
-    return NextResponse.json({ deleted: true, rowIndex: body.rowIndex });
+    return NextResponse.json({ deleted: true, rowIndex });
   } catch (error) {
     console.error('Could not delete bill identifier workbook record:', error);
     return NextResponse.json({ error: 'workbook_write_failed' }, { status: 500 });
