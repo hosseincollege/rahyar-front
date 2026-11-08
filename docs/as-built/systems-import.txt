@@ -5,3 +5,5 @@ The systems import maps common English and Persian headers. The system code fiel
 The supplied Ips Sobyar - با کد محور.xlsx workbook has 162 data rows. With its current contents, 136 rows have a system code and valid coordinates and can be imported. The remaining rows have blank codes or missing/invalid coordinates.
 
 Implementation: src/app/(workspace)/rahcom/systems/rahcom-systems-list.tsx
+
+Isfahan systems master data now lives in src/provinces/isfahan/isfahan-systems.xlsx. The authenticated Next route at src/app/api/provinces/isfahan/systems/route.ts reads this workbook, and rahcomApi.systems uses it for Isfahan and merges it for authorized all-province views. Isfahan's systems are read-only in the Systems page; update the source workbook in the frontend repository to change this list. Other provinces continue using the backend API. Existing database rows are left intact and are no longer used as the Isfahan Systems list source.

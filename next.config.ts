@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import packageJson from "./package.json";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    '/api/provinces/isfahan/systems': ['./src/provinces/isfahan/isfahan-systems.xlsx'],
+    '/api/rahcom/bill-identifiers': ['./متفرقه/شناسه_های-قبض-گروه 01 - تکمیل شده.xlsx'],
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_APP_BUILD_DATE: new Date().toISOString().slice(0, 10),

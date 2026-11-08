@@ -22,6 +22,8 @@ const serializeExternalSystem = (system: ExternalSystemAssignment) => `EXTERNAL:
 const externalSystemsFromCell = (value: string | undefined) => splitSystemCodes(value).map(parseExternalSystem).filter((system): system is ExternalSystemAssignment => Boolean(system));
 const normalizeBillHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
   .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
+const normalizeSearchText = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
+  .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c\u200f\-–—،,.\/]+/g, '');
 
 export function RahcomBillIdentifiers() {
   const { locale } = usePreferences();
@@ -144,10 +146,10 @@ export function RahcomBillIdentifiers() {
       );
       return !has402BillIdWithNoDetails;
     });
-    const normalizedQuery = query.trim().toLocaleLowerCase(locale);
+    const normalizedQuery = normalizeSearchText(query);
     if (!normalizedQuery) return visibleRows;
-    return visibleRows.filter((row) => row.some((value) => value.toLocaleLowerCase(locale).includes(normalizedQuery))
-      || getCellValue(row, -1).toLocaleLowerCase(locale).includes(normalizedQuery));
+    return visibleRows.filter((row) => row.some((value) => normalizeSearchText(value).includes(normalizedQuery))
+      || normalizeSearchText(getCellValue(row, -1)).includes(normalizedQuery));
   }, [getCellValue, locale, query, workbook]);
   const displayColumns = useMemo(() => {
     if (!workbook) return [];
@@ -167,12 +169,16 @@ export function RahcomBillIdentifiers() {
     const rowNumber = workbook.headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('ردیف'));
     const systemCode = dataColumns.find((column) => column.index === systemCodeIndex);
     const billId = dataColumns.find((column) => ['شناسه قبض', 'شناسه قبض برق'].some((alias) => normalizeBillHeader(alias) === normalizeBillHeader(column.header)));
+    const meterBodyIndex = workbook.headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('\u0634\u0645\u0627\u0631\u0647 \u0628\u062f\u0646\u0647 \u06a9\u0646\u062a\u0648\u0631'));
+    const meterBody = meterBodyIndex >= 0 ? { index: meterBodyIndex, header: workbook.headers[meterBodyIndex] } : undefined;
     return [
       ...(rowNumber >= 0 ? [{ index: rowNumber, header: workbook.headers[rowNumber] }] : []),
+      { index: -2, header: '\u0639\u0645\u0644\u06cc\u0627\u062a' },
       { index: -1, header: uiMessage(locale, 'rahcomSystemName') },
       ...(systemCode ? [systemCode] : []),
       ...(billId ? [billId] : []),
-      ...dataColumns.filter((column) => column !== systemCode && column !== billId),
+      ...(meterBody ? [meterBody] : []),
+      ...dataColumns.filter((column) => column !== systemCode && column !== billId && column !== meterBody),
     ];
   }, [locale, systemCodeIndex, workbook]);
   const editableAddColumns = useMemo(() => displayColumns.filter((column) =>
@@ -316,8 +322,9 @@ export function RahcomBillIdentifiers() {
   };
 
   const downloadDisplayedTable = () => {
-    const exportHeaders = displayColumns.map(({ header }) => header);
-    const exportRows = rows.map((row) => displayColumns.map(({ index }) => getCellValue(row, index)));
+    const exportColumns = displayColumns.filter(({ index }) => index !== -2);
+    const exportHeaders = exportColumns.map(({ header }) => header);
+    const exportRows = rows.map((row) => exportColumns.map(({ index }) => getCellValue(row, index)));
     const worksheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...exportRows]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'شناسه قبض');
@@ -367,9 +374,14 @@ export function RahcomBillIdentifiers() {
     {!loading && workbook?.headers.length && rows.length > 0 && <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card">
       <div className="min-h-full w-max min-w-full">
         <table className="rahcom-sticky-table rahcom-bill-identifiers-table w-full min-w-max text-sm">
-          <thead className="bg-muted/50"><tr>{displayColumns.map(({ header, index }) => <th key={`${header}-${index}`} scope="col" className="whitespace-nowrap p-2 text-start">{header || '—'}</th>)}<th scope="col" className="whitespace-nowrap p-2 text-start">{'\u0639\u0645\u0644\u06cc\u0627\u062a'}</th></tr></thead>
+          <thead className="bg-muted/50"><tr>{displayColumns.map(({ header, index }) => <th key={`${header}-${index}`} scope="col" className="whitespace-nowrap p-2 text-start">{header || '—'}</th>)}</tr></thead>
           <tbody>{rows.map((row, rowIndex) => <tr key={`${row[0] || 'bill'}-${rowIndex}`} className="border-t border-border">
             {displayColumns.map(({ header, index: columnIndex }) => {
+              if (columnIndex === -2) return <td key={`${header}-${columnIndex}`} className="whitespace-nowrap p-2"><div className="flex items-center gap-1">
+                <button type="button" onClick={() => openAssignmentEditor(row)} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0627\u0646\u062a\u0633\u0627\u0628 \u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} title={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0627\u0646\u062a\u0633\u0627\u0628 \u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Link size={14} /></button>
+                <button type="button" onClick={() => openRecordEditor(row)} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0631\u06a9\u0648\u0631\u062f'} title={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0631\u06a9\u0648\u0631\u062f'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Pencil size={14} /></button>
+                <button type="button" onClick={() => { setDeletingRowIndex(workbook.rows.indexOf(row)); setDeletingBillIdentifier(row[billIdentifierIndex] ?? ''); setDeleteError(''); }} aria-label={'\u062d\u0630\u0641 \u0631\u06a9\u0648\u0631\u062f'} title={'\u062d\u0630\u0641 \u0631\u06a9\u0648\u0631\u062f'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Trash2 size={14} /></button>
+              </div></td>;
               const value = getCellValue(row, columnIndex);
               const isCode = columnIndex === systemCodeIndex;
               const isSystemAssignment = isCode || columnIndex === -1;
@@ -377,11 +389,6 @@ export function RahcomBillIdentifiers() {
                 <span>{value || '—'}</span>
               </td>;
             })}
-            <td className="whitespace-nowrap p-2"><div className="flex items-center gap-1">
-              <button type="button" onClick={() => openAssignmentEditor(row)} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0627\u0646\u062a\u0633\u0627\u0628 \u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} title={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0627\u0646\u062a\u0633\u0627\u0628 \u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Link size={14} /></button>
-              <button type="button" onClick={() => openRecordEditor(row)} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0631\u06a9\u0648\u0631\u062f'} title={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0631\u06a9\u0648\u0631\u062f'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Pencil size={14} /></button>
-              <button type="button" onClick={() => { setDeletingRowIndex(workbook.rows.indexOf(row)); setDeletingBillIdentifier(row[billIdentifierIndex] ?? ''); setDeleteError(''); }} aria-label={'\u062d\u0630\u0641 \u0631\u06a9\u0648\u0631\u062f'} title={'\u062d\u0630\u0641 \u0631\u06a9\u0648\u0631\u062f'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Trash2 size={14} /></button>
-            </div></td>
           </tr>)}</tbody>
         </table>
       </div>

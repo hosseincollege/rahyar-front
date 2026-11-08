@@ -89,7 +89,18 @@ export const rahcomApi = {
   setSelectedProvince: (province: string) => apiClient.put<{ rahcomSelectedProvince: string }>('/rahcom/me/province', { province }),
   memberProvinces: () => apiClient.get<RahcomMemberProvince[]>('/rahcom/members'),
   setMemberProvince: (id: string, province: string | null) => apiClient.put<{ id: string; rahcomProvince: string | null }>(`/rahcom/members/${encodeURIComponent(id)}/province`, { province }),
-  systems: (province?: string) => apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems'),
+  systems: async (province?: string) => {
+    const databaseSystems = () => apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
+    const isfahanSystems = () => apiClient.get<RahcomSystem[]>('/api/provinces/isfahan/systems');
+    if (province === 'isfahan') return isfahanSystems();
+    if (province && province !== 'all') return databaseSystems();
+
+    const [systems, access] = await Promise.all([databaseSystems(), rahcomApi.access()]);
+    const canAccessIsfahan = access.isAdmin || access.province === 'isfahan';
+    if (!canAccessIsfahan) return systems;
+    const localSystems = await isfahanSystems();
+    return [...systems.filter((system) => system.province !== 'isfahan'), ...localSystems];
+  },
   solarSnapshots: (province?: string, date?: string) => apiClient.get<RahcomSolarSnapshot[]>(`/rahcom/solar-snapshots?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   createSolarSnapshot: (data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),
   updateSolarSnapshot: (id: string, data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.put<RahcomSolarSnapshot>(`/rahcom/solar-snapshots/${encodeURIComponent(id)}`, data)),
