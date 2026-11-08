@@ -778,6 +778,8 @@ export type UiMessage =
   | "rahcomAxis"
   | "rahcomNoAxis"
   | "rahcomZones"
+  | "rahcomStationName"
+  | "rahcomAggregationCode"
   | "rahcomAxisCode"
   | "rahcomAnnouncedAxisColumn"
   | "rahcomZoneAxisColumn"

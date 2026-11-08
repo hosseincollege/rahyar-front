@@ -779,7 +779,7 @@ settingsOptionTabs: "Onglets de l option",
   rahcomAxis: "Axis",
   rahcomZones: "Zones",
   rahcomStationName: "Nom de la station",
-  rahcomAggregationCode: "Code d?agr?gation",
+  rahcomAggregationCode: "Code d’agrégation",
 
   rahcomAxisCode: "Axis Code",
   rahcomManageAxes: "Manage Axes",
