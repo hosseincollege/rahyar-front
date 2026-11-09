@@ -10,3 +10,6 @@
 - محل کنترل نوار بالا: src/app/(workspace)/rahcom/_shared/rahcom-section.tsx
 - مدل داده: rahyar-back/prisma/schema/rahcom.prisma، مدل RahcomImportedTicket
 - ثبت و خواندن داده: rahyar-back/src/rahcom/rahcom.service.ts
+
+
+The importer accepts both the original NOC export (TicketCode, Summary, and Project columns) and Rahcom ticket workbooks downloaded from this page (Persian headers). For Rahcom exports, it maps the ticket number, subject, system code, province, and the editable Description column. Imported descriptions replace existing notes when the workbook contains that column; sources without a Description column keep previously saved notes.

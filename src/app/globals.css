@@ -10,6 +10,14 @@ table tbody > tr > td:not([colspan]) {
   padding-block: 8px !important;
 }
 
+table tbody > tr:nth-child(even) > td:not([colspan]) {
+  background-color: color-mix(in srgb, var(--surface-muted) 18%, var(--background)) !important;
+}
+
+table tbody > tr:hover > td:not([colspan]) {
+  background-color: color-mix(in srgb, var(--surface-hover) 12%, var(--background)) !important;
+}
+
 .rahcom-sticky-table tbody > tr > td:not([colspan]) {
   height: 36px;
   overflow: hidden;

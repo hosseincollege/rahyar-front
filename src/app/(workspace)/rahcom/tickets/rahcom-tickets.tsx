@@ -12,7 +12,7 @@ import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { isRahcomIncidentValue, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 
-type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate' | 'description'>;
+type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate' | 'description'> & { description?: string };
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_-]/g, '');
 const provinceFromLabel = (value: string) => {
   const normalized = normalize(value.trim().replace(/^(?:\u0627\u0633\u062a\u0627\u0646\s*|province\s*:?\s*)/i, ''));
@@ -145,11 +145,15 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     return incidentsByCode;
   }, [locale, trafficSnapshot]);
   useEffect(() => { onSystemCountChange(visibleSystemCount); }, [onSystemCountChange, visibleSystemCount]);
-  const downloadExcel = () => {
+  const downloadExcel = useCallback(() => {
     if (!tableRef.current) return;
     const workbook = XLSX.utils.table_to_book(tableRef.current, { sheet: 'Tickets' });
     XLSX.writeFile(workbook, `rahcom-tickets-${date ?? tehranDateKey()}.xlsx`);
-  };
+  }, [date]);
+  useEffect(() => {
+    window.addEventListener('rahyar:tickets-download-click', downloadExcel);
+    return () => window.removeEventListener('rahyar:tickets-download-click', downloadExcel);
+  }, [downloadExcel]);
   const descriptionTicket = visibleTickets.find((ticket) => ticket.id === descriptionTicketId) ?? null;
   useEffect(() => {
     if (!descriptionTicketId) return;
@@ -167,24 +171,37 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       if (!sheet) throw new Error('invalid');
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false });
-      if (!rows.length || !['TicketCode', 'Summary', 'Project'].every((field) => field in rows[0])) throw new Error('invalid');
-      const stringValue = (row: Record<string, unknown>, key: string) => String(row[key] ?? '').trim();
+      if (!rows.length) throw new Error('invalid');
+      const columns = new Map(Object.keys(rows[0]).map((key) => [normalize(key), key]));
+      const hasColumn = (...aliases: string[]) => aliases.some((alias) => columns.has(normalize(alias)));
+      const value = (row: Record<string, unknown>, ...aliases: string[]) => {
+        const key = aliases.map(normalize).map((alias) => columns.get(alias)).find(Boolean);
+        return key ? String(row[key] ?? '').trim() : '';
+      };
+      const ticketCodeAliases = ['TicketCode', '\u0634\u0645\u0627\u0631\u0647 \u062a\u06cc\u06a9\u062a'];
+      const summaryAliases = ['Summary', '\u0645\u0648\u0636\u0648\u0639 \u062a\u06cc\u06a9\u062a'];
+      if (!hasColumn(...ticketCodeAliases) || !hasColumn(...summaryAliases)) throw new Error('invalid');
+      const isRahcomExport = !hasColumn('Project') && hasColumn('Description', '\u062a\u0648\u0636\u06cc\u062d\u0627\u062a');
       const matched = rows.flatMap((row): ImportedNocTicket[] => {
-        const ticketCode = stringValue(row, 'TicketCode');
-        const summary = stringValue(row, 'Summary');
-        const project = stringValue(row, 'Project');
-        if (!ticketCode || normalize(project) !== 'rahcom') return [];
-        const customer = stringValue(row, 'Customer');
-        const equipment = stringValue(row, 'NetworkEquipment');
-        const systemCode = `${summary} ${customer} ${equipment}`.match(/\b\d{3}[A-Z]\d{5}\b/i)?.[0]?.toUpperCase() ?? '';
-        const provinceField = Object.keys(row).find((key) => normalize(key).includes('province') || normalize(key).includes('استان'));
-        const sourceProvince = provinceField ? stringValue(row, provinceField) : '';
+        const ticketCode = value(row, ...ticketCodeAliases);
+        const summary = value(row, ...summaryAliases);
+        if (!ticketCode || (!isRahcomExport && normalize(value(row, 'Project')) !== 'rahcom')) return [];
+        const customer = value(row, 'Customer', '\u0645\u0634\u062a\u0631\u06cc');
+        const equipment = value(row, 'NetworkEquipment', '\u062a\u062c\u0647\u06cc\u0632 \u0634\u0628\u06a9\u0647');
+        const systemCode = value(row, 'systemCode', '\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647') || [summary, customer, equipment].join(' ').match(/\b\d{3}[A-Z]\d{5}\b/i)?.[0]?.toUpperCase() || '';
+        const sourceProvince = value(row, 'Province', '\u0627\u0633\u062a\u0627\u0646');
         const parsedProvince = provinceFromLabel(sourceProvince);
         if (sourceProvince && !parsedProvince) throw new Error('invalid-province');
-        const province = sourceProvince
-          ? parsedProvince
-          : null;
-        return [{ ticketCode, systemCode, province, summary, customer, equipment, type: stringValue(row, 'TicketType'), status: stringValue(row, 'Status'), priority: stringValue(row, 'Priority'), supportTeam: stringValue(row, 'SupportTeam'), createdOn: stringValue(row, 'Created On') }];
+        if (parsedProvince && parsedProvince !== selectedProvince) throw new Error('invalid-province');
+        return [{
+          ticketCode, systemCode, province: parsedProvince, summary,
+          description: hasColumn('Description', '\u062a\u0648\u0636\u06cc\u062d\u0627\u062a') ? value(row, 'Description', '\u062a\u0648\u0636\u06cc\u062d\u0627\u062a') : undefined, customer, equipment,
+          type: value(row, 'TicketType', '\u0646\u0648\u0639 \u062a\u06cc\u06a9\u062a'),
+          status: value(row, 'Status', '\u0648\u0636\u0639\u06cc\u062a'),
+          priority: value(row, 'Priority', '\u0627\u0648\u0644\u0648\u06cc\u062a'),
+          supportTeam: value(row, 'SupportTeam', '\u062a\u06cc\u0645 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u06cc'),
+          createdOn: value(row, 'Created On', '\u062a\u0627\u0631\u06cc\u062e \u0627\u06cc\u062c\u0627\u062f'),
+        }];
       });
       if (!matched.length || matched.length > 10000) throw new Error('invalid');
       await rahcomApi.importTickets(file.name, selectedProvince, date ?? tehranDateKey(), matched);
@@ -226,7 +243,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     {!importedTickets && !error && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
     {error && <p role="alert" className="shrink-0 text-sm text-destructive">{error}</p>}
     {visibleTickets.length ? <div className="flex max-h-[68vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /><button type="button" onClick={downloadExcel} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={16} /></button></div>
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /></div>
       <div className="max-h-[calc(68vh-5rem)] overflow-auto"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-[2500px] text-sm">
         <thead className="bg-muted/50"><tr>{[['rahcomRowNumber','Row'],['rahcomSystemName','Name'],['rahcomSystemCode','System'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomIncidentFilter','Incident'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
@@ -261,7 +278,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
       </table></div>
     </div> : importedTickets && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
     {descriptionTicket && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingDescriptionId) setDescriptionTicketId(null); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="rahcom-ticket-description-title" className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-xl sm:p-5">
+      <section role="dialog" aria-modal="true" aria-labelledby="rahcom-ticket-description-title" style={{ backgroundColor: 'var(--surface-elevated)', color: 'var(--card-foreground)', opacity: 1, backdropFilter: 'none' }} className="relative z-[101] w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-xl sm:p-5">
         <header className="mb-4 flex items-center justify-between gap-3 border-b border-border pb-3">
           <h2 id="rahcom-ticket-description-title" className="font-semibold">{uiMessage(locale, 'rahcomTicketDescription')}</h2>
           <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => setDescriptionTicketId(null)} aria-label={uiMessage(locale, 'missionClose')} title={uiMessage(locale, 'missionClose')} className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground disabled:opacity-50"><X size={16} /></button>
