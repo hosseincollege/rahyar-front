@@ -912,7 +912,6 @@ export function OrganizationStructurePage() {
                     <tr
                       key={department.id}
                       id={`department-${department.id}`}
-                      className="transition hover:bg-gray-50/50 dark:hover:bg-gray-800/30"
                     >
                       <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
                         <div className="flex items-center gap-2">

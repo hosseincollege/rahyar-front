@@ -524,7 +524,7 @@ export function UserAccountsPage() {
                     const isExpanded = expandedUserId === (user.id ?? user.username);
                     return (
                       <React.Fragment key={user.id}>
-                      <tr id={`user-${user.id ?? user.username}`} className="transition hover:bg-muted/30">
+                      <tr id={`user-${user.id ?? user.username}`}>
                         <td className="px-5 py-4">
                           <Link
                             href={`/settings/accounts#user-${encodeURIComponent(user.id ?? user.username)}`}

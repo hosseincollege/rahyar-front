@@ -3,6 +3,17 @@
 
 @import "tailwindcss";
 
+.erp-app-shell .rahcom-ticket-description-dialog {
+  background-color: #f2f4f6 !important;
+  color: #3f454c;
+}
+
+.dark .erp-app-shell .rahcom-ticket-description-dialog,
+html.dark .erp-app-shell .rahcom-ticket-description-dialog {
+  background-color: #292d31 !important;
+  color: #d2d5d8;
+}
+
 /* Keep data rows at the same compact height as the Solar table. */
 table tbody > tr > td:not([colspan]) {
   box-sizing: border-box;
@@ -12,10 +23,6 @@ table tbody > tr > td:not([colspan]) {
 
 table tbody > tr:nth-child(even) > td:not([colspan]) {
   background-color: color-mix(in srgb, var(--surface-muted) 18%, var(--background)) !important;
-}
-
-table tbody > tr:hover > td:not([colspan]) {
-  background-color: color-mix(in srgb, var(--surface-hover) 12%, var(--background)) !important;
 }
 
 .rahcom-sticky-table tbody > tr > td:not([colspan]) {

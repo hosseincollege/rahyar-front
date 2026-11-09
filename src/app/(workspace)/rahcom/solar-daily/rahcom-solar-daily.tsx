@@ -381,7 +381,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         else if (!previousSnapshot && currentState !== 'normal') changes.push({ equipment, from: null, to: currentState });
         return changes;
       }, []);
-      return <tr key={site} className="border-t border-border hover:bg-muted/20">
+      return <tr key={site} className="border-t border-border">
         <td className="p-2 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
         {showIncidents && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{incidentText || '\u2014'}</td>}
         <td className="p-2 font-mono" dir="ltr">{site}</td>
