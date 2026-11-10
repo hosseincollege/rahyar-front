@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const fields = [
-  'id', 'province', 'systemName', 'systemCode', 'axisCode', 'announcedAxis', 'incidentType', 'incidentDetails',
+  'id', 'province', 'systemName', 'systemCode', 'axisCode', 'announcedAxis', 'longOutage', 'longOutageReason', 'longOutageDetails', 'incidentType', 'incidentDetails',
   'latitude', 'longitude', 'details', 'electricityBillId', 'simIp', 'radarIp', 'cameraIp', 'pcIp', 'routerIp',
   'laptopIp', 'createdAt', 'updatedAt',
 ] as const;
@@ -37,6 +37,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
+    const persistedSystemsByCode = new Map<string, { longOutage: boolean; reason: string | null; details: string | null; axisCode: string | null; announcedAxis: string | null }>();
+    try {
+      const persistedResponse = await fetch(`${API_BASE_URL}/rahcom/systems?province=isfahan`, {
+        headers: { Authorization: authorization, Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (persistedResponse.ok) {
+        const payload = await persistedResponse.json() as { data?: Array<{ systemCode?: string; longOutage?: boolean; longOutageReason?: string | null; longOutageDetails?: string | null; axisCode?: string | null; announcedAxis?: string | null }> } | Array<{ systemCode?: string; longOutage?: boolean; longOutageReason?: string | null; longOutageDetails?: string | null; axisCode?: string | null; announcedAxis?: string | null }>;
+        const persistedSystems = Array.isArray(payload) ? payload : payload.data ?? [];
+        for (const system of persistedSystems) {
+          if (system.systemCode) persistedSystemsByCode.set(system.systemCode.normalize('NFKC').trim().toUpperCase(), { longOutage: Boolean(system.longOutage), reason: system.longOutageReason ?? null, details: system.longOutageDetails ?? null, axisCode: system.axisCode ?? null, announcedAxis: system.announcedAxis ?? null });
+        }
+      }
+    } catch {
+      // The workbook remains the fallback source when the API is temporarily unavailable.
+    }
+
     const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanSystemsWorkbook);
     const workbook = XLSX.read(await readFile(filePath), { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -55,16 +72,21 @@ export async function GET(request: NextRequest) {
         const value = row[field];
         return value === null || value === undefined || String(value).trim() === '' ? null : String(value).trim();
       };
+      const workbookLongOutage = row.longOutage === true || ['true', '1', 'yes', 'بله', 'آری'].includes(String(row.longOutage ?? '').trim().toLocaleLowerCase());
+      const normalizedCode = systemCode.normalize('NFKC').trim().toUpperCase();
       const incidentType = nullableText('incidentType');
       return [{
         id,
         province: 'isfahan',
         systemName,
         systemCode,
-        axisCode: nullableText('axisCode'),
-        announcedAxis: nullableText('announcedAxis'),
         createdAt: nullableText('createdAt') ?? new Date(0).toISOString(),
         updatedAt: nullableText('updatedAt') ?? new Date(0).toISOString(),
+        longOutage: persistedSystemsByCode.get(normalizedCode)?.longOutage ?? workbookLongOutage,
+        longOutageReason: persistedSystemsByCode.get(normalizedCode)?.reason ?? nullableText('longOutageReason'),
+        longOutageDetails: persistedSystemsByCode.get(normalizedCode)?.details ?? nullableText('longOutageDetails'),
+        axisCode: persistedSystemsByCode.get(normalizedCode)?.axisCode ?? nullableText('axisCode'),
+        announcedAxis: persistedSystemsByCode.get(normalizedCode)?.announcedAxis ?? nullableText('announcedAxis'),
         incidentType: incidentType && incidentTypes.has(incidentType) ? incidentType as 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | 'WIDENING_RELOCATION' : null,
         incidentDetails: nullableText('incidentDetails'),
         latitude,

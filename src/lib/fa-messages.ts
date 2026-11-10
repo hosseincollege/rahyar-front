@@ -702,7 +702,6 @@ const faMessages = {
   rahcomNoAxis: "بدون محور",
   rahcomAxisFilter: "فیلتر محور",
   rahcomInvalidJalaliDate: "تاریخ شمسی را به شکل سال/ماه/روز وارد کنید.",
-  rahcomTrafficList: "محورهای اعلامی تهران",
   rahcomTrafficSettings: "بارگذاری فهرست تردد",
   rahcomTrafficAdminOnly: "بارگذاری فهرست تردد کشوری فقط برای ادمین سازمان مجاز است.",
   rahcomTrafficNationalDailyHint: "این فایل، فهرست کشوری تردد روزانه است. پس از ثبت، وضعیت سولار سامانه‌ها با همین فهرست مقایسه و کد محورهای فایل روی سامانه‌های منطبق اعمال می‌شود.",

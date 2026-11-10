@@ -115,10 +115,10 @@ export function RahcomDailyTraffic({ provinceFilter, showIncidents = true, solar
   const threeDayOutageIndexes = normalizedTrafficHeaders.flatMap((header, index) => (header.includes('قطعی') || header.includes('outage')) && (header.includes('سهروز') || header.includes('3روز') || header.includes('3days') || header.includes('3day')) ? [index] : []);
   const overFiveDayOutageIndexes = normalizedTrafficHeaders.flatMap((header, index) => (header.includes('قطعی') || header.includes('outage')) && (header.includes('بیشاز5') || header.includes('بالای5') || header.includes('over5') || header.includes('morethan5') || header.includes('5days')) ? [index] : []);
   const latestDataIndex = normalizedTrafficHeaders.findIndex((header) => (header.includes(normalizeHeader('\u0622\u062e\u0631\u06cc\u0646')) && header.includes(normalizeHeader('\u0627\u0631\u0633\u0627\u0644'))) || (header.includes('last') && (header.includes('data') || header.includes('update') || header.includes('sync'))));
-  const trafficDisplayIncidentIndexes = trafficIncidentIndexes.filter((index) => {
+  const trafficDisplayIncidentIndexes = showIncidents ? trafficIncidentIndexes.filter((index) => {
     const header = normalizedTrafficHeaders[index];
     return header.includes(normalizeHeader('\u0633\u0631\u0642\u062a')) || header.includes(normalizeHeader('\u062a\u062e\u0631\u06cc\u0628')) || header.includes('theft') || header.includes('damage');
-  });
+  }) : [];
   const trafficDisplayColumns = useMemo<Array<number | 'solarStatus'>>(() => {
     const columns: Array<number | 'solarStatus'> = [trafficCrmIndex].filter((index) => index >= 0);
     const movedIndexes = new Set([...trafficDisplayIncidentIndexes, latestDataIndex, trafficCrmIndex, trafficSolarColumnIndex]);

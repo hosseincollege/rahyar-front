@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, LoaderCircle, Pencil, Save, TriangleAlert, X } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
+import { apiClient } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSolarSpecialSystem, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
@@ -97,6 +99,12 @@ export function RahcomRoadList() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [roadListPromptCopyState, setRoadListPromptCopyState] = useState<'copied' | 'failed' | null>(null);
+  const [roadListPromptOpen, setRoadListPromptOpen] = useState(false);
+  const [roadListPromptEditing, setRoadListPromptEditing] = useState(false);
+  const [roadListPromptText, setRoadListPromptText] = useState('');
+  const [roadListPromptBusy, setRoadListPromptBusy] = useState(false);
+  const [roadListPromptError, setRoadListPromptError] = useState('');
+  const [roadListPromptSaved, setRoadListPromptSaved] = useState(false);
 
   useEffect(() => {
     const initialized = window.localStorage.getItem('rahcom-show-incidents-default-v2') === 'true';
@@ -376,12 +384,12 @@ export function RahcomRoadList() {
   };
   const downloadExcel = () => {
     if (!snapshot) return;
-    const exportHeaders = [t('rahcomRowNumber'), t('rahcomSystemName'), t('rahcomSystemCode'), t('rahcomIncidentFilter'), ...(identifierIndex >= 0 ? [t('rahcomRoadStationCode')] : []),
+    const exportHeaders = [t('rahcomRowNumber'), t('rahcomSystemName'), t('rahcomSystemCode'), ...(showIncidents ? [t('rahcomIncidentFilter')] : []), ...(identifierIndex >= 0 ? [t('rahcomRoadStationCode')] : []),
       ...displayedDataColumns.map((column) => column === 'solar' ? t('rahcomSystemSolar') : column === positionIndex ? t('rahcomRoadStationName') : column === cityIndex ? t('rahcomAxis') : isSolarHeader(headers[column]) ? t('rahcomTrafficImportedStatus') : isRoadListAxisHeader(headers[column]) ? t('rahcomAxis') : isRoadListStationCodeHeader(headers[column]) ? t('rahcomRoadStationCode') : isRoadListStationNameHeader(headers[column]) ? t('rahcomRoadStationName') : headers[column])];
     const exportRows = filteredRows.map((row, rowIndex) => {
       const match = getMatch(row);
       const solarText = getSolarStatuses(match).map(({ equipment, state }) => `${equipment}: ${t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable')}`).join(', ') || '\u2014';
-      return [rowIndex + 1, match?.systemName || '\u2014', match?.systemCode || '\u2014', getIncidentText(match), ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []),
+      return [rowIndex + 1, match?.systemName || '\u2014', match?.systemCode || '\u2014', ...(showIncidents ? [getIncidentText(match)] : []), ...(identifierIndex >= 0 ? [row[identifierIndex] ?? ''] : []),
         ...displayedDataColumns.map((column) => column === 'solar' ? solarText : row[column] ?? '')];
     });
     const worksheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...exportRows]);
@@ -390,14 +398,58 @@ export function RahcomRoadList() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Road list');
     XLSX.writeFile(workbook, `road-list-${province}-${selectedDate}.xlsx`);
   };
+  const promptApiPath = () => {
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) throw new Error('شناسهٔ سازمان در دسترس نیست.');
+    return `/api/rahcom/road-list-prompt?organizationId=${encodeURIComponent(organizationId)}`;
+  };
+  const renderRoadListPrompt = (template: string) => {
+    const jalaliDate = formatJalaliDate(selectedDate);
+    return template.replaceAll('{{jalaliDate}}', jalaliDate).replaceAll('{{filenameDate}}', jalaliDate.replaceAll('/', '-'));
+  };
+  const makeRoadListPromptTemplate = (text: string) => {
+    const jalaliDate = formatJalaliDate(selectedDate);
+    return text.replaceAll(`road-list-${jalaliDate.replaceAll('/', '-')}.xlsx`, 'road-list-{{filenameDate}}.xlsx').replaceAll(jalaliDate, '{{jalaliDate}}');
+  };
+  const openRoadListImagePrompt = async () => {
+    const jalaliDate = formatJalaliDate(selectedDate);
+    setRoadListPromptText(buildRoadListImagePrompt(jalaliDate));
+    setRoadListPromptOpen(true);
+    setRoadListPromptEditing(false);
+    setRoadListPromptError('');
+    setRoadListPromptSaved(false);
+    setRoadListPromptCopyState(null);
+    setRoadListPromptBusy(true);
+    try {
+      const saved = await apiClient.get<{ prompt: string | null }>(promptApiPath());
+      if (saved.prompt) setRoadListPromptText(renderRoadListPrompt(saved.prompt));
+    } catch (reason) {
+      setRoadListPromptError(reason instanceof Error ? reason.message : 'بارگذاری پرامپت ذخیره‌شده انجام نشد.');
+    } finally {
+      setRoadListPromptBusy(false);
+    }
+  };
   const copyRoadListImagePrompt = async () => {
     try {
-      await navigator.clipboard.writeText(buildRoadListImagePrompt(formatJalaliDate(selectedDate)));
+      await navigator.clipboard.writeText(roadListPromptText);
       setRoadListPromptCopyState('copied');
+      window.setTimeout(() => setRoadListPromptCopyState(null), 1800);
     } catch {
       setRoadListPromptCopyState('failed');
     }
-    window.setTimeout(() => setRoadListPromptCopyState(null), 1800);
+  };
+  const saveRoadListImagePrompt = async () => {
+    setRoadListPromptBusy(true);
+    setRoadListPromptError('');
+    try {
+      await apiClient.put<{ saved: boolean }>(promptApiPath(), { prompt: makeRoadListPromptTemplate(roadListPromptText) });
+      setRoadListPromptEditing(false);
+      setRoadListPromptSaved(true);
+    } catch (reason) {
+      setRoadListPromptError(reason instanceof Error ? reason.message : 'ذخیرهٔ پرامپت انجام نشد.');
+    } finally {
+      setRoadListPromptBusy(false);
+    }
   };
   if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
@@ -410,7 +462,7 @@ export function RahcomRoadList() {
       <div className="flex flex-nowrap items-center gap-2">
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
-        <button type="button" onClick={() => void copyRoadListImagePrompt()} aria-label={locale === 'fa' ? 'کپی پرامپت استخراج تصویر راهداری' : 'Copy road list image extraction prompt'} title={roadListPromptCopyState === 'copied' ? locale === 'fa' ? 'پرامپت کپی شد' : 'Prompt copied' : roadListPromptCopyState === 'failed' ? locale === 'fa' ? 'کپی انجام نشد' : 'Copy failed' : locale === 'fa' ? 'کپی پرامپت استخراج تصویر راهداری' : 'Copy road list image extraction prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary">{roadListPromptCopyState === 'copied' ? <Check size={17} aria-hidden="true" className="text-primary" /> : <ClipboardCopy size={17} aria-hidden="true" />}</button>
+        <button type="button" onClick={() => void openRoadListImagePrompt()} aria-label={locale === 'fa' ? 'نمایش پرامپت راهداری' : 'View road list prompt'} title={locale === 'fa' ? 'نمایش و ویرایش پرامپت' : 'View and edit prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><ClipboardCopy size={17} aria-hidden="true" /></button>
         {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
           <span>{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
@@ -429,7 +481,7 @@ export function RahcomRoadList() {
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomRowNumber')}</th>
             <th scope="col" className="min-w-[220px] border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomSystemName')}</th>
             <th scope="col" className="min-w-[120px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemCode')}</th>
-            <th scope="col" className="min-w-[140px] max-w-[140px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-normal">{t('rahcomIncidentFilter')}</th>
+            {showIncidents && <th scope="col" className="min-w-[140px] max-w-[140px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-normal">{t('rahcomIncidentFilter')}</th>}
             {identifierIndex >= 0 && <th scope="col" className="min-w-[100px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomRoadStationCode')}</th>}
             {displayedDataColumns.map((column, index) => column === 'solar'
               ? <th key="solar-status" scope="col" className="min-w-[180px] border-b border-border px-3 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemSolar')}</th>
@@ -441,7 +493,7 @@ export function RahcomRoadList() {
               <td className="border-b border-border/70 px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(page * PAGE_SIZE + rowIndex + 1)}</td>
               <td className="min-w-[220px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
               <td dir="ltr" className="min-w-[120px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
-              <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>
+              {showIncidents && <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>}
               {identifierIndex >= 0 && <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle font-mono text-foreground">{row[identifierIndex] ?? ''}</td>}
               {displayedDataColumns.map((column, index) => column === 'solar'
                 ? <td key="solar-status" className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const equipmentStatuses = getSolarStatuses(match); return equipmentStatuses.length ? <span className="inline-flex flex-nowrap items-center justify-center gap-x-3" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" title={`${equipment}: ${label}`} aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'; })()}</td>
@@ -456,5 +508,29 @@ export function RahcomRoadList() {
         <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} aria-label={t('rahcomRoadListNextPage')} className="grid size-8 place-items-center rounded-full border border-border text-foreground disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft size={16} /></button>
       </div>}
     </section>}
+    {roadListPromptOpen && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[1001] flex items-center justify-center bg-transparent p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !roadListPromptBusy) setRoadListPromptOpen(false); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="rahcom-road-prompt-title" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="flex max-h-[min(86vh,54rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border text-foreground shadow-2xl">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+          <div className="min-w-0"><h2 id="rahcom-road-prompt-title" className="font-bold">{locale === 'fa' ? 'پرامپت استخراج تصویر راهداری' : 'Road list image extraction prompt'}</h2><p className="mt-1 text-xs text-muted-foreground">{locale === 'fa' ? 'متن ویرایش‌شده در فایل پروژه ذخیره می‌شود.' : 'Your edits are saved in the project file.'}</p></div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {canManage && <button type="button" disabled={roadListPromptBusy} onClick={() => { setRoadListPromptEditing((editing) => !editing); setRoadListPromptError(''); setRoadListPromptSaved(false); }} aria-label={roadListPromptEditing ? (locale === 'fa' ? 'پایان ویرایش' : 'Stop editing') : (locale === 'fa' ? 'ویرایش پرامپت' : 'Edit prompt')} title={roadListPromptEditing ? (locale === 'fa' ? 'پایان ویرایش' : 'Stop editing') : (locale === 'fa' ? 'ویرایش پرامپت' : 'Edit prompt')} className="grid size-9 place-items-center rounded-lg border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{roadListPromptEditing ? <Check size={16}/> : <Pencil size={16}/>}</button>}
+            <button type="button" disabled={roadListPromptBusy} onClick={() => setRoadListPromptOpen(false)} aria-label={locale === 'fa' ? 'بستن' : 'Close'} className="grid size-9 place-items-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent disabled:opacity-50"><X size={17}/></button>
+          </div>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          {roadListPromptBusy && !roadListPromptText ? <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><LoaderCircle size={17} className="animate-spin"/>{locale === 'fa' ? 'در حال بارگذاری…' : 'Loading…'}</div> : roadListPromptEditing
+            ? <textarea autoFocus dir="auto" value={roadListPromptText} onChange={(event) => { setRoadListPromptText(event.target.value); setRoadListPromptSaved(false); }} className="min-h-[50vh] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground outline-none focus:border-primary" />
+            : <pre dir="auto" className="min-h-[50vh] whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground">{roadListPromptText}</pre>}
+          {roadListPromptError && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{roadListPromptError}</p>}
+          {roadListPromptSaved && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'پرامپت در فایل پروژه ذخیره شد.' : 'Prompt saved to the project file.'}</p>}
+          {roadListPromptCopyState === 'copied' && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'متن پرامپت کپی شد.' : 'Prompt copied.'}</p>}
+          {roadListPromptCopyState === 'failed' && <p role="alert" className="mt-3 text-sm text-destructive">{locale === 'fa' ? 'کپی انجام نشد.' : 'Copy failed.'}</p>}
+        </div>
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">
+          {roadListPromptEditing && canManage && <button type="button" disabled={roadListPromptBusy || !roadListPromptText.trim()} onClick={() => void saveRoadListImagePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{roadListPromptBusy ? <LoaderCircle size={16} className="animate-spin"/> : <Save size={16}/>}<span>{locale === 'fa' ? 'ذخیره در پروژه' : 'Save to project'}</span></button>}
+          <button type="button" disabled={roadListPromptBusy || !roadListPromptText.trim()} onClick={() => void copyRoadListImagePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{roadListPromptCopyState === 'copied' ? <Check size={16}/> : <ClipboardCopy size={16}/>}<span>{roadListPromptCopyState === 'copied' ? (locale === 'fa' ? 'کپی شد' : 'Copied') : (locale === 'fa' ? 'کپی متن' : 'Copy prompt')}</span></button>
+        </footer>
+      </section>
+    </div>, document.body) : null}
   </main>;
 }

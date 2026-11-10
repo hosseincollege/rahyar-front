@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleHelp, ClipboardList, Download, Layers, LocateFixed, Map as MapIcon, MapPin, Plus, Route, Scan, Sun, Ticket, TriangleAlert, Upload, X } from 'lucide-react';
+import { CircleHelp, ClipboardList, Download, FileSpreadsheet, Layers, LocateFixed, MapPin, Plus, Route, Scan, Sun, Ticket, TriangleAlert, Upload, X } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
@@ -160,17 +160,15 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [sectionSystemsCount, setSectionSystemsCount] = useState(0);
   const [mapSystemsError, setMapSystemsError] = useState('');
   const [mapLocating, setMapLocating] = useState(false);
-  const [locateMeAction, setLocateMeAction] = useState<(() => void) | null>(null);
+  const locateMeAction = useRef<(() => void) | null>(null);
   const [mapAxisOptions, setMapAxisOptions] = useState<string[]>([]);
-  const [axisSource, setAxisSource] = useState<'traffic' | 'zones'>('traffic');
   const [aggregateSetOperation, setAggregateSetOperation] = useState<'union' | 'intersection'>('union');
   const [aggregateSources, setAggregateSources] = useState({ traffic: true, road: true, solar: true, tickets: true });
-  const renderedAxisSource = useDeferredValue(axisSource);
-  useEffect(() => { if (province !== 'isfahan' && axisSource === 'zones') setAxisSource('traffic'); }, [axisSource, province]);
   const [mapSourceFilterActive, setMapSourceFilterActive] = useState(false);
   const [mapFilterSource, setMapFilterSource] = useState<'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate'>('solar');
   const [showMapIncidents, setShowMapIncidents] = useState(true);
   const renderedShowMapIncidents = useDeferredValue(showMapIncidents);
+  const [showTrafficLongOutage, setShowTrafficLongOutage] = useState(false);
   const renderedMapFilterSource = useDeferredValue(mapFilterSource);
   const renderedMapSourceFilterActive = useDeferredValue(mapSourceFilterActive);
   const [mapIncidentCount, setMapIncidentCount] = useState(0);
@@ -179,8 +177,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedSolarSnapshotId, setSelectedSolarSnapshotId] = useState('');
   const renderedSolarSnapshotId = useDeferredValue(selectedSolarSnapshotId);
-  const toolbarUpdating = renderedAxisSource !== axisSource
-    || renderedShowMapIncidents !== showMapIncidents
+  const toolbarUpdating = renderedShowMapIncidents !== showMapIncidents
     || renderedMapFilterSource !== mapFilterSource
     || renderedMapSourceFilterActive !== mapSourceFilterActive
     || renderedSolarSnapshotId !== selectedSolarSnapshotId;
@@ -189,7 +186,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [canManageRahcom, setCanManageRahcom] = useState(false);
   const [canRecordActivities, setCanRecordActivities] = useState(false);
   const [solarFormOpen, setSolarFormOpen] = useState(false);
-  const [actionsWorkflowOpen, setActionsWorkflowOpen] = useState(false);
   const handleMapCount = useCallback((count: number) => setMapSystemsCount(count), []);
   const handleUnmappedSolarDetails = useCallback((details: UnmappedSolarDetail[]) => setMapUnmappedSolarDetails(details), []);
   const handleIncidentMapSummary = useCallback((summary: IncidentMapSummary) => setMapIncidentSummary(summary), []);
@@ -207,7 +203,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const handleMapError = useCallback((error: string) => setMapSystemsError(error), []);
   const handleAxisOptions = useCallback((axes: string[]) => setMapAxisOptions(axes), []);
   const handleLocationStatus = useCallback((status: { locating: boolean; error: boolean }) => { setMapLocationError(status.error); setMapLocating(status.locating); }, []);
-  const handleLocateMeReady = useCallback((action: (() => void) | null) => setLocateMeAction(() => action), []);
+  const handleLocateMeReady = useCallback((action: (() => void) | null) => { locateMeAction.current = action; }, []);
   const handleSolarSnapshots = useCallback((snapshots: RahcomSolarSnapshot[] | null) => {
     if (snapshots === null) {
       setSolarSnapshotAvailable(null);
@@ -305,10 +301,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
           {section === 'tickets' && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-download-click'))} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} /></button>}
           {section === 'aggregate' && <>
             <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
-            <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background" role="group" aria-label={uiMessage(locale, 'rahcomAxis')}>
-              <button type="button" aria-pressed={axisSource === 'traffic'} aria-label={uiMessage(locale, 'rahcomTrafficList')} title={uiMessage(locale, 'rahcomTrafficList')} onClick={() => setAxisSource('traffic')} style={axisSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid h-full w-9 place-items-center ${axisSource === 'traffic' ? '' : 'text-muted-foreground hover:bg-muted'}`}><ClipboardList size={16} /></button>
-              <button type="button" disabled={province !== 'isfahan'} aria-pressed={axisSource === 'zones'} aria-label={uiMessage(locale, 'rahcomZones')} title={uiMessage(locale, 'rahcomZones')} onClick={() => setAxisSource('zones')} style={axisSource === 'zones' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid h-full w-9 place-items-center border-s border-border disabled:cursor-not-allowed disabled:opacity-40 ${axisSource === 'zones' ? '' : 'text-muted-foreground hover:bg-muted'}`}><MapIcon size={16} /></button>
-            </div>
             <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateOperation')}>
               <button type="button" aria-pressed={aggregateSetOperation === 'union'} onClick={() => setAggregateSetOperation('union')} style={aggregateSetOperation === 'union' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`px-3 transition-colors ${aggregateSetOperation === 'union' ? '' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, 'rahcomAggregateUnion')}</button>
               <button type="button" aria-pressed={aggregateSetOperation === 'intersection'} onClick={() => setAggregateSetOperation('intersection')} style={aggregateSetOperation === 'intersection' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`border-s border-border px-3 transition-colors ${aggregateSetOperation === 'intersection' ? '' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, 'rahcomAggregateIntersection')}</button>
@@ -323,6 +315,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
             </div>
           </>}
           {(section === 'map' || section === 'solar-daily') && <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>}
+          {section === 'solar-daily' && <button type="button" aria-pressed={showTrafficLongOutage} aria-label="نمایش قطعی‌های زمان‌بر ثبت‌شده در فایل تردد" title="نمایش ستون قطعی زمان‌بر تردد برای مقایسه" onClick={() => setShowTrafficLongOutage((enabled) => !enabled)} style={showTrafficLongOutage ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`relative grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showTrafficLongOutage ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><FileSpreadsheet size={16} /><span className="absolute -end-0.5 -top-0.5 text-[9px] font-bold">ت</span></button>}
           {section === 'map' && (mapLocationError || mapSystemsError) && <div className="flex h-9 shrink-0 items-center gap-2">
             {mapLocationError && <span role="alert" className="whitespace-nowrap text-xs text-destructive">{uiMessage(locale, 'rahcomLocationUnavailable')}</span>}
             {mapSystemsError && <span role="alert" className="whitespace-nowrap text-xs text-destructive">{mapSystemsError}</span>}
@@ -334,12 +327,8 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
               setFocusProvince(enabled);
               window.localStorage.setItem('rahyar-rahcom-focus-province', String(enabled));
             }} style={focusProvince ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${focusProvince ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Scan size={17} /></button>}
-          <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background" role="group" aria-label={uiMessage(locale, 'rahcomAxis')}>
-            <button type="button" aria-pressed={axisSource === 'traffic'} aria-label={uiMessage(locale, 'rahcomTrafficList')} title={uiMessage(locale, 'rahcomTrafficList')} onClick={() => setAxisSource('traffic')} style={axisSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid h-full w-9 place-items-center transition-colors ${axisSource === 'traffic' ? '' : 'text-muted-foreground hover:bg-muted'}`}><ClipboardList size={17} /></button>
-            <button type="button" disabled={province !== 'isfahan'} aria-pressed={axisSource === 'zones'} aria-label={uiMessage(locale, 'rahcomZones')} title={uiMessage(locale, 'rahcomZones')} onClick={() => setAxisSource('zones')} style={axisSource === 'zones' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid h-full w-9 place-items-center border-s border-border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${axisSource === 'zones' ? '' : 'text-muted-foreground hover:bg-muted'}`}><MapIcon size={17} /></button>
-          </div>
           <button type="button" aria-pressed={showAxisLegend} aria-label={uiMessage(locale, 'rahcomShowAxisLegend')} title={uiMessage(locale, 'rahcomShowAxisLegend')} onClick={() => setShowAxisLegend((show) => !show)} style={showAxisLegend ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showAxisLegend ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><CircleHelp size={18} /></button>
-          <button type="button" onClick={() => { setMapLocationError(false); setMapLocating(true); locateMeAction?.(); }} disabled={!locateMeAction || mapLocating} aria-label={uiMessage(locale, 'rahcomLocateMe')} title={uiMessage(locale, 'rahcomLocateMe')} className="inline-grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50">{mapLocating ? <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <LocateFixed size={16} />}</button>
+          <button type="button" onClick={() => { setMapLocationError(false); locateMeAction.current?.(); }} disabled={!locateMeAction.current || mapLocating} aria-label={uiMessage(locale, 'rahcomLocateMe')} title={uiMessage(locale, 'rahcomLocateMe')} className="inline-grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50">{mapLocating ? <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <LocateFixed size={16} />}</button>
           <label className="sr-only" htmlFor="rahcom-map-filter-source">{uiMessage(locale, 'rahcomMapFilterSource')}</label>
           <select id="rahcom-map-filter-source" value={mapFilterSource} onChange={(event) => setMapFilterSource(event.target.value as typeof mapFilterSource)} aria-label={uiMessage(locale, 'rahcomMapFilterSource')} title={uiMessage(locale, 'rahcomMapFilterSource')} className="rahcom-capsule-select h-9 max-w-36 shrink rounded-full border border-border bg-background px-2 text-xs text-foreground max-sm:w-28 max-sm:max-w-28">
             {(['solar', 'traffic', 'road-list', 'tickets', 'aggregate'] as const).map((source) => <option key={source} value={source}>{mapFilterSourceLabels[source]}</option>)}
@@ -347,18 +336,12 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
           <button type="button" aria-pressed={mapSourceFilterActive} aria-label={`${uiMessage(locale, 'rahcomMapShowSource')}: ${mapFilterSourceLabels[mapFilterSource]}`} title={`${uiMessage(locale, 'rahcomMapShowSource')}: ${mapFilterSourceLabels[mapFilterSource]}`} disabled={mapFilterSource === 'solar' && !(solarSnapshotAvailable === true && selectedSolarSnapshot)} onClick={() => setMapSourceFilterActive((enabled) => !enabled)} style={mapSourceFilterActive ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${mapSourceFilterActive ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><MapFilterIcon size={18} /></button>
           {(solarSnapshotAvailable === false || solarSnapshotAvailable === true && !selectedSolarSnapshot) && <span role="status" className="inline-flex h-9 shrink-0 items-center whitespace-nowrap text-xs text-muted-foreground">{uiMessage(locale, 'rahcomSolarTodaySnapshotMissing')}</span>}
         </div>}
-        {section === 'solar-daily' && <div className="contents">
-          <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background" role="group" aria-label={uiMessage(locale, 'rahcomAxis')}>
-            <button type="button" aria-pressed={axisSource === 'traffic'} aria-label={uiMessage(locale, 'rahcomTrafficList')} title={uiMessage(locale, 'rahcomTrafficList')} onClick={() => setAxisSource('traffic')} style={axisSource === 'traffic' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid h-full w-9 place-items-center transition-colors ${axisSource === 'traffic' ? '' : 'text-muted-foreground hover:bg-muted'}`}><ClipboardList size={17} /></button>
-            <button type="button" disabled={province !== 'isfahan'} aria-pressed={axisSource === 'zones'} aria-label={uiMessage(locale, 'rahcomZones')} title={uiMessage(locale, 'rahcomZones')} onClick={() => setAxisSource('zones')} style={axisSource === 'zones' ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' } : undefined} className={`grid h-full w-9 place-items-center border-s border-border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${axisSource === 'zones' ? '' : 'text-muted-foreground hover:bg-muted'}`}><MapIcon size={17} /></button>
-          </div>
-        </div>}
         {section === 'solar-daily' && <div id="rahcom-solar-table-controls" className="contents" />}
         {toolbarUpdating && <span role="status" aria-label={uiMessage(locale, 'rahcomSystemsLoading')} className="ms-auto inline-flex size-9 shrink-0 items-center justify-center text-primary"><span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /></span>}
       </header>}
 
       {section === 'map' && showAxisLegend && <section aria-label={uiMessage(locale, 'rahcomShowAxisLegend')} className="rounded-2xl border border-border bg-card p-3 sm:p-4">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">{uiMessage(locale, axisSource === 'traffic' ? 'rahcomTrafficList' : 'rahcomZones')}</h2>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">{uiMessage(locale, 'rahcomAxisName')}</h2>
         {mapAxisOptions.length > 0 ? <div className="flex flex-wrap gap-x-4 gap-y-2">{mapAxisOptions.map((axis) => <span key={axis} className="inline-flex items-center gap-2 text-xs text-muted-foreground"><i className="size-3 rounded-full" style={{ backgroundColor: rahcomAxisColor(axis, mapAxisOptions) }} />{axis}</span>)}</div> : <p className="text-xs text-muted-foreground">{uiMessage(locale, 'rahcomNoAxes')}</p>}
       </section>}
 
@@ -371,24 +354,23 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessCheckFailed')}</p>
       ) : section === 'map' ? (
         <section aria-label={uiMessage(locale, 'rahcomMap')} className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} mapSourceFilterActive={renderedMapSourceFilterActive} mapFilterSource={renderedMapFilterSource} selectedSolarSnapshotId={renderedSolarSnapshotId} showMapIncidents={renderedShowMapIncidents} axisSource={renderedAxisSource} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onUnmappedSolarDetailsChange={handleUnmappedSolarDetails} onIncidentCountChange={handleMapIncidentCount} onIncidentMapSummaryChange={handleIncidentMapSummary} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onLocateMeReady={handleLocateMeReady} onSolarSnapshotsChange={handleSolarSnapshots} />
+          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} mapSourceFilterActive={renderedMapSourceFilterActive} mapFilterSource={renderedMapFilterSource} selectedSolarSnapshotId={renderedSolarSnapshotId} showMapIncidents={renderedShowMapIncidents} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onUnmappedSolarDetailsChange={handleUnmappedSolarDetails} onIncidentCountChange={handleMapIncidentCount} onIncidentMapSummaryChange={handleIncidentMapSummary} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onLocateMeReady={handleLocateMeReady} onSolarSnapshotsChange={handleSolarSnapshots} />
         </section>
       ) : section === 'actions' ? (
         <>
           <header className="rahcom-mobile-toolbar rahcom-page-toolbar flex h-9 min-h-9 shrink-0 items-center max-sm:overflow-x-auto max-sm:overflow-y-hidden">
             <div className="flex h-full shrink-0 items-center gap-2">
               <RahcomHeaderDate compact loadMarkedDates={loadSectionMarkedDates} />
-              {canRecordActivities && <button type="button" onClick={() => setActionsWorkflowOpen((open) => !open)} aria-label={uiMessage(locale, actionsWorkflowOpen ? 'solarCloseForm' : 'rahcomWorkflowRegisterCodes')} title={uiMessage(locale, actionsWorkflowOpen ? 'solarCloseForm' : 'rahcomWorkflowRegisterCodes')} aria-expanded={actionsWorkflowOpen} style={actionsWorkflowOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${actionsWorkflowOpen ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}><Plus size={18} aria-hidden="true" /></button>}
             </div>
           </header>
-          <RahcomActions canManage={canManageRahcom} canRecord={canRecordActivities} selectedProvince={province} workflowOpen={actionsWorkflowOpen} />
+          <RahcomActions canManage={canManageRahcom} canRecord={canRecordActivities} selectedProvince={province} />
         </>
       ) : section === 'systems' ? (
-          <RahcomSystemsList canManage={canManageRahcom} selectedProvince={province} axisSource={axisSource} renderAxisSource={renderedAxisSource} onAxisSourceChange={setAxisSource} />
+          <RahcomSystemsList canManage={canManageRahcom} selectedProvince={province} />
       ) : section === 'solar-daily' ? (
-        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} showIncidents={renderedShowMapIncidents} axisSource={renderedAxisSource} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} />
+        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} showIncidents={renderedShowMapIncidents} showTrafficLongOutage={showTrafficLongOutage} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} />
       ) : section === 'aggregate' ? (
-        <RahcomAggregateList onSystemCountChange={handleSectionSystemsCount} selectedProvince={province} axisSource={axisSource} showIncidents={showMapIncidents} setOperation={aggregateSetOperation} sources={aggregateSources} />
+        <RahcomAggregateList onSystemCountChange={handleSectionSystemsCount} selectedProvince={province} showIncidents={showMapIncidents} setOperation={aggregateSetOperation} sources={aggregateSources} />
       ) : section === 'tickets' ? (
         <RahcomTickets onSystemCountChange={handleSectionSystemsCount} />
       ) : (
