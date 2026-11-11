@@ -2,11 +2,15 @@ Rahyar Solar Daily Display
 
 The solar daily status table displays a real em dash (—) for empty equipment and data cells. This avoids the mojibake placeholder that previously appeared across LTE and other equipment columns in the right-to-left table. Incident separators and history arrows also use their intended Unicode characters.
 
+Solar Daily rows come from selected equipment entries in the selected snapshot's Down and Unreachable lists; LTE contributes only when both LTE-1 and LTE-2 are listed. Selected equipment columns determine which equipment entries may create rows. Registered systems with an active incident in the selected traffic-list snapshot may also create rows when incident visibility is enabled. Do not generate rows from system-table incident flags or previous snapshots. Traffic incident labels and long-outage values come from the imported traffic list.
+
+The optional traffic long-outage column displays the original non-empty value from a generic long-outage source column when available, including zero and text values. If the source has only separate incident-category columns, their original values are shown instead of substituting the column headings.
+
 Implementation: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
 
 The shared date calendar marks only days that have solar snapshots for the selected province and visible Jalali month. Separate data sources mark their own dates on the tickets, aggregate list, and actions pages.
 
-The solar toolbar keeps the add-status action beside its map-style icon filters. Incident source can switch between the daily traffic list and Rahyar system records; the incident visibility icon hides incident-marked systems by default and reveals the selected source when enabled. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly. The table shows one incident column for the selected source.
+The solar toolbar keeps the add-status action beside its map-style icon filters. The incident visibility icon toggles incident records classified from the daily traffic-list snapshot. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly. The table shows one incident column for the traffic-list source.
 
 New-status form updates
 

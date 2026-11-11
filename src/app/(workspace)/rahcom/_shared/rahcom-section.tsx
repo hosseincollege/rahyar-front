@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleHelp, ClipboardList, Download, FileSpreadsheet, Layers, LocateFixed, MapPin, Plus, Route, Scan, Sun, Ticket, TriangleAlert, Upload, X } from 'lucide-react';
+import { CircleHelp, ClipboardList, Download, FileSpreadsheet, Layers, LocateFixed, MapPin, Pencil, Plus, Route, Scan, Sun, Ticket, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
@@ -25,7 +25,7 @@ import { useRahcomDate } from './rahcom-date';
 
 export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
 
-export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }: { snapshots: RahcomSolarSnapshot[]; selectedId: string; locale: Parameters<typeof uiMessage>[0]; onSelect: (id: string) => void }) {
+export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect, editMode = false, canDelete = false, deletingId = null, onDelete }: { snapshots: RahcomSolarSnapshot[]; selectedId: string; locale: Parameters<typeof uiMessage>[0]; onSelect: (id: string) => void; editMode?: boolean; canDelete?: boolean; deletingId?: string | null; onDelete?: (snapshot: RahcomSolarSnapshot) => void }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -41,7 +41,7 @@ export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }:
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
       // Keep each option's content width equal to the trigger; the menu adds only its border.
-      const width = rect.width + 2;
+      const width = rect.width + (editMode && canDelete ? 38 : 2);
       setPosition({ top: rect.bottom + 6, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), width });
     };
     const onPointerDown = (event: PointerEvent) => {
@@ -60,7 +60,7 @@ export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }:
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open]);
+  }, [canDelete, editMode, open]);
 
   if (!selected) return null;
   const selectedLabel = label(selected);
@@ -75,7 +75,7 @@ export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect }:
       {snapshots.map((snapshot) => {
         const item = label(snapshot);
         const active = snapshot.id === selected.id;
-        return <button key={snapshot.id} type="button" role="option" aria-selected={active} onClick={() => { onSelect(snapshot.id); setOpen(false); }} className={`grid h-9 w-full grid-cols-2 rounded-full text-xs tabular-nums transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'}`} dir="ltr"><span className="flex items-center justify-center"><span style={active ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} className={`grid size-5 place-items-center rounded-full border text-[10px] font-semibold ${active ? '' : 'border-border text-muted-foreground'}`}>{item.ordinal}</span></span><span className={`flex items-center justify-center ${active ? 'font-semibold' : 'text-muted-foreground'}`} style={active ? { color: 'var(--primary)' } : undefined}><time>{item.time}</time></span></button>;
+        return <div key={snapshot.id} role="option" aria-selected={active} className={`grid h-9 w-full ${editMode && canDelete ? 'grid-cols-[1fr_2rem]' : 'grid-cols-1'} text-xs tabular-nums`} dir="ltr"><button type="button" onClick={() => { onSelect(snapshot.id); setOpen(false); }} className={`grid h-9 w-full grid-cols-2 rounded-full transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'}`}><span className="flex items-center justify-center"><span style={active ? { borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} className={`grid size-5 place-items-center rounded-full border text-[10px] font-semibold ${active ? '' : 'border-border text-muted-foreground'}`}>{item.ordinal}</span></span><span className={`flex items-center justify-center ${active ? 'font-semibold' : 'text-muted-foreground'}`} style={active ? { color: 'var(--primary)' } : undefined}><time>{item.time}</time></span></button>{editMode && canDelete && <button type="button" disabled={Boolean(deletingId)} onClick={() => onDelete?.(snapshot)} aria-label={`${uiMessage(locale, 'solarDeleteSnapshot')} ${item.ordinal}`} title={uiMessage(locale, 'solarDeleteSnapshot')} className="grid size-8 place-items-center rounded-full text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"><Trash2 size={15} /></button>}</div>;
       })}
     </div>, document.body)}
   </>;
@@ -176,6 +176,10 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [solarSnapshotAvailable, setSolarSnapshotAvailable] = useState<boolean | null>(null);
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedSolarSnapshotId, setSelectedSolarSnapshotId] = useState('');
+  const [solarSnapshotEditMode, setSolarSnapshotEditMode] = useState(false);
+  const [deletingSolarSnapshotId, setDeletingSolarSnapshotId] = useState<string | null>(null);
+  const [solarSnapshotRevision, setSolarSnapshotRevision] = useState(0);
+  const [solarSnapshotDeleteError, setSolarSnapshotDeleteError] = useState('');
   const renderedSolarSnapshotId = useDeferredValue(selectedSolarSnapshotId);
   const toolbarUpdating = renderedShowMapIncidents !== showMapIncidents
     || renderedMapFilterSource !== mapFilterSource
@@ -225,7 +229,27 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   }, [date, handleSolarSnapshots, province, section]);
   const snapshotsForDate = solarSnapshots.filter((snapshot) => tehranDateKey(snapshot.capturedAt) === (date ?? tehranDateKey()));
   const selectedSolarSnapshot = snapshotsForDate.find((snapshot) => snapshot.id === selectedSolarSnapshotId) ?? snapshotsForDate[0] ?? null;
-  const solarSnapshotPicker = snapshotsForDate.length > 0 ? <SolarSnapshotPicker snapshots={snapshotsForDate} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} /> : null;
+  async function deleteSolarSnapshot(snapshot: RahcomSolarSnapshot) {
+    if (!canManageRahcom || deletingSolarSnapshotId) return;
+    const ordinal = new Intl.NumberFormat(locale).format(rahcomSolarSnapshotNumber(snapshot, snapshotsForDate));
+    if (!window.confirm(`${uiMessage(locale, 'solarDeleteSnapshotConfirm')} (${ordinal})`)) return;
+    setDeletingSolarSnapshotId(snapshot.id);
+    setSolarSnapshotDeleteError('');
+    try {
+      await rahcomApi.deleteSolarSnapshot(snapshot.id);
+      const remaining = solarSnapshots.filter((item) => item.id !== snapshot.id);
+      const remainingForDate = remaining.filter((item) => tehranDateKey(item.capturedAt) === (date ?? tehranDateKey()));
+      setSolarSnapshots(remaining);
+      setSolarSnapshotAvailable(remainingForDate.length > 0);
+      if (selectedSolarSnapshotId === snapshot.id) setSelectedSolarSnapshotId(remainingForDate[0]?.id ?? '');
+      setSolarSnapshotRevision((revision) => revision + 1);
+    } catch (reason) {
+      setSolarSnapshotDeleteError(reason instanceof Error ? reason.message : uiMessage(locale, 'solarLoadFailed'));
+    } finally {
+      setDeletingSolarSnapshotId(null);
+    }
+  }
+  const solarSnapshotPicker = snapshotsForDate.length > 0 ? <SolarSnapshotPicker snapshots={snapshotsForDate} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} editMode={section === 'solar-daily' && solarSnapshotEditMode} canDelete={canManageRahcom} deletingId={deletingSolarSnapshotId} onDelete={(snapshot) => void deleteSolarSnapshot(snapshot)} /> : null;
   const mapFilterSourceLabels = {
     traffic: locale === 'fa' ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : uiMessage(locale, 'rahcomDailyTraffic'),
     'road-list': uiMessage(locale, 'rahcomRoadList'),
@@ -295,6 +319,8 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
           {section === 'map' && <><RahcomHeaderDate compact /><SolarSnapshotPicker snapshots={snapshotsForDate} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} /></>}
           {section === 'map' && <MapSystemsCapsule systemsCount={mapSystemsCount} details={mapDiscrepancyDetails} locale={locale} />}
           {section !== 'map' && <><RahcomHeaderDate compact loadMarkedDates={['solar-daily', 'tickets', 'aggregate', 'actions'].includes(section) ? loadSectionMarkedDates : undefined} />{['solar-daily', 'aggregate'].includes(section) && solarSnapshotPicker}</>}
+          {section === 'solar-daily' && canManageRahcom && snapshotsForDate.length > 0 && <button type="button" aria-pressed={solarSnapshotEditMode} onClick={() => setSolarSnapshotEditMode((editing) => !editing)} aria-label={uiMessage(locale, 'solarEditSnapshot')} title={uiMessage(locale, 'solarEditSnapshot')} style={solarSnapshotEditMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${solarSnapshotEditMode ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}><Pencil size={16} /></button>}
+          {section === 'solar-daily' && solarSnapshotDeleteError && <span role="alert" className="max-w-56 truncate text-xs text-destructive" title={solarSnapshotDeleteError}>{solarSnapshotDeleteError}</span>}
           {['solar-daily', 'tickets', 'aggregate'].includes(section) && <RahcomCountCapsule count={sectionSystemsCount} />}
           {section === 'solar-daily' && <button type="button" aria-pressed={solarFormOpen} onClick={() => setSolarFormOpen((open) => !open)} aria-label={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} title={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} style={solarFormOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${solarFormOpen ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}>{solarFormOpen ? <X size={17} /> : <Plus size={17} />}</button>}
           {section === 'tickets' && canManageRahcom && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-upload-click'))} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Upload size={17} /></button>}
@@ -368,7 +394,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       ) : section === 'systems' ? (
           <RahcomSystemsList canManage={canManageRahcom} selectedProvince={province} />
       ) : section === 'solar-daily' ? (
-        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} showIncidents={renderedShowMapIncidents} showTrafficLongOutage={showTrafficLongOutage} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} />
+        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} showIncidents={renderedShowMapIncidents} showTrafficLongOutage={showTrafficLongOutage} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} snapshotRevision={solarSnapshotRevision} />
       ) : section === 'aggregate' ? (
         <RahcomAggregateList onSystemCountChange={handleSectionSystemsCount} selectedProvince={province} showIncidents={showMapIncidents} setOperation={aggregateSetOperation} sources={aggregateSources} />
       ) : section === 'tickets' ? (
