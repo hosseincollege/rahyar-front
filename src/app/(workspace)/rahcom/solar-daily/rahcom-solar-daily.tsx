@@ -240,7 +240,7 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
   });
 }
 
-function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, showTrafficLongOutage = false, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; showTrafficLongOutage?: boolean; onRowCountChange?: (count: number) => void }) {
+function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; onRowCountChange?: (count: number) => void }) {
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -276,11 +276,6 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const systemsByCode = new Map(provinceSystems.map((system) => [system.systemCode.trim().toUpperCase(), system]));
   const allowedSites = new Set([...systemsByCode.keys(), ...solarProvinceSites]);
   const trafficRowsByCode = new Map((traffic?.rows ?? []).filter((row) => codeIndex >= 0 && allowedSites.has((row[codeIndex] ?? '').trim().toUpperCase())).map((row) => [(row[codeIndex] ?? '').trim().toUpperCase(), row]));
-  const trafficLongOutageByCode = new Map<string, string>();
-  if (codeIndex >= 0) for (const [code, row] of trafficRowsByCode) {
-    const values = [...new Set(trafficLongOutageIndexes.map((index) => String(row[index] ?? '').trim()).filter((value) => value && !/^[-\u2013\u2014]+$/.test(value)))];
-    if (values.length) trafficLongOutageByCode.set(code, values.join('، '));
-  }
   const selectedColumns = new Set(columns.map((column) => column.toUpperCase()));
   const validEntries = filterRahcomLtePairs(entries).filter((entry) => {
     const equipment = entry.equipment.toUpperCase();
@@ -309,11 +304,11 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     if (incidentValues.length) trafficIncidentsByCode.set(code, [...new Set(incidentValues)]);
   }
   const trafficIncidentSites = new Set(trafficIncidentsByCode.keys());
-  const sites = [...new Set([...solarSites, ...((showIncidents || showTrafficLongOutage) ? trafficIncidentSites : [])])]
+  const sites = [...new Set([...solarSites, ...(showIncidents ? trafficIncidentSites : [])])]
     .filter((site) => systemsByCode.has(site))
     .filter((site) => {
       const hasTrafficIncident = trafficIncidentSites.has(site);
-      if (hasTrafficIncident && !showIncidents && !(showTrafficLongOutage && trafficLongOutageByCode.has(site))) return false;
+      if (hasTrafficIncident && !showIncidents) return false;
       return true;
     }).sort();
   useEffect(() => { onRowCountChange?.(sites.length); }, [onRowCountChange, sites.length]);
@@ -367,11 +362,11 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<div className="inline-flex shrink-0 items-center gap-2 text-sm">
     <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button>
   </div>, toolbarTarget) : null;
-  const columnCount = 9 + equipmentGroups.length + Number(showIncidents) + Number(showTrafficLongOutage);
+  const columnCount = 9 + equipmentGroups.length + Number(showIncidents);
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
-  return <div className={currentSnapshot ? 'flex min-h-0 flex-1 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className={currentSnapshot ? 'rahcom-traffic-table-frame flex min-h-0 min-w-0 max-w-full flex-col overflow-auto rounded-2xl border border-border bg-card' : 'overflow-x-auto rounded-2xl border border-border bg-card'}><table ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}{showTrafficLongOutage && <th className="whitespace-nowrap p-3 text-center align-middle">قطعی زمان‌بر تردد</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
+  return <div className={currentSnapshot ? 'flex min-w-0 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className="h-auto max-h-none min-w-0 max-w-full shrink-0 overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
+    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className={`whitespace-nowrap p-3 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`} dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
@@ -386,7 +381,6 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       return <tr key={site} className="border-t border-border">
         <td className="p-2 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
         {showIncidents && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{incidentText || '\u2014'}</td>}
-        {showTrafficLongOutage && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{trafficLongOutageByCode.get(site) || '\u2014'}</td>}
         <td className="p-2 font-mono" dir="ltr">{site}</td>
         <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
         <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
@@ -410,7 +404,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents = true, showTrafficLongOutage = false, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange, snapshotRevision = 0 }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents?: boolean; showTrafficLongOutage?: boolean; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void; snapshotRevision?: number }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents = true, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange, snapshotRevision = 0 }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents?: boolean; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void; snapshotRevision?: number }) {
   const { locale } = usePreferences();
   const { dateText, date } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -511,7 +505,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     setError('');
   }
 
-  return <section className={`flex h-full min-h-0 flex-col gap-5 ${formOpen ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+  return <section className="flex min-h-full shrink-0 flex-col gap-5">
     {formOpen && canManage && <>
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t(editingSnapshotId ? 'solarEditSnapshot' : 'solarAddSnapshot')}</h2><button type="button" onClick={() => void fillDemoData()} disabled={saving || loading || !canManage} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><ClipboardList size={16} />{t('solarFillDemoData')}</button></div>
     <div className="grid gap-4 md:grid-cols-2">
@@ -521,16 +515,16 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
 
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <div><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t('solarVisibleColumns')}</h2><button type="button" onClick={() => setEditingColumns((open) => !open)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground">{t(editingColumns ? 'solarDoneEditingColumns' : 'solarEditColumns')}</button></div>{editingColumns && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{[...commonEquipment, ...[...customEquipment].sort()].map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedEquipment.includes(item)} onChange={(event) => setSelectedEquipment((current) => event.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div>}</div>
-      <div className="sticky bottom-0 z-20 flex flex-wrap items-end gap-3 border-t border-border bg-card/95 py-2 backdrop-blur"><span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {capturedDate}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving || !snapshotProvince} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
+      <div className="flex flex-wrap items-end gap-3 border-t border-border bg-card py-2"><span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {capturedDate}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving || !snapshotProvince} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {!snapshotProvince && <p role="status" className="text-xs text-muted-foreground">{t('solarChooseProvinceFromHeader')}</p>}
     </div>
 
-    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} showTrafficLongOutage={showTrafficLongOutage} /></div>}
+    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} /></div>}
     </>}
 
-    <div className="flex min-h-0 flex-1 flex-col gap-3">{loading ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
-      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} showTrafficLongOutage={showTrafficLongOutage} onRowCountChange={onSystemCountChange} />
+    <div className="flex min-w-0 flex-col gap-3">{loading ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
+      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} onRowCountChange={onSystemCountChange} />
     </>}</div>
   </section>;
 }
