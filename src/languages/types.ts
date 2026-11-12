@@ -1039,6 +1039,10 @@ export type UiMessage =
   | "rahcomRoadListRows"
   | "rahcomAxisCount"
   | "rahcomRoadListPreviousPage"
-  | "rahcomRoadListNextPage";
+  | "rahcomRoadListNextPage"
+  | "rahcomAddSystem"
+  | "rahcomOpenSystemPage"
+  | "rahcomSystemDetails"
+  | "rahcomLongOutageReason";
 
 export type LocaleMessages = Record<UiMessage, string>;

@@ -25,6 +25,17 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
   background-color: color-mix(in srgb, var(--surface-muted) 18%, var(--background)) !important;
 }
 
+[data-rahcom-info-trigger] {
+  background-color: transparent !important;
+  transition: color 120ms ease;
+}
+
+[data-rahcom-info-trigger]:hover,
+[data-rahcom-info-trigger][aria-expanded="true"] {
+  color: var(--primary) !important;
+  background-color: transparent !important;
+}
+
 .rahcom-sticky-table tbody > tr > td:not([colspan]) {
   height: 36px;
   overflow: hidden;

@@ -7,3 +7,9 @@ The supplied Ips Sobyar - با کد محور.xlsx workbook has 162 data rows. Wi
 Implementation: src/app/(workspace)/rahcom/systems/rahcom-systems-list.tsx
 
 Isfahan systems master data now lives in src/provinces/isfahan/isfahan-systems.xlsx. The authenticated Next route at src/app/api/provinces/isfahan/systems/route.ts reads this workbook, and rahcomApi.systems uses it for Isfahan and merges it for authorized all-province views. Isfahan's systems are read-only in the Systems page; update the source workbook in the frontend repository to change this list. Other provinces continue using the backend API. Existing database rows are left intact and are no longer used as the Isfahan Systems list source.
+
+When the Systems page's traffic incident comparison is enabled, it also displays incident-marked traffic-list rows whose system code is absent from the Isfahan master workbook. These temporary rows use the selected date's traffic snapshot and do not write or create master system records.
+
+Manual system creation: authorized users can add a system from the Systems toolbar when a specific province is selected. The compact form requires system name, system code, latitude, and longitude; it submits through the existing province-scoped systems import API, then refreshes the list. Isfahan uses the same province import path as its Excel-backed records.
+
+System details page: the system information popup links to /rahcom/systems/[systemCode]?province=... . The page reads the province scoped system record and presents system identity, axis, coordinates, bill identifier, equipment IPs, incident/outage information, and notes. Users with Rahcom management permission can edit these fields; Isfahan saves through the systems import/upsert path, and other provinces use the system update endpoint.

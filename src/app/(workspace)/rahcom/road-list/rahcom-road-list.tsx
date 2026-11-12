@@ -9,13 +9,14 @@ import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/app/(workspace)/settings/settings-api';
 import { apiClient } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
-import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSolarSpecialSystem, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
-import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, rahcomSystemKey, tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, rahcomSolarSnapshotNumber, rahcomSystemKey, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { RahcomCountCapsule } from '@/app/(workspace)/rahcom/_shared/rahcom-count-capsule';
+import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { SolarSnapshotPicker } from '@/app/(workspace)/rahcom/_shared/rahcom-section';
 
 const PAGE_SIZE = 100;
@@ -91,8 +92,8 @@ export function RahcomRoadList() {
   const [snapshot, setSnapshot] = useState<RahcomRoadListSnapshot | null>(null);
   const [traffic, setTraffic] = useState<RahcomTrafficSnapshot | null>(null);
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
-  const [specialSystems, setSpecialSystems] = useState<RahcomSolarSpecialSystem[]>([]);
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
+  const [deletingSolarSnapshotId, setDeletingSolarSnapshotId] = useState<string | null>(null);
   const [selectedSolarSnapshotId, setSelectedSolarSnapshotId] = useState('');
   const [showIncidents, setShowIncidents] = useState(true);
   const [page, setPage] = useState(0);
@@ -135,14 +136,14 @@ export function RahcomRoadList() {
   }, []);
 
   useEffect(() => {
-    if (!province || canView !== true) { setSnapshot(null); setTraffic(null); setSystems([]); setSpecialSystems([]); setSolarSnapshots([]); return; }
+    if (!province || canView !== true) { setSnapshot(null); setTraffic(null); setSystems([]); setSolarSnapshots([]); return; }
     let active = true;
     setSnapshot(null);
     setTraffic(null);
     setLoading(true);
     setError('');
-    void Promise.all([rahcomApi.roadList(province, selectedDate), rahcomApi.trafficSnapshot(province, selectedDate), rahcomApi.systems(province), rahcomApi.solarSnapshots(province, selectedDate), rahcomApi.solarSpecialSystems(province)])
-      .then(([result, trafficResult, systemRows, solarRows, specialRows]) => {
+    void Promise.all([rahcomApi.roadList(province, selectedDate), rahcomApi.trafficSnapshot(province, selectedDate), rahcomApi.systems(province), rahcomApi.solarSnapshots(province, selectedDate)])
+      .then(([result, trafficResult, systemRows, solarRows]) => {
         if (!active) return;
         if (result && !hasTableData(result)) {
           setSnapshot(null);
@@ -151,7 +152,6 @@ export function RahcomRoadList() {
         }
         setSnapshot(result);
         setSystems(systemRows);
-        setSpecialSystems(specialRows);
         setSolarSnapshots(solarRows.filter((item) => tehranDateKey(item.capturedAt) === selectedDate));
         setTraffic(trafficResult && Array.isArray(trafficResult.headers) && Array.isArray(trafficResult.rows)
           ? { ...trafficResult, headers: trafficResult.headers.map((header) => String(header ?? '')), rows: trafficResult.rows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? ''))) }
@@ -257,8 +257,24 @@ export function RahcomRoadList() {
   const wideSingleLineIndexes = headers.flatMap((header, index) => { const normalized = normalizeHeader(header); return normalized.includes('\u0633\u0627\u0645\u0627\u0646\u0647') || normalized.includes('system') || normalized.includes('\u067e\u06cc\u0645\u0627\u0646\u06a9\u0627\u0631') || normalized.includes('contractor') ? [index] : []; });
   const incidentIndexes = (traffic?.headers ?? []).flatMap((header, index) => { const normalized = normalizeHeader(header); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', 'theft', 'damage'].some((term) => normalized.includes(normalizeHeader(term))) ? [index] : []; });
   const systemsByCode = useMemo(() => new Map(systems.map((system) => [normalizeIdentifier(system.systemCode), system])), [systems]);
-  const specialSystemsByCode = useMemo(() => new Map(specialSystems.map((system) => [normalizeIdentifier(system.systemCode), system])), [specialSystems]);
   const selectedSolarSnapshot = solarSnapshots.find((item) => item.id === selectedSolarSnapshotId) ?? solarSnapshots[0];
+  const deleteSolarSnapshot = async (target: RahcomSolarSnapshot) => {
+    if (!canManage || deletingSolarSnapshotId) return;
+    const ordinal = new Intl.NumberFormat(locale).format(rahcomSolarSnapshotNumber(target, solarSnapshots));
+    if (!window.confirm(`${t('solarDeleteSnapshotConfirm')} (${ordinal})`)) return;
+    setDeletingSolarSnapshotId(target.id);
+    setMessage('');
+    try {
+      await rahcomApi.deleteSolarSnapshot(target.id);
+      const remaining = solarSnapshots.filter((item) => item.id !== target.id);
+      setSolarSnapshots(remaining);
+      if (selectedSolarSnapshotId === target.id) setSelectedSolarSnapshotId(remaining[0]?.id ?? '');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t('solarLoadFailed'));
+    } finally {
+      setDeletingSolarSnapshotId(null);
+    }
+  };
   const solarStateByCode = useMemo(() => {
     const states = new Map<string, Array<{ equipment: string; state: 'down' | 'unreachable' }>>();
     const selectedColumns = new Set((selectedSolarSnapshot?.equipmentColumns ?? []).map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column.toUpperCase()));
@@ -351,18 +367,17 @@ export function RahcomRoadList() {
   const getMatch = (row: string[]) => {
     const identifier = identifierIndex >= 0 ? normalizeIdentifier(row[identifierIndex]) : '';
     const candidates = identifier ? trafficMatches.get(identifier) ?? [] : [];
-    return candidates.length === 1 ? candidates[0] : null;
+    if (candidates.length === 1) return candidates[0];
+    const stationName = stationNameIndex >= 0 ? normalizeIdentifier(row[stationNameIndex]) : '';
+    if (stationName) {
+      const namedCandidates = candidates.filter((candidate) => normalizeIdentifier(candidate.systemName) === stationName);
+      if (namedCandidates.length === 1) return namedCandidates[0];
+    }
+    return null;
   };
   const getIncidentText = (match: ReturnType<typeof getMatch>) => {
-    const special = match ? specialSystemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined;
-    if (special) return t(special.category === 'WIDENING_RELOCATION' ? 'solarWideningRelocation' : special.category === 'THEFT' ? 'rahcomIncidentTheft' : special.category === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth');
-    const system = match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) : undefined;
-    const detailCategory = classifyIncidentLabel(system?.incidentDetails);
-    if (detailCategory) return t(detailCategory);
     const trafficCategory = classifyIncidentLabel(match?.trafficIncident);
     if (trafficCategory) return t(trafficCategory);
-    if (system?.incidentType) return t(system.incidentType === 'WIDENING_RELOCATION' ? 'solarWideningRelocation' : system.incidentType === 'THEFT' ? 'rahcomIncidentTheft' : system.incidentType === 'DAMAGE' ? 'rahcomIncidentDamage' : 'rahcomIncidentBoth');
-    if (system?.incidentDetails?.trim()) return system.incidentDetails.trim();
     return match?.trafficIncident || '\u2014';
   };
   const filteredRows = useMemo(() => {
@@ -457,7 +472,7 @@ export function RahcomRoadList() {
   return <main dir={getLocaleDirection(locale)} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 w-full max-w-full flex-col gap-3 overflow-hidden">
     <header className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
       <RahcomHeaderDate compact loadMarkedDates={loadRoadListDates} />
-      {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} />}
+      {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManage} deletingId={deletingSolarSnapshotId} onDelete={(item) => void deleteSolarSnapshot(item)} />}
       <RahcomCountCapsule count={filteredRows.length} />
       <div className="flex flex-nowrap items-center gap-2">
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
@@ -479,6 +494,7 @@ export function RahcomRoadList() {
         <table className="rahcom-sticky-table w-full min-w-max border-separate border-spacing-0 text-sm">
           <thead className="bg-card text-start text-xs text-muted-foreground"><tr>
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomRowNumber')}</th>
+            <th scope="col" className="w-9 border-b border-border px-1 py-2.5 text-center"><RahcomInfoHeader /></th>
             <th scope="col" className="min-w-[220px] border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomSystemName')}</th>
             <th scope="col" className="min-w-[120px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-nowrap">{t('rahcomSystemCode')}</th>
             {showIncidents && <th scope="col" className="min-w-[140px] max-w-[140px] border-b border-border px-2 py-2.5 text-center font-semibold whitespace-normal">{t('rahcomIncidentFilter')}</th>}
@@ -491,6 +507,7 @@ export function RahcomRoadList() {
             const match = getMatch(row);
             return <tr key={page * PAGE_SIZE + rowIndex} className="odd:bg-background even:bg-muted/30">
               <td className="border-b border-border/70 px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(page * PAGE_SIZE + rowIndex + 1)}</td>
+              <td className="w-9 border-b border-border/70 px-1 py-1 text-center"><RahcomRowInfo title={match?.systemName || match?.systemCode || `ردیف ${page * PAGE_SIZE + rowIndex + 1}`} systemCode={match?.systemCode ?? ''} fields={[{ label: t('rahcomSystemName'), value: match?.systemName || '' }, { label: t('rahcomSystemCode'), value: match?.systemCode || '' }, { label: t('rahcomIncidentFilter'), value: getIncidentText(match) }, { label: t('rahcomAxisCode'), value: match?.axisCode ?? '' }, ...headers.map((header, columnIndex) => ({ label: header, value: row[columnIndex] ?? '' }))]} /></td>
               <td className="min-w-[220px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
               <td dir="ltr" className="min-w-[120px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
               {showIncidents && <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>}

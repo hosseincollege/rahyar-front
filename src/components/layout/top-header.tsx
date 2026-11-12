@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   getCurrentOrganizationId,
   getCurrentUser,
@@ -45,8 +45,9 @@ import { uiMessage } from '@/lib/ui-messages';
 import { readShellVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
 import { saveSearchHistory } from '@/lib/search-history';
-import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { searchRahcomSystems } from '@/lib/rahcom-system-search';
+import { openRahcomRowInfo, RahcomRowInfoHost } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { HeaderAccountSwitcher } from './header-account-switcher';
 import { HeaderProvinceSelector } from './header-province-selector';
 import type { MissionEntryMode } from './mission-quick-actions';
@@ -81,15 +82,14 @@ export function TopHeader({
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
-  const missionMenuRef = useRef<HTMLDivElement>(null);
   const headerDragRef = useRef<{ pointerId: number; startX: number; startY: number; shell: HTMLElement; previousTransform: string; previousTransition: string; previousWillChange: string; moved: boolean } | null>(null);
   const suppressClickAfterHeaderDragRef = useRef(false);
-  const [isMissionMenuOpen, setIsMissionMenuOpen] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
   const [mobileTool, setMobileTool] = useState<'search' | 'accountSwitcher' | 'province' | 'profile' | 'mission' | null>(null);
   const mobileToolsRef = useRef<HTMLDivElement>(null);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
+  const [headerSearchProvince, setHeaderSearchProvince] = useState('all');
   const [headerSystems, setHeaderSystems] = useState<RahcomSystem[] | null>(null);
   const [headerSearchResults, setHeaderSearchResults] = useState<RahcomSystem[]>([]);
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
@@ -99,7 +99,6 @@ export function TopHeader({
   const headerSearchRef = useRef<HTMLFormElement>(null);
   const [shellVisibility, setShellVisibility] = useState(() => readShellVisibility(isReducedEdition));
   const router = useRouter();
-  const pathname = usePathname();
   const [organizationBranding, setOrganizationBranding] =
     useState<OrganizationBranding | null>(null);
   const { theme, setTheme } = useTheme();
@@ -108,6 +107,26 @@ export function TopHeader({
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const isMissionModeVisible = (_mode: MissionEntryMode) => shellVisibility.headerControls?.missionTools !== false;
+
+  useEffect(() => {
+    let active = true;
+    const applyProvince = (province: unknown) => {
+      if (typeof province !== 'string' || !province.trim()) return;
+      setHeaderSearchProvince((current) => {
+        if (current === province) return current;
+        setHeaderSystems(null);
+        setHeaderSearchResults([]);
+        headerSystemsPromiseRef.current = null;
+        return province;
+      });
+    };
+    const onProvinceChange = (event: Event) => applyProvince((event as CustomEvent<{ province?: string }>).detail?.province);
+    window.addEventListener('rahyar:province-change', onProvinceChange);
+    void rahcomApi.access().then((access) => {
+      if (active) applyProvince(access.isAdmin ? access.selectedProvince ?? 'all' : access.province ?? 'all');
+    }).catch(() => undefined);
+    return () => { active = false; window.removeEventListener('rahyar:province-change', onProvinceChange); };
+  }, []);
 
   useEffect(() => {
     if (!enableMobileHorizontalElasticDrag) return;
@@ -201,7 +220,7 @@ export function TopHeader({
     setHeaderSearchLoading(true);
     let active = true;
     const timer = window.setTimeout(() => {
-      headerSystemsPromiseRef.current ??= rahcomApi.systems();
+      headerSystemsPromiseRef.current ??= rahcomApi.systems(headerSearchProvince);
       void headerSystemsPromiseRef.current
         .then((items) => {
           if (!active) return;
@@ -216,7 +235,7 @@ export function TopHeader({
         .finally(() => { if (active) setHeaderSearchLoading(false); });
     }, 160);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [headerSearchQuery, headerSystems, locale]);
+  }, [headerSearchQuery, headerSearchProvince, headerSystems, locale]);
 
   useEffect(() => {
     const closeOutside = (event: MouseEvent) => {
@@ -264,28 +283,16 @@ export function TopHeader({
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
   }, [mobileToolsOpen, mobileSearchExpanded]);
 
-  useEffect(() => {
-    if (!isMissionMenuOpen) return;
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (missionMenuRef.current && !missionMenuRef.current.contains(event.target as Node)) {
-        setIsMissionMenuOpen(false);
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsMissionMenuOpen(false);
-    };
-    document.addEventListener('mousedown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [isMissionMenuOpen]);
-
   const handleSignOut = async () => {
     setIsAccountMenuOpen(false);
     await logout();
     router.push('/login');
+  };
+
+  const cycleMissionMode = () => {
+    const modes: MissionEntryMode[] = ['form', 'command', 'ai'];
+    const currentIndex = modes.indexOf(activeMissionMode);
+    onSelectMissionMode?.(modes[(currentIndex + 1 + modes.length) % modes.length]);
   };
 
   const submitHeaderSearch = (event: React.FormEvent<HTMLFormElement>) => {
@@ -299,22 +306,22 @@ export function TopHeader({
     router.push('/rahcom/systems');
   };
 
-  const selectHeaderSystem = (system: RahcomSystem) => {
+  const selectHeaderSystem = (system: RahcomSystem, trigger?: HTMLElement | null) => {
     saveSearchHistory(headerSearchQuery, isReducedEdition);
     setHeaderSearchQuery('');
     setHeaderSearchOpen(false);
     setMobileToolsOpen(false);
     setMobileSearchExpanded(false);
     setMobileTool(null);
-    window.sessionStorage.setItem('rahyar-rahcom-focus-system', system.id);
-    const userId = getCurrentUser()?.id;
-    window.localStorage.setItem(`rahyar-selected-province:${userId || 'current'}`, system.province);
-    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: system.province } }));
-    if (pathname === '/rahcom/systems') {
-      window.dispatchEvent(new Event('rahyar:open-system-details'));
-      return;
-    }
-    router.push('/rahcom/systems');
+    const axisName = system.announcedAxis ?? '';
+    const axisCode = system.axisCode ?? '';
+    openRahcomRowInfo(system.systemName || system.systemCode, [
+      { label: message('rahcomSystemCode'), value: system.systemCode },
+      { label: message('rahcomSystemName'), value: system.systemName },
+      { label: message('rahcomAxisName'), value: axisName },
+      { label: message('rahcomAxisCode'), value: axisCode },
+      { label: message('rahcomProvince'), value: iranProvinces.find(([id]) => id === system.province)?.[1] ?? system.province },
+    ], trigger ?? document.activeElement as HTMLElement | null, undefined, system.systemCode);
   };
 
   const renderHeaderSystemSuggestions = (mobile = false) => headerSearchOpen && headerSearchQuery.trim() ? (
@@ -322,7 +329,7 @@ export function TopHeader({
       {headerSearchLoading ? <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground"><span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />{message('headerSearch')}</div> : null}
       {headerSearchError ? <p role="alert" className="px-3 py-3 text-sm text-muted-foreground">{message('rahcomSystemsLoadError')}</p> : null}
       {!headerSearchLoading && !headerSearchError && headerSearchResults.length === 0 ? <p className="px-3 py-3 text-sm text-muted-foreground">{message('searchNoResults')}</p> : null}
-      {!headerSearchLoading ? headerSearchResults.map((system) => <button key={system.id} type="button" role="option" aria-selected="false" onClick={() => selectHeaderSystem(system)} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2 text-start last:border-b-0 hover:bg-[var(--primary-soft)] focus-visible:bg-[var(--primary-soft)] focus-visible:outline-none">
+      {!headerSearchLoading ? headerSearchResults.map((system) => <button key={system.id} type="button" role="option" aria-selected="false" onClick={(event) => selectHeaderSystem(system, event.currentTarget)} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2 text-start last:border-b-0 hover:bg-[var(--primary-soft)] focus-visible:bg-[var(--primary-soft)] focus-visible:outline-none">
         <span className="min-w-0 truncate text-sm font-medium">{system.systemName}</span><span dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</span>
       </button>) : null}
     </div>
@@ -724,17 +731,10 @@ export function TopHeader({
       </div>
 
       <div className="pointer-events-none absolute end-5 top-1/2 hidden -translate-y-1/2 flex-row-reverse items-center gap-2 lg:flex">
-        {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div ref={missionMenuRef} className="pointer-events-auto relative shrink-0">
-          <button type="button" onClick={() => setIsMissionMenuOpen((open) => !open)} title={message('missionShortcutTitle')} aria-label={message('missionShortcutTitle')} aria-haspopup="menu" aria-expanded={isMissionMenuOpen} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">
+        {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div className="pointer-events-auto relative shrink-0">
+          <button type="button" onClick={cycleMissionMode} title={`${message('missionShortcutTitle')} · ${message(activeMissionMode === 'form' ? 'missionModeForm' : activeMissionMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} aria-label={`${message('missionShortcutTitle')} · ${message(activeMissionMode === 'form' ? 'missionModeForm' : activeMissionMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">
             {activeMissionMode === 'form' ? <FilePlus2 size={17}/> : activeMissionMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}
           </button>
-          {isMissionMenuOpen && <div role="menu" dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`absolute ${direction === 'rtl' ? 'end-0' : 'start-0'} top-full z-[110] mt-2 w-max min-w-32 max-w-[calc(100vw-1rem)] rounded-xl border border-[var(--border)] p-1 shadow-xl`}>
-            {([
-              ['form', FilePlus2, 'missionModeForm'],
-              ['command', SquareTerminal, 'missionModeCommand'],
-              ['ai', Bot, 'missionModeAI'],
-            ] as const).filter(([mode]) => isMissionModeVisible(mode)).map(([mode, Icon, label]) => <button key={mode} type="button" role="menuitemradio" aria-checked={activeMissionMode === mode} onClick={() => { setIsMissionMenuOpen(false); onSelectMissionMode?.(mode); }} className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-start text-sm font-medium ${activeMissionMode === mode ? 'bg-[var(--primary-soft)] text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}><Icon className="size-4 shrink-0"/>{message(label)}</button>)}
-          </div>}
         </div>}
         <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule pointer-events-auto relative flex min-w-0 rounded-full">
           <input type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
@@ -742,7 +742,7 @@ export function TopHeader({
           {renderHeaderSystemSuggestions()}
         </form>
       </div>
-
+      <RahcomRowInfoHost />
     </header>
   );
 }
