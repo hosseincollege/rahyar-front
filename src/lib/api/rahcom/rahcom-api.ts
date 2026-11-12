@@ -72,7 +72,7 @@ export type RahcomImportedTicket = {
   type: string; status: string; priority: string; supportTeam: string; createdOn: string; sourceFileName: string; importedAt: string;
 };
 export type RahcomMemberProvince = { id: string; userId: string; username: string; name: string; province: string | null };
-export type RahcomAccess = { memberId: string | null; province: string | null; selectedProvince: string | null; isAdmin: boolean; canManageAssignments: boolean; canRecordActivities: boolean };
+export type RahcomAccess = { memberId: string | null; province: string | null; selectedProvince: string | null; isAdmin: boolean; canSwitchProvince: boolean; canManageAssignments: boolean; canRecordActivities: boolean };
 /** Coordinates copied for search or navigation: latitude first, ASCII comma, longitude. */
 export function formatRahcomCoordinates(latitude: number, longitude: number) {
   return `${latitude}, ${longitude}`;
@@ -92,16 +92,7 @@ export const rahcomApi = {
   memberProvinces: () => apiClient.get<RahcomMemberProvince[]>('/rahcom/members'),
   setMemberProvince: (id: string, province: string | null) => apiClient.put<{ id: string; rahcomProvince: string | null }>(`/rahcom/members/${encodeURIComponent(id)}/province`, { province }),
   systems: async (province?: string) => {
-    const databaseSystems = () => apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
-    const isfahanSystems = () => apiClient.get<RahcomSystem[]>('/api/provinces/isfahan/systems');
-    if (province === 'isfahan') return isfahanSystems();
-    if (province && province !== 'all') return databaseSystems();
-
-    const [systems, access] = await Promise.all([databaseSystems(), rahcomApi.access()]);
-    const canAccessIsfahan = access.isAdmin || access.province === 'isfahan';
-    if (!canAccessIsfahan) return systems;
-    const localSystems = await isfahanSystems();
-    return [...systems.filter((system) => system.province !== 'isfahan'), ...localSystems];
+    return apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
   },
   solarSnapshots: (province?: string, date?: string) => apiClient.get<RahcomSolarSnapshot[]>(`/rahcom/solar-snapshots?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   createSolarSnapshot: (data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),

@@ -15,7 +15,7 @@ const modules: Array<{
   countLabels: Record<string, Parameters<typeof uiMessage>[1]>;
   plannedCounts?: Record<string, number>;
 }> = [
-  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'testDataProvinces' }, plannedCounts: { branches: 31 } },
+  { key: 'settings', title: 'sidebarSettings', countLabels: { branches: 'testDataProvinces', provinceAccounts: 'usersTotal' }, plannedCounts: { branches: 31, provinceAccounts: 31 } },
 ];
 const moduleDescriptions: Record<TestDataModuleKey, Parameters<typeof uiMessage>[1]> = { settings: 'testDataSettingsDescription' };
 const optionalKeys: OptionalModuleId[] = [];

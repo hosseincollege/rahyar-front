@@ -1125,7 +1125,8 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 }
 
 .rahcom-popup-copy:hover,
-.rahcom-popup-actions button:hover {
+.rahcom-popup-actions button:hover,
+.rahcom-popup-actions > a:hover {
   border-color: var(--primary);
   color: var(--primary);
 }
@@ -1149,7 +1150,8 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   justify-content: flex-start;
 }
 
-.rahcom-popup-actions button {
+.rahcom-popup-actions button,
+.rahcom-popup-actions > a {
   display: inline-flex;
   width: 2rem;
   min-height: 2rem;
@@ -1166,7 +1168,8 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   cursor: pointer;
 }
 
-.rahcom-popup-actions button[data-popup-action="route"] {
+.rahcom-popup-actions button[data-popup-action="route"],
+.rahcom-popup-actions > a[data-popup-action="route"] {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--primary-foreground);

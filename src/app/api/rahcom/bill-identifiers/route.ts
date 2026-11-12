@@ -1,396 +1,147 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/lib/api-environment';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
 
-const workbookName = 'شناسه_های-قبض-گروه 01 - تکمیل شده.xlsx';
+type BillList = { headers: string[]; rows: string[][] };
+const province = 'isfahan';
+const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
+  .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
+const normalizeDigits = (value: string) => value.replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => {
+  const code = digit.charCodeAt(0);
+  return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
+});
+const findColumn = (headers: string[], aliases: string[]) => headers.findIndex((header) => aliases.includes(normalizeHeader(header)));
+const billIdAliases = ['\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636', '\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636\u0628\u0631\u0642'];
+const systemCodeAliases = ['\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647', '\u06a9\u062f\u0633\u06cc\u0633\u062a\u0645'];
+const rowNumberAlias = normalizeHeader('\u0631\u062f\u06cc\u0641');
+const registeredDateAlias = normalizeHeader('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a');
+const statusAlias = normalizeHeader('\u0648\u0636\u0639\u06cc\u062a \u0628\u0631\u0631\u0633\u06cc');
+
+function jsonError(status: number, error: string) { return NextResponse.json({ error }, { status }); }
+function authHeader(request: NextRequest) { return request.headers.get('authorization') ?? ''; }
+async function readList(authorization: string): Promise<{ response: Response; data: BillList }> {
+  const response = await fetch(`${API_BASE_URL}/rahcom/bill-identifiers?province=${province}`, {
+    headers: { Authorization: authorization, Accept: 'application/json' }, cache: 'no-store',
+  });
+  const payload = await response.json().catch(() => ({})) as Partial<BillList>;
+  return { response, data: { headers: Array.isArray(payload.headers) ? payload.headers : [], rows: Array.isArray(payload.rows) ? payload.rows : [] } };
+}
+async function saveList(authorization: string, data: BillList) {
+  return fetch(`${API_BASE_URL}/rahcom/bill-identifiers`, {
+    method: 'PUT', headers: { Authorization: authorization, Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ province, headers: data.headers, rows: data.rows }),
+  });
+}
+function unauthorized(request: NextRequest) { return !authHeader(request).startsWith('Bearer '); }
 
 export async function GET(request: NextRequest) {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { Authorization: authorization, Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!profileResponse.ok) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: profileResponse.status === 401 ? 401 : 403 });
-    }
-
-    const filePath = path.join(process.cwd(), '\u0645\u062a\u0641\u0631\u0642\u0647', workbookName);
-    const workbookBytes = await readFile(filePath);
-    const workbook = XLSX.read(workbookBytes, { type: 'buffer' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!worksheet) return NextResponse.json({ headers: [], rows: [] });
-
-    const values = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
-    const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
-    const rows = values.slice(1)
-      .filter((row) => row.some((value) => String(value ?? '').trim()))
-      .map((row) => headers.map((_, index) => String(row[index] ?? '').trim()));
-
-    const registeredDateHeader = '\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a';
-    const hasRegisteredDateColumn = headers.some((header) => header.trim().normalize('NFKC') === registeredDateHeader.normalize('NFKC'));
-    if (!hasRegisteredDateColumn) {
-      headers.push(registeredDateHeader);
-      rows.forEach((row) => row.push(''));
-    }
-
-    return NextResponse.json({ headers, rows }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
-  } catch {
-    return NextResponse.json({ error: 'workbook_unavailable' }, { status: 500 });
-  }
+  if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  const { response, data } = await readList(authHeader(request));
+  return response.ok
+    ? NextResponse.json(data, { status: response.status, headers: { 'Cache-Control': 'no-store, max-age=0' } })
+    : jsonError(response.status, 'database_unavailable');
 }
 
 export async function PUT(request: NextRequest) {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  const body = await request.json().catch(() => null) as { headers?: unknown; rows?: unknown; rowIndex?: unknown; systemCodes?: unknown } | null;
+  if (!body) return jsonError(400, 'invalid_request');
+  if (Array.isArray(body.headers) && Array.isArray(body.rows)) {
+    const headers = body.headers;
+    const rows = body.rows;
+    if (headers.length < 2 || headers.length > 100 || headers.some((v) => typeof v !== 'string') || rows.length > 20000 || rows.some((r) => !Array.isArray(r) || r.some((v) => typeof v !== 'string'))) return jsonError(400, 'invalid_workbook');
+    const { response } = await saveList(authHeader(request), { headers: headers as string[], rows: rows as string[][] });
+    return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
   }
-
-  try {
-    const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { Authorization: authorization, Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!profileResponse.ok) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: profileResponse.status === 401 ? 401 : 403 });
-    }
-
-    const body = await request.json() as { rowIndex?: number; systemCode?: string; systemCodes?: unknown };
-    const rowIndex = body.rowIndex;
-    const systemCodes = Array.isArray(body.systemCodes)
-      ? body.systemCodes
-      : typeof body.systemCode === 'string' ? [body.systemCode] : null;
-    if (typeof rowIndex !== 'number' || !Number.isInteger(rowIndex) || rowIndex < 0 || !systemCodes
-      || systemCodes.length > 50 || systemCodes.some((code) => typeof code !== 'string')) {
-      return NextResponse.json({ error: 'invalid_assignment' }, { status: 400 });
-    }
-    const normalizedSystemCodes = [...new Set(systemCodes.map((code) => (code as string).trim()).filter(Boolean))];
-
-    const filePath = path.join(process.cwd(), '\u0645\u062a\u0641\u0631\u0642\u0647', workbookName);
-    const workbookBytes = await readFile(filePath);
-    const workbook = XLSX.read(workbookBytes, { type: 'buffer' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!worksheet || !worksheet['!ref']) return NextResponse.json({ error: 'workbook_unavailable' }, { status: 404 });
-
-    const values = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
-    const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
-    const normalize = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
-      .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
-    const codeColumn = headers.findIndex((header) => ['\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647', '\u06a9\u062f \u0633\u06cc\u0633\u062a\u0645'].some((alias) => normalize(alias) === normalize(header)));
-    if (codeColumn < 0) return NextResponse.json({ error: 'system_code_column_missing' }, { status: 400 });
-
-    const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    const target = records[rowIndex];
-    if (!target) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    let nonEmptyIndex = -1;
-    let targetSheetRow = -1;
-    for (let sheetRow = range.s.r + 1; sheetRow <= range.e.r; sheetRow += 1) {
-      const rowHasData = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => {
-        const cell = worksheet[XLSX.utils.encode_cell({ r: sheetRow, c: range.s.c + offset })];
-        return String(cell?.w ?? cell?.v ?? '').trim();
-      }).some(Boolean);
-      if (rowHasData) nonEmptyIndex += 1;
-      if (nonEmptyIndex === rowIndex) { targetSheetRow = sheetRow; break; }
-    }
-    if (targetSheetRow < 0) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
-
-    const cellAddress = XLSX.utils.encode_cell({ r: targetSheetRow, c: range.s.c + codeColumn });
-    const oldCell = worksheet[cellAddress];
-    worksheet[cellAddress] = { ...(oldCell ?? {}), t: 's', v: normalizedSystemCodes.join(';') };
-    const updated = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    await writeFile(filePath, updated);
-
-    return NextResponse.json({ saved: true, rowIndex, systemCodes: normalizedSystemCodes });
-  } catch (error) {
-    console.error('Could not save bill identifier workbook assignment:', error);
-    return NextResponse.json({ error: 'workbook_write_failed' }, { status: 500 });
-  }
+  if (!Number.isInteger(body.rowIndex) || (body.rowIndex as number) < 0 || !Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((v) => typeof v !== 'string')) return jsonError(400, 'invalid_assignment');
+  const { response, data } = await readList(authHeader(request));
+  if (!response.ok) return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
+  const rowIndex = body.rowIndex as number;
+  const codeColumn = findColumn(data.headers, systemCodeAliases);
+  if (!data.rows[rowIndex]) return jsonError(404, 'record_not_found');
+  if (codeColumn < 0) return jsonError(400, 'system_code_column_missing');
+  const systemCodes = [...new Set((body.systemCodes as string[]).map((code) => code.trim()).filter(Boolean))];
+  const rows = data.rows.map((row, index) => index === rowIndex ? row.map((value, column) => column === codeColumn ? systemCodes.join(';') : value) : row);
+  const saved = await saveList(authHeader(request), { ...data, rows });
+  return NextResponse.json(saved.ok ? { saved: true, rowIndex, systemCodes } : await saved.json().catch(() => ({})), { status: saved.status });
 }
 
 export async function POST(request: NextRequest) {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  const body = await request.json().catch(() => null) as { billIdentifier?: unknown; systemCodes?: unknown; fields?: unknown } | null;
+  if (!body || typeof body.billIdentifier !== 'string' || !body.billIdentifier.trim()) return jsonError(400, 'invalid_bill_identifier');
+  if (body.systemCodes !== undefined && (!Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((v) => typeof v !== 'string'))) return jsonError(400, 'invalid_assignment');
+  if (body.fields !== undefined && (!body.fields || typeof body.fields !== 'object' || Array.isArray(body.fields) || Object.values(body.fields).some((v) => typeof v !== 'string'))) return jsonError(400, 'invalid_fields');
+  const { response, data } = await readList(authHeader(request));
+  if (!response.ok) return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
+  const billColumn = findColumn(data.headers, billIdAliases);
+  const codeColumn = findColumn(data.headers, systemCodeAliases);
+  const rowColumn = data.headers.findIndex((h) => normalizeHeader(h) === rowNumberAlias);
+  const statusColumn = data.headers.findIndex((h) => normalizeHeader(h) === statusAlias);
+  let dateColumn = data.headers.findIndex((h) => normalizeHeader(h) === registeredDateAlias);
+  if (billColumn < 0) return jsonError(400, 'bill_identifier_column_missing');
+  if (dateColumn < 0) { dateColumn = data.headers.length; data.headers.push('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a'); data.rows = data.rows.map((row) => [...row, '']); }
+  const billId = body.billIdentifier.trim();
+  if (data.rows.some((row) => normalizeDigits(row[billColumn] ?? '').replace(/\s/g, '') === normalizeDigits(billId).replace(/\s/g, ''))) return jsonError(409, 'duplicate_bill_identifier');
+  const fields = (body.fields ?? {}) as Record<string, string>;
+  const nextRow = Array(data.headers.length).fill('') as string[];
+  nextRow[billColumn] = billId;
+  const systemCodes = [...new Set(((body.systemCodes ?? []) as string[]).map((code) => code.trim()).filter(Boolean))];
+  if (codeColumn >= 0) nextRow[codeColumn] = systemCodes.join(';');
+  else if (systemCodes.length) return jsonError(400, 'system_code_column_missing');
+  for (const [header, value] of Object.entries(fields)) {
+    const column = data.headers.findIndex((candidate) => normalizeHeader(candidate) === normalizeHeader(header));
+    if (column < 0 || [billColumn, codeColumn, rowColumn, dateColumn].includes(column)) return jsonError(400, 'invalid_fields');
+    nextRow[column] = value.trim();
   }
-
-  try {
-    const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { Authorization: authorization, Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!profileResponse.ok) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: profileResponse.status === 401 ? 401 : 403 });
-    }
-
-    const body = await request.json() as { billIdentifier?: unknown; systemCodes?: unknown; fields?: unknown };
-    if (typeof body.billIdentifier !== 'string' || !body.billIdentifier.trim()) {
-      return NextResponse.json({ error: 'invalid_bill_identifier' }, { status: 400 });
-    }
-    if (body.systemCodes !== undefined && (!Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((code) => typeof code !== 'string'))) {
-      return NextResponse.json({ error: 'invalid_assignment' }, { status: 400 });
-    }
-    if (body.fields !== undefined && (!body.fields || typeof body.fields !== 'object' || Array.isArray(body.fields)
-      || Object.values(body.fields).some((value) => typeof value !== 'string'))) {
-      return NextResponse.json({ error: 'invalid_fields' }, { status: 400 });
-    }
-    const systemCodes = [...new Set(((body.systemCodes ?? []) as string[]).map((code) => code.trim()).filter(Boolean))];
-    const billIdentifier = body.billIdentifier.trim();
-    const normalizeDigits = (value: string) => value.replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => {
-      const code = digit.charCodeAt(0);
-      return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
-    });
-    const filePath = path.join(process.cwd(), '\u0645\u062a\u0641\u0631\u0642\u0647', workbookName);
-    const workbook = XLSX.read(await readFile(filePath), { type: 'buffer' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!worksheet || !worksheet['!ref']) return NextResponse.json({ error: 'workbook_unavailable' }, { status: 404 });
-
-    const values = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
-    const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
-    const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
-      .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
-    const billIdentifierColumn = headers.findIndex((header) => ['\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636', '\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636\u0628\u0631\u0642']
-      .includes(normalizeHeader(header)));
-    const systemCodeColumn = headers.findIndex((header) => ['\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647', '\u06a9\u062f\u0633\u06cc\u0633\u062a\u0645'].includes(normalizeHeader(header)));
-    const rowNumberColumn = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader('\u0631\u062f\u06cc\u0641'));
-    const statusColumn = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader('\u0648\u0636\u0639\u06cc\u062a \u0628\u0631\u0631\u0633\u06cc'));
-    if (billIdentifierColumn < 0) return NextResponse.json({ error: 'bill_identifier_column_missing' }, { status: 400 });
-
-    const registeredDateHeader = '\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a';
-    let registeredDateColumn = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader(registeredDateHeader));
-    if (registeredDateColumn < 0) {
-      registeredDateColumn = headers.length;
-      XLSX.utils.sheet_add_aoa(worksheet, [[registeredDateHeader]], { origin: { r: 0, c: registeredDateColumn } });
-      headers.push(registeredDateHeader);
-    }
-
-    const suppliedFields = (body.fields ?? {}) as Record<string, string>;
-    const rowNumberHeader = normalizeHeader('\u0631\u062f\u06cc\u0641');
-    const dateHeader = normalizeHeader(registeredDateHeader);
-    for (const header of Object.keys(suppliedFields)) {
-      const column = headers.findIndex((candidate) => normalizeHeader(candidate) === normalizeHeader(header));
-      if (column < 0 || column === billIdentifierColumn || column === systemCodeColumn
-        || normalizeHeader(headers[column]) === rowNumberHeader || normalizeHeader(headers[column]) === dateHeader) {
-        return NextResponse.json({ error: 'invalid_fields' }, { status: 400 });
-      }
-    }
-
-    const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    const normalizedBillIdentifier = normalizeDigits(billIdentifier).replace(/\s/g, '');
-    const duplicate = records.some((row) => normalizeDigits(String(row[billIdentifierColumn] ?? '')).replace(/\s/g, '') === normalizedBillIdentifier);
-    if (duplicate) return NextResponse.json({ error: 'duplicate_bill_identifier' }, { status: 409 });
-
-    const nextRow: string[] = Array(headers.length).fill('');
-    nextRow[billIdentifierColumn] = billIdentifier;
-    if (systemCodeColumn >= 0) nextRow[systemCodeColumn] = systemCodes.join(';');
-    else if (systemCodes.length) return NextResponse.json({ error: 'system_code_column_missing' }, { status: 400 });
-    for (const [header, value] of Object.entries(suppliedFields)) {
-      const column = headers.findIndex((candidate) => normalizeHeader(candidate) === normalizeHeader(header));
-      nextRow[column] = value.trim();
-    }
-    if (rowNumberColumn >= 0) {
-      const currentNumbers = records.map((row) => Number(normalizeDigits(String(row[rowNumberColumn] ?? '')))).filter(Number.isFinite);
-      nextRow[rowNumberColumn] = String(Math.max(0, ...currentNumbers) + 1);
-    }
-    if (statusColumn >= 0 && !nextRow[statusColumn]) nextRow[statusColumn] = '\u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06cc';
-    const dateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
-    const datePart = (type: string) => dateParts.find((part) => part.type === type)?.value ?? '';
-    nextRow[registeredDateColumn] = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
-
-    XLSX.utils.sheet_add_aoa(worksheet, [nextRow], { origin: -1 });
-    await writeFile(filePath, XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
-    return NextResponse.json({ saved: true, row: nextRow, systemCodes }, { status: 201 });
-  } catch (error) {
-    console.error('Could not add bill identifier workbook record:', error);
-    return NextResponse.json({ error: 'workbook_write_failed' }, { status: 500 });
-  }
+  if (rowColumn >= 0) nextRow[rowColumn] = String(data.rows.length + 1);
+  if (statusColumn >= 0 && !nextRow[statusColumn]) nextRow[statusColumn] = '\u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06cc';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  nextRow[dateColumn] = `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`;
+  const saved = await saveList(authHeader(request), { ...data, rows: [...data.rows, nextRow] });
+  return NextResponse.json(saved.ok ? { saved: true, row: nextRow, systemCodes } : await saved.json().catch(() => ({})), { status: saved.ok ? 201 : saved.status });
 }
 
 export async function PATCH(request: NextRequest) {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  const body = await request.json().catch(() => null) as { rowIndex?: unknown; fields?: unknown; systemCodes?: unknown } | null;
+  if (!body || !Number.isInteger(body.rowIndex) || (body.rowIndex as number) < 0 || !body.fields || typeof body.fields !== 'object' || Array.isArray(body.fields) || Object.values(body.fields).some((v) => typeof v !== 'string') || (body.systemCodes !== undefined && (!Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((v) => typeof v !== 'string')))) return jsonError(400, 'invalid_record_update');
+  const { response, data } = await readList(authHeader(request));
+  if (!response.ok) return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
+  const rowIndex = body.rowIndex as number;
+  const target = data.rows[rowIndex];
+  if (!target) return jsonError(404, 'record_not_found');
+  const rowColumn = data.headers.findIndex((h) => normalizeHeader(h) === rowNumberAlias);
+  const dateColumn = data.headers.findIndex((h) => normalizeHeader(h) === registeredDateAlias);
+  const codeColumn = findColumn(data.headers, systemCodeAliases);
+  const billColumn = findColumn(data.headers, billIdAliases);
+  const updates = new Map<number, string>();
+  for (const [header, value] of Object.entries(body.fields as Record<string, string>)) {
+    const column = data.headers.findIndex((candidate) => normalizeHeader(candidate) === normalizeHeader(header));
+    if (column < 0 || [rowColumn, dateColumn, codeColumn].includes(column)) return jsonError(400, 'invalid_record_field');
+    updates.set(column, value.trim());
   }
-
-  try {
-    const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { Authorization: authorization, Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!profileResponse.ok) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: profileResponse.status === 401 ? 401 : 403 });
-    }
-
-    const body = await request.json() as { rowIndex?: number; fields?: unknown; systemCodes?: unknown };
-    const rowIndex = body.rowIndex;
-    if (typeof rowIndex !== 'number' || !Number.isInteger(rowIndex) || rowIndex < 0
-      || !body.fields || typeof body.fields !== 'object' || Array.isArray(body.fields)
-      || Object.values(body.fields).some((value) => typeof value !== 'string')
-      || (body.systemCodes !== undefined && (!Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((code) => typeof code !== 'string')))) {
-      return NextResponse.json({ error: 'invalid_record_update' }, { status: 400 });
-    }
-
-    const filePath = path.join(process.cwd(), '\u0645\u062a\u0641\u0631\u0642\u0647', workbookName);
-    const workbook = XLSX.read(await readFile(filePath), { type: 'buffer' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!worksheet || !worksheet['!ref']) return NextResponse.json({ error: 'workbook_unavailable' }, { status: 404 });
-
-    const values = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
-    const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
-    const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
-      .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
-    const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    const target = records[rowIndex];
-    if (!target) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
-
-    const normalizeDigits = (value: string) => value.replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => {
-      const code = digit.charCodeAt(0);
-      return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
-    });
-    const rowNumberColumn = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader('\u0631\u062f\u06cc\u0641'));
-    const registeredDateColumn = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a'));
-    const systemCodeColumn = headers.findIndex((header) => ['\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647', '\u06a9\u062f\u0633\u06cc\u0633\u062a\u0645'].includes(normalizeHeader(header)));
-    const billIdentifierColumn = headers.findIndex((header) => ['\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636', '\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636\u0628\u0631\u0642'].includes(normalizeHeader(header)));
-    const fields = body.fields as Record<string, string>;
-    const fieldUpdates = new Map<number, string>();
-    for (const [header, value] of Object.entries(fields)) {
-      const column = headers.findIndex((candidate) => normalizeHeader(candidate) === normalizeHeader(header));
-      if (column < 0 || column === rowNumberColumn || column === registeredDateColumn || column === systemCodeColumn) {
-        return NextResponse.json({ error: 'invalid_record_field' }, { status: 400 });
-      }
-      fieldUpdates.set(column, value.trim());
-    }
-
-    const requestedBillId = fieldUpdates.get(billIdentifierColumn);
-    if (requestedBillId !== undefined) {
-      const normalized = normalizeDigits(requestedBillId).replace(/\s/g, '');
-      const duplicate = records.some((row, index) => index !== rowIndex
-        && normalizeDigits(String(row[billIdentifierColumn] ?? '')).replace(/\s/g, '') === normalized);
-      if (duplicate) return NextResponse.json({ error: 'duplicate_bill_identifier' }, { status: 409 });
-    }
-
-    let targetSheetRow = -1;
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    let nonEmptyIndex = -1;
-    for (let sheetRow = range.s.r + 1; sheetRow <= range.e.r; sheetRow += 1) {
-      const rowHasData = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => {
-        const cell = worksheet[XLSX.utils.encode_cell({ r: sheetRow, c: range.s.c + offset })];
-        return String(cell?.w ?? cell?.v ?? '').trim();
-      }).some(Boolean);
-      if (rowHasData) nonEmptyIndex += 1;
-      if (nonEmptyIndex === rowIndex) { targetSheetRow = sheetRow; break; }
-    }
-    if (targetSheetRow < 0) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
-
-    for (const [column, value] of fieldUpdates) {
-      const address = XLSX.utils.encode_cell({ r: targetSheetRow, c: range.s.c + column });
-      worksheet[address] = { ...(worksheet[address] ?? {}), t: 's', v: value };
-    }
-    const systemCodes = body.systemCodes === undefined ? null : [...new Set((body.systemCodes as string[]).map((code) => code.trim()).filter(Boolean))];
-    if (systemCodes && systemCodeColumn >= 0) {
-      const address = XLSX.utils.encode_cell({ r: targetSheetRow, c: range.s.c + systemCodeColumn });
-      worksheet[address] = { ...(worksheet[address] ?? {}), t: 's', v: systemCodes.join(';') };
-    } else if (systemCodes?.length) {
-      return NextResponse.json({ error: 'system_code_column_missing' }, { status: 400 });
-    }
-
-    const updatedRow = headers.map((_, column) => {
-      if (fieldUpdates.has(column)) return fieldUpdates.get(column) ?? '';
-      if (column === systemCodeColumn && systemCodes) return systemCodes.join(';');
-      return String(target[column] ?? '').trim();
-    });
-    await writeFile(filePath, XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
-    return NextResponse.json({ saved: true, row: updatedRow });
-  } catch (error) {
-    console.error('Could not edit bill identifier workbook record:', error);
-    return NextResponse.json({ error: 'workbook_write_failed' }, { status: 500 });
-  }
+  const nextId = updates.get(billColumn);
+  if (nextId !== undefined && data.rows.some((row, index) => index !== rowIndex && normalizeDigits(row[billColumn] ?? '').replace(/\s/g, '') === normalizeDigits(nextId).replace(/\s/g, ''))) return jsonError(409, 'duplicate_bill_identifier');
+  const systemCodes = body.systemCodes === undefined ? null : [...new Set((body.systemCodes as string[]).map((code) => code.trim()).filter(Boolean))];
+  if (systemCodes?.length && codeColumn < 0) return jsonError(400, 'system_code_column_missing');
+  const updatedRow = target.map((value, column) => updates.get(column) ?? (column === codeColumn && systemCodes ? systemCodes.join(';') : value));
+  const rows = data.rows.map((row, index) => index === rowIndex ? updatedRow : row);
+  const saved = await saveList(authHeader(request), { ...data, rows });
+  return NextResponse.json(saved.ok ? { saved: true, row: updatedRow } : await saved.json().catch(() => ({})), { status: saved.status });
 }
 
 export async function DELETE(request: NextRequest) {
-  const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { Authorization: authorization, Accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!profileResponse.ok) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: profileResponse.status === 401 ? 401 : 403 });
-    }
-
-    const body = await request.json() as { rowIndex?: number };
-    const rowIndex = body.rowIndex;
-    if (typeof rowIndex !== 'number' || !Number.isInteger(rowIndex) || rowIndex < 0) {
-      return NextResponse.json({ error: 'invalid_row' }, { status: 400 });
-    }
-
-    const filePath = path.join(process.cwd(), '\u0645\u062a\u0641\u0631\u0642\u0647', workbookName);
-    const workbook = XLSX.read(await readFile(filePath), { type: 'buffer' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!worksheet || !worksheet['!ref']) return NextResponse.json({ error: 'workbook_unavailable' }, { status: 404 });
-
-    const values = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
-    const records = values.slice(1).filter((row) => row.some((value) => String(value ?? '').trim()));
-    if (!records[rowIndex]) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
-
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    let nonEmptyIndex = -1;
-    let targetSheetRow = -1;
-    for (let sheetRow = range.s.r + 1; sheetRow <= range.e.r; sheetRow += 1) {
-      const rowHasData = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => {
-        const cell = worksheet[XLSX.utils.encode_cell({ r: sheetRow, c: range.s.c + offset })];
-        return String(cell?.w ?? cell?.v ?? '').trim();
-      }).some(Boolean);
-      if (rowHasData) nonEmptyIndex += 1;
-      if (nonEmptyIndex === rowIndex) { targetSheetRow = sheetRow; break; }
-    }
-    if (targetSheetRow < 0) return NextResponse.json({ error: 'record_not_found' }, { status: 404 });
-
-    for (let row = targetSheetRow; row < range.e.r; row += 1) {
-      for (let column = range.s.c; column <= range.e.c; column += 1) {
-        const destination = XLSX.utils.encode_cell({ r: row, c: column });
-        const source = XLSX.utils.encode_cell({ r: row + 1, c: column });
-        if (worksheet[source]) worksheet[destination] = worksheet[source];
-        else delete worksheet[destination];
-      }
-    }
-    for (let column = range.s.c; column <= range.e.c; column += 1) delete worksheet[XLSX.utils.encode_cell({ r: range.e.r, c: column })];
-    if (worksheet['!rows']) worksheet['!rows'].splice(targetSheetRow, 1);
-
-    const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
-    const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
-      .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
-    const rowNumberColumn = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader('\u0631\u062f\u06cc\u0641'));
-    if (rowNumberColumn >= 0) {
-      let dataIndex = 0;
-      for (let row = range.s.r + 1; row < range.e.r; row += 1) {
-        const hasData = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => {
-          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: range.s.c + offset })];
-          return String(cell?.w ?? cell?.v ?? '').trim();
-        }).some(Boolean);
-        if (!hasData) continue;
-        const cellAddress = XLSX.utils.encode_cell({ r: row, c: range.s.c + rowNumberColumn });
-        worksheet[cellAddress] = { ...(worksheet[cellAddress] ?? {}), t: 's', v: String(++dataIndex) };
-      }
-    }
-    worksheet['!ref'] = XLSX.utils.encode_range({ ...range, e: { ...range.e, r: range.e.r - 1 } });
-    await writeFile(filePath, XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }));
-    return NextResponse.json({ deleted: true, rowIndex });
-  } catch (error) {
-    console.error('Could not delete bill identifier workbook record:', error);
-    return NextResponse.json({ error: 'workbook_write_failed' }, { status: 500 });
-  }
+  if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  const body = await request.json().catch(() => null) as { rowIndex?: unknown } | null;
+  if (!body || !Number.isInteger(body.rowIndex) || (body.rowIndex as number) < 0) return jsonError(400, 'invalid_row');
+  const { response, data } = await readList(authHeader(request));
+  if (!response.ok) return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
+  const rowIndex = body.rowIndex as number;
+  if (!data.rows[rowIndex]) return jsonError(404, 'record_not_found');
+  const rowColumn = data.headers.findIndex((h) => normalizeHeader(h) === rowNumberAlias);
+  const rows = data.rows.filter((_, index) => index !== rowIndex).map((row, index) => rowColumn < 0 ? row : row.map((value, column) => column === rowColumn ? String(index + 1) : value));
+  const saved = await saveList(authHeader(request), { ...data, rows });
+  return NextResponse.json(saved.ok ? { deleted: true, rowIndex } : await saved.json().catch(() => ({})), { status: saved.status });
 }

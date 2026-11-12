@@ -15,6 +15,7 @@ import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-sys
 import { rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
 import { failedRahcomSystemCodes, failedRahcomSystemKeys, rahcomSystemKey, rahcomProvinceFromLabel, isRahcomIncidentValue, latestRahcomSolarSnapshotForToday, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
+import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
 type Point = { lat: number; lng: number };
 type PopupLabels = {
@@ -567,6 +568,18 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
         nextSystemMarkers.set(systemCode, marker);
 
         marker.on('popupopen', ({ popup }) => {
+          const markerElement = marker.getElement();
+          if (markerElement) {
+          const markerBounds = markerElement?.getBoundingClientRect();
+          popup.remove();
+          openRahcomRowInfo(system.systemName || system.systemCode, [
+            { label: popupLabels.code, value: system.systemCode },
+            { label: popupLabels.name, value: system.systemName },
+            { label: popupLabels.announcedAxis, value: popupAxisName },
+            { label: popupLabels.axisCode, value: system.axisCode ?? '' },
+          ], markerElement, markerBounds ? { x: markerBounds.left + markerBounds.width / 2, y: markerBounds.bottom } : undefined, system.systemCode, { ...system, announcedAxis: popupAxisName || system.announcedAxis });
+          return;
+          }
           let editing = false;
           let status = '';
           let copiedValue = '';

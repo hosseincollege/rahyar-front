@@ -872,6 +872,8 @@ export type UiMessage =
   | "rahcomOther"
   | "rahcomAdd"
   | "rahcomUploadExcel"
+  | "rahcomSaveSystemsBackup"
+  | "rahcomRestoreSystemsBackup"
   | "rahcomSave"
   | "rahcomDelete"
   | "rahcomNoActivities"

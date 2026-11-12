@@ -1,0 +1,9 @@
+Rahcom Bill Identifiers
+
+Runtime source: the organization-scoped Rahcom database, stored per province in RahcomBillIdentifierList. The API is GET/PUT /rahcom/bill-identifiers and applies the same organization and assigned-province access checks as other Rahcom data.
+
+The Isfahan reference/backup workbook is src/provinces/isfahan/bill-identifiers.xlsx. It is not read or rewritten during normal page use. The Bill Identifiers toolbar provides database backup download, restore from a backup workbook, upload of an external workbook, and download of the displayed table. Restore and upload replace the selected province's complete header/row snapshot after confirmation. Initial database setup requires restoring the workbook once after the backend schema is applied.
+
+The frontend same-origin route at src/app/api/rahcom/bill-identifiers/route.ts preserves existing row add, edit, system assignment, and delete operations while persisting the snapshot through the authenticated Rahcom API. Backend schema, authorization, and persistence are defined in rahyar-back/prisma/schema/rahcom.prisma and rahyar-back/src/rahcom/rahcom.service.ts.
+
+Schema update required before use: apply the new Prisma model in the Rahyar backend database, then restore src/provinces/isfahan/bill-identifiers.xlsx from the page toolbar. No migration or database push is run by the source edit.

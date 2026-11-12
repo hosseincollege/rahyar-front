@@ -23,8 +23,7 @@ function provinceIdForBranch(branch: Pick<BranchItem, 'code' | 'name'>) {
 export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: string; embedded?: boolean }) {
   const { locale } = usePreferences();
   const currentUser = getCurrentUser();
-  const isDemoUser = currentUser?.username?.trim().toLowerCase() === 'demo'
-    || currentUser?.role?.trim().toUpperCase() === 'DEMO_USER';
+  const isDemoUser = currentUser?.role?.trim().toUpperCase() === 'DEMO_USER';
   const [province, setProvince] = useState('all');
   const [offices, setOffices] = useState<Array<{ id: string; name: string }>>([]);
   const [access, setAccess] = useState<RahcomAccess | null>(null);
@@ -79,19 +78,19 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
         .filter((branch): branch is { id: string; name: string } => Boolean(branch.id))
         .filter((branch, index, list) => list.findIndex((candidate) => candidate.id === branch.id) === index)
         .sort((a, b) => iranProvinces.findIndex(([id]) => id === a.id) - iranProvinces.findIndex(([id]) => id === b.id));
-      const available = isDemoUser ? branchProvinces.filter(({ id }) => id === 'isfahan') : branchProvinces;
+      const available = rahcomAccess.canSwitchProvince
+        ? iranProvinces.map(([id, name]) => ({ id, name }))
+        : isDemoUser ? branchProvinces.filter(({ id }) => id === 'isfahan') : branchProvinces;
       setAccess(rahcomAccess);
       setOffices(available);
-      const preferredProvince = isDemoUser
-        ? 'isfahan'
-        : rahcomAccess.isAdmin ? rahcomAccess.selectedProvince : rahcomAccess.province;
+      const preferredProvince = isDemoUser ? 'isfahan' : rahcomAccess.canSwitchProvince ? rahcomAccess.selectedProvince : rahcomAccess.province;
       const initial = available.some(({ id }) => id === preferredProvince)
         ? preferredProvince!
         : available.length === 1 ? available[0].id : 'all';
       setProvince(initial);
       window.localStorage.setItem(storageKey(userId), initial);
       window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: initial } }));
-      if (available.length > 0 && rahcomAccess.isAdmin && rahcomAccess.memberId) {
+      if (available.length > 0 && rahcomAccess.canSwitchProvince && rahcomAccess.memberId) {
         void rahcomApi.setSelectedProvince(initial).catch(() => undefined);
       }
       setLoaded(true);
@@ -110,7 +109,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   }, [isDemoUser, userId]);
 
   async function selectProvince(value: string) {
-    if (!access?.isAdmin) return;
+    if (!access?.canSwitchProvince) return;
     if (value === province) { setOpen(false); return; }
     const previousProvince = province;
     const requestId = ++provinceRequest.current;
@@ -144,7 +143,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
       </div>
     );
   }
-  if (!access?.isAdmin) {
+  if (!access?.canSwitchProvince) {
     return <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] sm:max-w-52 sm:px-3 sm:text-sm"><MapPinned size={17} aria-hidden="true" /><span className="truncate">{selectedProvinceName}</span></div>;
   }
   if (embedded) {

@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Download, Link, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArchiveRestore, Download, Link, LoaderCircle, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getAccessToken } from '@/lib/api-client';
 import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
@@ -31,6 +31,7 @@ export function RahcomBillIdentifiers() {
   const [workbook, setWorkbook] = useState<BillWorkbook | null>(null);
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState('');
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<string[]>([]);
@@ -58,6 +59,11 @@ export function RahcomBillIdentifiers() {
   const [deletingBillIdentifier, setDeletingBillIdentifier] = useState('');
   const [deletingRecord, setDeletingRecord] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [operationError, setOperationError] = useState('');
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -74,9 +80,9 @@ export function RahcomBillIdentifiers() {
         });
         if (!response.ok) throw new Error('Workbook unavailable');
         const data = await response.json() as BillWorkbook;
-        if (active) setWorkbook(data);
+        if (active) { setWorkbook(data); setLoadFailed(false); }
       } catch {
-        if (active) setWorkbook({ headers: [], rows: [] });
+        if (active) { setWorkbook({ headers: [], rows: [] }); setLoadFailed(true); }
       } finally {
         if (active) setLoading(false);
       }
@@ -331,6 +337,49 @@ export function RahcomBillIdentifiers() {
     XLSX.writeFile(workbook, `bill-identifiers-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const saveBackup = async () => {
+    if (!workbook || backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const backup = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(backup, XLSX.utils.aoa_to_sheet([workbook.headers, ...workbook.rows]), 'Bill identifiers');
+      const pickerWindow = window as Window & { showSaveFilePicker?: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }> };
+      if (pickerWindow.showSaveFilePicker) {
+        const handle = await pickerWindow.showSaveFilePicker({ suggestedName: 'isfahan-bill-identifiers.xlsx', types: [{ description: 'Excel workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
+        const writable = await handle.createWritable();
+        const bytes = XLSX.write(backup, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+        await writable.write(new Blob([new Uint8Array(bytes)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+        await writable.close();
+      } else XLSX.writeFile(backup, 'isfahan-bill-identifiers.xlsx');
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setOperationError(error instanceof Error ? error.message : 'backup_failed');
+    } finally { setBackupBusy(false); }
+  };
+
+  const importBillWorkbook = async (file?: File) => {
+    if (!file || importBusy) return;
+    if (workbook?.rows.length && !window.confirm(`\u0628\u0627 \u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0627\u06cc\u0646 \u0641\u0627\u06cc\u0644\u060c \u0641\u0647\u0631\u0633\u062a \u0641\u0639\u0644\u06cc \u0634\u0646\u0627\u0633\u0647\u200c\u0647\u0627\u06cc \u0642\u0628\u0636 \u0628\u0627 \u0645\u062d\u062a\u0648\u0627\u06cc \u0641\u0627\u06cc\u0644 \u062c\u0627\u06cc\u06af\u0632\u06cc\u0646 \u0645\u06cc\u200c\u0634\u0648\u062f. \u0627\u062f\u0627\u0645\u0647 \u0645\u06cc\u200c\u062f\u0647\u06cc\u062f\u061f`)) return;
+    setImportBusy(true);
+    setOperationError('');
+    try {
+      const parsed = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const sheet = parsed.Sheets[parsed.SheetNames[0]];
+      const values = sheet ? XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '', blankrows: false }) : [];
+      const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
+      const billColumn = headers.findIndex((header) => ['\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636', '\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636\u0628\u0631\u0642'].includes(normalizeBillHeader(header)));
+      if (headers.length < 2 || billColumn < 0) throw new Error('bill_identifier_column_missing');
+      const rows = values.slice(1).map((row) => headers.map((_, index) => String(row[index] ?? '').trim())).filter((row) => row.some(Boolean));
+      const token = getAccessToken();
+      if (!token) throw new Error('unauthorized');
+      const response = await fetch('/api/rahcom/bill-identifiers', { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ headers, rows }) });
+      if (!response.ok) throw new Error('import_failed');
+      setWorkbook({ headers, rows });
+      setLoadFailed(false);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : '\u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0641\u0627\u06cc\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.');
+    } finally { setImportBusy(false); }
+  };
+
   const deleteBillIdentifier = async () => {
     if (deletingRowIndex === null) return;
     setDeletingRecord(true);
@@ -362,14 +411,21 @@ export function RahcomBillIdentifiers() {
   return <section dir={direction} className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
     <header className="rahcom-page-toolbar flex shrink-0 flex-wrap items-center justify-start gap-3">
       <button type="button" onClick={() => { setAddBillError(''); setNewBillIdentifier(''); setNewBillSystemIds([]); setNewBillSystemQuery(''); setNewBillFields({}); setNewExternalSystems([]); setNewExternalDraft({ type: 'USO', code: '', name: '' }); setAddingBill(true); }} aria-label={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} title={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={18} /></button>
+      <button type="button" onClick={() => void saveBackup()} disabled={backupBusy || loading || !workbook?.headers.length} aria-label={uiMessage(locale, 'rahcomSaveSystemsBackup')} title={uiMessage(locale, 'rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}</button>
+      <button type="button" onClick={() => { setOperationError(''); restoreInputRef.current?.click(); }} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
+      <input ref={restoreInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />
+      <button type="button" onClick={() => { setOperationError(''); uploadInputRef.current?.click(); }} disabled={importBusy} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}</button>
+      <input ref={uploadInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />
       <label className="rahcom-search-capsule relative block w-full max-w-[15rem] rounded-full">
         <Search aria-hidden="true" size={17} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiMessage(locale, 'headerSearch')} aria-label={uiMessage(locale, 'rahcomBillIdentifiersSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
       </label>
       <button type="button" onClick={downloadDisplayedTable} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} aria-hidden="true" /></button>
     </header>
+    {operationError && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-3 text-sm text-destructive">{operationError}</p>}
     {loading && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
-    {!loading && !workbook?.headers.length && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{uiMessage(locale, 'rahcomBillIdentifiersLoadFailed')}</p>}
+    {!loading && loadFailed && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{uiMessage(locale, 'rahcomBillIdentifiersLoadFailed')}</p>}
+    {!loading && !loadFailed && !workbook?.headers.length && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
     {!loading && workbook?.headers.length && rows.length === 0 && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{query ? uiMessage(locale, 'searchNoResults') : uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
     {!loading && workbook?.headers.length && rows.length > 0 && <div className="rahcom-traffic-table-frame flex min-h-0 min-w-0 max-w-full flex-col overflow-auto rounded-2xl border border-border bg-card">
       <div className="w-max min-w-full">

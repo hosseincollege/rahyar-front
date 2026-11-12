@@ -123,7 +123,7 @@ export function TopHeader({
     const onProvinceChange = (event: Event) => applyProvince((event as CustomEvent<{ province?: string }>).detail?.province);
     window.addEventListener('rahyar:province-change', onProvinceChange);
     void rahcomApi.access().then((access) => {
-      if (active) applyProvince(access.isAdmin ? access.selectedProvince ?? 'all' : access.province ?? 'all');
+      if (active) applyProvince(access.isAdmin || access.canSwitchProvince ? access.selectedProvince ?? 'all' : access.province ?? 'all');
     }).catch(() => undefined);
     return () => { active = false; window.removeEventListener('rahyar:province-change', onProvinceChange); };
   }, []);
@@ -321,7 +321,7 @@ export function TopHeader({
       { label: message('rahcomAxisName'), value: axisName },
       { label: message('rahcomAxisCode'), value: axisCode },
       { label: message('rahcomProvince'), value: iranProvinces.find(([id]) => id === system.province)?.[1] ?? system.province },
-    ], trigger ?? document.activeElement as HTMLElement | null, undefined, system.systemCode);
+    ], trigger ?? document.activeElement as HTMLElement | null, undefined, system.systemCode, system);
   };
 
   const renderHeaderSystemSuggestions = (mobile = false) => headerSearchOpen && headerSearchQuery.trim() ? (

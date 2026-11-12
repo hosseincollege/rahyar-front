@@ -20,11 +20,10 @@ import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_share
 import { SolarSnapshotPicker } from '@/app/(workspace)/rahcom/_shared/rahcom-section';
 
 const PAGE_SIZE = 100;
-const buildRoadListImagePrompt = (jalaliDate: string) => `از تصویر پیوست‌شده، جدول راهداری را با دقت از روی تصویر استخراج کن و نتیجه را به صورت یک فایل Excel با پسوند .xlsx تحویل بده.
+const buildRoadListFixedPrompt = (jalaliDate: string) => `از تصویر پیوست‌شده، جدول راهداری را با دقت استخراج کن و نتیجه را به صورت یک فایل اکسل با پسوند .xlsx تحویل بده.
 
-تاریخ این فهرست ${jalaliDate} است. فایل را با نام road-list-${jalaliDate.replaceAll('/', '-')}.xlsx ذخیره کن. این تاریخ را به عنوان تاریخ فهرست در نظر بگیر؛ آن را به شکل سطر عنوان یا ستون جدید وارد جدول نکن، مگر اینکه خود تصویر چنین ستونی داشته باشد.
-
-قواعد استخراج:
+تاریخ این فهرست ${jalaliDate} است. فایل را با نام road-list-${jalaliDate.replaceAll('/', '-')}.xlsx ذخیره کن. تاریخ و نام فایل به‌صورت خودکار از تاریخ انتخاب‌شده تنظیم می‌شوند و نباید در جدول اکسل به‌عنوان داده وارد شوند.`;
+const defaultRoadListPromptBody = `قواعد استخراج:
 - فقط ردیف‌ها و ستون‌هایی را وارد کن که در تصویر دیده می‌شوند. فلش‌های فیلتر، نوار ابزار اکسل و عناصر رابط کاربری را داده حساب نکن.
 - هر ردیف جدول دقیقاً یک ردیف در اکسل باشد. ردیف عنوان ستون‌ها فقط یک‌بار و در سطر اول فایل بیاید؛ عنوان یا توضیح اضافه بالای جدول نگذار.
 - عنوان ستون کدهای هشت‌رقمی را دقیقاً «کد ایستگاه» بگذار و کد را به صورت متن نگه دار تا صفر ابتدایی یا رقم آن تغییر نکند.
@@ -36,6 +35,7 @@ const buildRoadListImagePrompt = (jalaliDate: string) => `از تصویر پیو
 - سلول‌ها را به‌صورت جدول ساده و قابل بارگذاری بساز؛ از ادغام سلول‌ها، تصویر داخل فایل، فرمول، سطر جمع و قالب‌بندی پیچیده استفاده نکن.
 
 فایل نهایی باید یک برگه داشته باشد و سطر اول آن عنوان ستون‌ها باشد. فایل Excel را برای دریافت ارائه کن.`;
+const buildRoadListImagePrompt = (jalaliDate: string, body: string) => `${buildRoadListFixedPrompt(jalaliDate)}\n\n${body}`;
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
   .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u200c\s_\-./()]/g, '');
 const isRoadListAxisHeader = (value: string) => normalizeHeader(value).includes('\u0645\u062d\u0648\u0631') || normalizeHeader(value).includes('axis');
@@ -102,7 +102,7 @@ export function RahcomRoadList() {
   const [roadListPromptCopyState, setRoadListPromptCopyState] = useState<'copied' | 'failed' | null>(null);
   const [roadListPromptOpen, setRoadListPromptOpen] = useState(false);
   const [roadListPromptEditing, setRoadListPromptEditing] = useState(false);
-  const [roadListPromptText, setRoadListPromptText] = useState('');
+  const [roadListPromptBody, setRoadListPromptBody] = useState(defaultRoadListPromptBody);
   const [roadListPromptBusy, setRoadListPromptBusy] = useState(false);
   const [roadListPromptError, setRoadListPromptError] = useState('');
   const [roadListPromptSaved, setRoadListPromptSaved] = useState(false);
@@ -418,17 +418,17 @@ export function RahcomRoadList() {
     if (!organizationId) throw new Error('شناسهٔ سازمان در دسترس نیست.');
     return `/api/rahcom/road-list-prompt?organizationId=${encodeURIComponent(organizationId)}`;
   };
-  const renderRoadListPrompt = (template: string) => {
-    const jalaliDate = formatJalaliDate(selectedDate);
-    return template.replaceAll('{{jalaliDate}}', jalaliDate).replaceAll('{{filenameDate}}', jalaliDate.replaceAll('/', '-'));
-  };
-  const makeRoadListPromptTemplate = (text: string) => {
-    const jalaliDate = formatJalaliDate(selectedDate);
-    return text.replaceAll(`road-list-${jalaliDate.replaceAll('/', '-')}.xlsx`, 'road-list-{{filenameDate}}.xlsx').replaceAll(jalaliDate, '{{jalaliDate}}');
+  const roadListPromptText = buildRoadListImagePrompt(formatJalaliDate(selectedDate), roadListPromptBody);
+  const extractRoadListPromptBody = (savedText: string) => {
+    const marker = 'قواعد استخراج:';
+    const markerIndex = savedText.indexOf(marker);
+    if (markerIndex >= 0) return savedText.slice(markerIndex).trim();
+    const firstBreak = savedText.indexOf('\n\n');
+    const secondBreak = firstBreak >= 0 ? savedText.indexOf('\n\n', firstBreak + 2) : -1;
+    return secondBreak >= 0 ? savedText.slice(secondBreak + 2).trim() : savedText.trim() || defaultRoadListPromptBody;
   };
   const openRoadListImagePrompt = async () => {
-    const jalaliDate = formatJalaliDate(selectedDate);
-    setRoadListPromptText(buildRoadListImagePrompt(jalaliDate));
+    setRoadListPromptBody(defaultRoadListPromptBody);
     setRoadListPromptOpen(true);
     setRoadListPromptEditing(false);
     setRoadListPromptError('');
@@ -437,7 +437,7 @@ export function RahcomRoadList() {
     setRoadListPromptBusy(true);
     try {
       const saved = await apiClient.get<{ prompt: string | null }>(promptApiPath());
-      if (saved.prompt) setRoadListPromptText(renderRoadListPrompt(saved.prompt));
+      if (saved.prompt) setRoadListPromptBody(extractRoadListPromptBody(saved.prompt));
     } catch (reason) {
       setRoadListPromptError(reason instanceof Error ? reason.message : 'بارگذاری پرامپت ذخیره‌شده انجام نشد.');
     } finally {
@@ -457,7 +457,7 @@ export function RahcomRoadList() {
     setRoadListPromptBusy(true);
     setRoadListPromptError('');
     try {
-      await apiClient.put<{ saved: boolean }>(promptApiPath(), { prompt: makeRoadListPromptTemplate(roadListPromptText) });
+      await apiClient.put<{ saved: boolean }>(promptApiPath(), { prompt: roadListPromptBody });
       setRoadListPromptEditing(false);
       setRoadListPromptSaved(true);
     } catch (reason) {
@@ -507,7 +507,7 @@ export function RahcomRoadList() {
             const match = getMatch(row);
             return <tr key={page * PAGE_SIZE + rowIndex} className="odd:bg-background even:bg-muted/30">
               <td className="border-b border-border/70 px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(page * PAGE_SIZE + rowIndex + 1)}</td>
-              <td className="w-9 border-b border-border/70 px-1 py-1 text-center"><RahcomRowInfo title={match?.systemName || match?.systemCode || `ردیف ${page * PAGE_SIZE + rowIndex + 1}`} systemCode={match?.systemCode ?? ''} fields={[{ label: t('rahcomSystemName'), value: match?.systemName || '' }, { label: t('rahcomSystemCode'), value: match?.systemCode || '' }, { label: t('rahcomIncidentFilter'), value: getIncidentText(match) }, { label: t('rahcomAxisCode'), value: match ? systemsByCode.get(normalizeIdentifier(match.systemCode))?.axisCode ?? '' : '' }, ...headers.map((header, columnIndex) => ({ label: header, value: row[columnIndex] ?? '' }))]} /></td>
+              <td className="w-9 border-b border-border/70 px-1 py-1 text-center"><RahcomRowInfo title={match?.systemName || match?.systemCode || `ردیف ${page * PAGE_SIZE + rowIndex + 1}`} systemCode={match?.systemCode ?? ''} system={match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) ?? null : null} fields={[{ label: t('rahcomSystemName'), value: match?.systemName || '' }, { label: t('rahcomSystemCode'), value: match?.systemCode || '' }, { label: t('rahcomIncidentFilter'), value: getIncidentText(match) }, { label: t('rahcomAxisCode'), value: match ? systemsByCode.get(normalizeIdentifier(match.systemCode))?.axisCode ?? '' : '' }, ...headers.map((header, columnIndex) => ({ label: header, value: row[columnIndex] ?? '' }))]} /></td>
               <td className="min-w-[220px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
               <td dir="ltr" className="min-w-[120px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
               {showIncidents && <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>}
@@ -535,8 +535,11 @@ export function RahcomRoadList() {
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          {roadListPromptBusy && !roadListPromptText ? <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><LoaderCircle size={17} className="animate-spin"/>{locale === 'fa' ? 'در حال بارگذاری…' : 'Loading…'}</div> : roadListPromptEditing
-            ? <textarea autoFocus dir="auto" value={roadListPromptText} onChange={(event) => { setRoadListPromptText(event.target.value); setRoadListPromptSaved(false); }} className="min-h-[50vh] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground outline-none focus:border-primary" />
+          {roadListPromptBusy && !roadListPromptBody ? <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><LoaderCircle size={17} className="animate-spin"/>{locale === 'fa' ? 'در حال بارگذاری…' : 'Loading…'}</div> : roadListPromptEditing
+            ? <div className="space-y-3">
+              <div><p className="mb-1 text-xs font-semibold text-muted-foreground">{locale === 'fa' ? 'بخش ثابت؛ تاریخ و نام فایل خودکار هستند و قابل ویرایش نیستند' : 'Fixed section; date and filename are automatic and cannot be edited'}</p><pre dir="auto" className="whitespace-pre-wrap break-words rounded-xl border border-border bg-muted/30 p-4 text-sm leading-7 text-foreground">{buildRoadListFixedPrompt(formatJalaliDate(selectedDate))}</pre></div>
+              <div><p className="mb-1 text-xs font-semibold text-muted-foreground">{locale === 'fa' ? 'بخش قابل ویرایش' : 'Editable section'}</p><textarea autoFocus dir="auto" value={roadListPromptBody} onChange={(event) => { setRoadListPromptBody(event.target.value); setRoadListPromptSaved(false); }} className="min-h-[42vh] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground outline-none focus:border-primary" /></div>
+            </div>
             : <pre dir="auto" className="min-h-[50vh] whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground">{roadListPromptText}</pre>}
           {roadListPromptError && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{roadListPromptError}</p>}
           {roadListPromptSaved && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'پرامپت در فایل پروژه ذخیره شد.' : 'Prompt saved to the project file.'}</p>}
@@ -544,7 +547,7 @@ export function RahcomRoadList() {
           {roadListPromptCopyState === 'failed' && <p role="alert" className="mt-3 text-sm text-destructive">{locale === 'fa' ? 'کپی انجام نشد.' : 'Copy failed.'}</p>}
         </div>
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">
-          {roadListPromptEditing && canManage && <button type="button" disabled={roadListPromptBusy || !roadListPromptText.trim()} onClick={() => void saveRoadListImagePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{roadListPromptBusy ? <LoaderCircle size={16} className="animate-spin"/> : <Save size={16}/>}<span>{locale === 'fa' ? 'ذخیره در پروژه' : 'Save to project'}</span></button>}
+          {roadListPromptEditing && canManage && <button type="button" disabled={roadListPromptBusy || !roadListPromptBody.trim()} onClick={() => void saveRoadListImagePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{roadListPromptBusy ? <LoaderCircle size={16} className="animate-spin"/> : <Save size={16}/>}<span>{locale === 'fa' ? 'ذخیره در پروژه' : 'Save to project'}</span></button>}
           <button type="button" disabled={roadListPromptBusy || !roadListPromptText.trim()} onClick={() => void copyRoadListImagePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{roadListPromptCopyState === 'copied' ? <Check size={16}/> : <ClipboardCopy size={16}/>}<span>{roadListPromptCopyState === 'copied' ? (locale === 'fa' ? 'کپی شد' : 'Copied') : (locale === 'fa' ? 'کپی متن' : 'Copy prompt')}</span></button>
         </footer>
       </section>
