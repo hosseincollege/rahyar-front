@@ -1,7 +1,6 @@
 'use client';
 
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { ArchiveRestore, Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, MapPinned, Pencil, Plus, Rows3, Save, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
@@ -645,7 +644,6 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                             {Number.isFinite(system.latitude) && Number.isFinite(system.longitude) && <button type="button" data-popup-action="route" aria-expanded={systemPopupPanel === 'location'} onClick={() => setSystemPopupPanel((panel) => panel === 'location' ? null : 'location')} title={t('rahcomRoute')} aria-label={t('rahcomRoute')}><MapPin size={16}/></button>}
                             {!system.id.startsWith('traffic-') && <button type="button" data-popup-action="history" aria-expanded={systemPopupPanel === 'history'} onClick={() => setSystemPopupPanel((panel) => panel === 'history' ? null : 'history')} title={t('rahcomHistory')} aria-label={t('rahcomHistory')}><ClipboardList size={16}/></button>}
                             {canEditSystems && <button type="button" data-popup-action="edit" onClick={() => startEdit(system)} title={t('rahcomEditSystem')} aria-label={t('rahcomEditSystem')}><Pencil size={16}/></button>}
-                            <Link href={`/rahcom/systems/${encodeURIComponent(system.systemCode)}?province=${encodeURIComponent(system.province)}`} data-popup-action="system-page" title={t('rahcomOpenSystemPage')} aria-label={t('rahcomOpenSystemPage')} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[.65rem] border border-border bg-background p-1 text-foreground hover:border-primary hover:text-primary"><ExternalLink size={16}/></Link>
                           </div>
                           {systemPopupPanel === 'location' && Number.isFinite(system.latitude) && Number.isFinite(system.longitude) && <div className="mt-1 grid gap-1.5 rounded-lg border border-border bg-background p-2 text-xs">
                             <button type="button" onClick={() => void copyValue(coordinatesKey, formatRahcomCoordinates(system.latitude, system.longitude))} className="flex min-h-9 items-center gap-2 rounded-md px-2 text-start text-foreground hover:bg-muted">{copiedKey === coordinatesKey ? <Check size={15}/> : <MapPin size={15}/>} {copiedKey === coordinatesKey ? t('rahcomCopied') : t('rahcomCopyCoordinates')}</button>

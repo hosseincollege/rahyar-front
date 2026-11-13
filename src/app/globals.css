@@ -957,6 +957,46 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   text-align: right;
 }
 
+.rahcom-system-popup-expanded {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: .75rem;
+  padding: 0;
+}
+
+.rahcom-system-popup-expanded > .rahcom-popup-header {
+  order: 1;
+  flex: 0 0 auto;
+}
+
+.rahcom-system-popup-expanded > .rahcom-popup-actions {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  order: 2;
+  flex: 0 0 auto;
+  padding-block: .45rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.rahcom-system-popup-expanded > .rahcom-popup-data {
+  order: 3;
+  flex: 0 0 auto;
+}
+
+.rahcom-system-popup-expanded > .rahcom-details-grid {
+  order: 4;
+  flex: 1 1 auto;
+  align-content: start;
+}
+
+.rahcom-system-popup-expanded > div:not(.rahcom-popup-header):not(.rahcom-popup-actions):not(.rahcom-popup-data):not(.rahcom-details-grid) {
+  order: 5;
+  flex: 0 0 auto;
+}
+
 .rahcom-sticky-table thead th {
   position: sticky;
   inset-block-start: 0;
@@ -997,7 +1037,7 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 .rahcom-popup-title {
   overflow-wrap: anywhere;
   color: var(--foreground);
-  font-size: .8rem;
+  font-size: .95rem;
   font-weight: 600;
 }
 
@@ -1014,6 +1054,24 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   gap: .3rem;
   direction: rtl;
   justify-content: flex-start;
+}
+
+.rahcom-popup-code-copy {
+  display: inline-grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: var(--background);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.rahcom-popup-code-copy:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .rahcom-popup-data {
@@ -1034,18 +1092,23 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 
 .rahcom-popup-axis-row {
   display: block;
-  direction: rtl;
-  text-align: right;
-  unicode-bidi: plaintext;
+  padding: 0;
+  background: transparent;
+  direction: rtl !important;
+  text-align: right !important;
 }
 
 .rahcom-popup-axis-row > b {
   display: block;
   width: 100%;
-  direction: rtl;
+  direction: rtl !important;
   font-family: inherit;
-  text-align: right;
-  unicode-bidi: plaintext;
+  text-align: right !important;
+}
+
+.rahcom-popup-axis-row > b.rahcom-popup-title {
+  font-size: .85rem;
+  font-weight: 600;
 }
 
 .rahcom-popup-row-compact {
