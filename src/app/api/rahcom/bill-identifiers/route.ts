@@ -51,7 +51,7 @@ export async function PUT(request: NextRequest) {
     const headers = body.headers;
     const rows = body.rows;
     if (headers.length < 2 || headers.length > 100 || headers.some((v) => typeof v !== 'string') || rows.length > 20000 || rows.some((r) => !Array.isArray(r) || r.some((v) => typeof v !== 'string'))) return jsonError(400, 'invalid_workbook');
-    const { response } = await saveList(authHeader(request), { headers: headers as string[], rows: rows as string[][] });
+    const response = await saveList(authHeader(request), { headers: headers as string[], rows: rows as string[][] });
     return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
   }
   if (!Number.isInteger(body.rowIndex) || (body.rowIndex as number) < 0 || !Array.isArray(body.systemCodes) || body.systemCodes.length > 50 || body.systemCodes.some((v) => typeof v !== 'string')) return jsonError(400, 'invalid_assignment');
