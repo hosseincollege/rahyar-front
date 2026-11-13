@@ -1032,6 +1032,22 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   font-size: .65rem;
 }
 
+.rahcom-popup-axis-row {
+  display: block;
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
+.rahcom-popup-axis-row > b {
+  display: block;
+  width: 100%;
+  direction: rtl;
+  font-family: inherit;
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
 .rahcom-popup-row-compact {
   grid-column: auto;
   display: grid;
@@ -1168,8 +1184,8 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   cursor: pointer;
 }
 
-.rahcom-popup-actions button[data-popup-action="route"],
-.rahcom-popup-actions > a[data-popup-action="route"] {
+.rahcom-popup-actions button[data-popup-action="route"][aria-expanded="true"],
+.rahcom-popup-actions > a[data-popup-action="route"][aria-expanded="true"] {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--primary-foreground);

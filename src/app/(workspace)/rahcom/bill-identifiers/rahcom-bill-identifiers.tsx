@@ -62,7 +62,6 @@ export function RahcomBillIdentifiers() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const [operationError, setOperationError] = useState('');
-  const restoreInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -356,10 +355,10 @@ export function RahcomBillIdentifiers() {
     } finally { setBackupBusy(false); }
   };
 
-  const importBillWorkbook = async (file?: File) => {
-    if (!file || importBusy) return;
-    if (workbook?.rows.length && !window.confirm(`\u0628\u0627 \u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0627\u06cc\u0646 \u0641\u0627\u06cc\u0644\u060c \u0641\u0647\u0631\u0633\u062a \u0641\u0639\u0644\u06cc \u0634\u0646\u0627\u0633\u0647\u200c\u0647\u0627\u06cc \u0642\u0628\u0636 \u0628\u0627 \u0645\u062d\u062a\u0648\u0627\u06cc \u0641\u0627\u06cc\u0644 \u062c\u0627\u06cc\u06af\u0632\u06cc\u0646 \u0645\u06cc\u200c\u0634\u0648\u062f. \u0627\u062f\u0627\u0645\u0647 \u0645\u06cc\u200c\u062f\u0647\u06cc\u062f\u061f`)) return;
-    setImportBusy(true);
+  const importBillWorkbook = async (file?: File, options: { confirmed?: boolean; keepBusy?: boolean } = {}) => {
+    if (!file || (importBusy && !options.keepBusy)) return;
+    if (!options.confirmed && workbook?.rows.length && !window.confirm(`\u0628\u0627 \u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0627\u06cc\u0646 \u0641\u0627\u06cc\u0644\u060c \u0641\u0647\u0631\u0633\u062a \u0641\u0639\u0644\u06cc \u0634\u0646\u0627\u0633\u0647\u200c\u0647\u0627\u06cc \u0642\u0628\u0636 \u0628\u0627 \u0645\u062d\u062a\u0648\u0627\u06cc \u0641\u0627\u06cc\u0644 \u062c\u0627\u06cc\u06af\u0632\u06cc\u0646 \u0645\u06cc\u200c\u0634\u0648\u062f. \u0627\u062f\u0627\u0645\u0647 \u0645\u06cc\u200c\u062f\u0647\u06cc\u062f\u061f`)) return;
+    if (!options.keepBusy) setImportBusy(true);
     setOperationError('');
     try {
       const parsed = XLSX.read(await file.arrayBuffer(), { type: 'array' });
@@ -377,6 +376,26 @@ export function RahcomBillIdentifiers() {
       setLoadFailed(false);
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : '\u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0641\u0627\u06cc\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.');
+    } finally { if (!options.keepBusy) setImportBusy(false); }
+  };
+
+  const restoreBillBackup = async () => {
+    if (importBusy || loading) return;
+    if (workbook?.rows.length && !window.confirm(`\u0628\u0627 \u0628\u0627\u0632\u06cc\u0627\u0628\u06cc \u0627\u0632 \u0646\u0633\u062e\u0647\u200c\u06cc \u067e\u0634\u062a\u06cc\u0628\u0627\u0646\u060c \u0641\u0647\u0631\u0633\u062a \u0641\u0639\u0644\u06cc \u0634\u0646\u0627\u0633\u0647\u200c\u0647\u0627\u06cc \u0642\u0628\u0636 \u0628\u0627 \u0645\u062d\u062a\u0648\u0627\u06cc \u0641\u0627\u06cc\u0644 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646 \u062c\u0627\u06cc\u06af\u0632\u06cc\u0646 \u0645\u06cc\u200c\u0634\u0648\u062f. \u0627\u062f\u0627\u0645\u0647 \u0645\u06cc\u200c\u062f\u0647\u06cc\u062f\u061f`)) return;
+    const token = getAccessToken();
+    if (!token) { setOperationError('unauthorized'); return; }
+    setImportBusy(true);
+    setOperationError('');
+    try {
+      const response = await fetch('/api/rahcom/bill-identifiers?source=backup', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('backup_unavailable');
+      const file = new File([await response.arrayBuffer()], 'isfahan-bill-identifiers.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      await importBillWorkbook(file, { confirmed: true, keepBusy: true });
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'backup_failed');
     } finally { setImportBusy(false); }
   };
 
@@ -412,8 +431,7 @@ export function RahcomBillIdentifiers() {
     <header className="rahcom-page-toolbar flex shrink-0 flex-wrap items-center justify-start gap-3">
       <button type="button" onClick={() => { setAddBillError(''); setNewBillIdentifier(''); setNewBillSystemIds([]); setNewBillSystemQuery(''); setNewBillFields({}); setNewExternalSystems([]); setNewExternalDraft({ type: 'USO', code: '', name: '' }); setAddingBill(true); }} aria-label={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} title={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={18} /></button>
       <button type="button" onClick={() => void saveBackup()} disabled={backupBusy || loading || !workbook?.headers.length} aria-label={uiMessage(locale, 'rahcomSaveSystemsBackup')} title={uiMessage(locale, 'rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}</button>
-      <button type="button" onClick={() => { setOperationError(''); restoreInputRef.current?.click(); }} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
-      <input ref={restoreInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />
+      <button type="button" onClick={() => void restoreBillBackup()} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
       <button type="button" onClick={() => { setOperationError(''); uploadInputRef.current?.click(); }} disabled={importBusy} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}</button>
       <input ref={uploadInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />
       <label className="rahcom-search-capsule relative block w-full max-w-[15rem] rounded-full">

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { API_BASE_URL } from '@/lib/api-environment';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +39,23 @@ function unauthorized(request: NextRequest) { return !authHeader(request).starts
 
 export async function GET(request: NextRequest) {
   if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  if (request.nextUrl.searchParams.get('source') === 'backup') {
+    const { response } = await readList(authHeader(request));
+    if (!response.ok) return jsonError(response.status, 'database_unavailable');
+    try {
+      const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', 'bill-identifiers.xlsx');
+      const workbookBytes = await readFile(filePath);
+      return new NextResponse(new Uint8Array(workbookBytes), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': 'attachment; filename="isfahan-bill-identifiers.xlsx"',
+          'Cache-Control': 'private, no-store, max-age=0',
+        },
+      });
+    } catch {
+      return jsonError(404, 'backup_unavailable');
+    }
+  }
   const { response, data } = await readList(authHeader(request));
   return response.ok
     ? NextResponse.json(data, { status: response.status, headers: { 'Cache-Control': 'no-store, max-age=0' } })

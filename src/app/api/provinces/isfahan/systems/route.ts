@@ -37,6 +37,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
+    const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanSystemsWorkbook);
+    const workbookBytes = await readFile(filePath);
+    if (request.nextUrl.searchParams.get('source') === 'backup') {
+      return new NextResponse(new Uint8Array(workbookBytes), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': 'attachment; filename="isfahan-systems.xlsx"',
+          'Cache-Control': 'private, no-store, max-age=0',
+        },
+      });
+    }
+
     const persistedSystemsByCode = new Map<string, { longOutage: boolean; reason: string | null; details: string | null; axisCode: string | null; announcedAxis: string | null }>();
     try {
       const persistedResponse = await fetch(`${API_BASE_URL}/rahcom/systems?province=isfahan`, {
@@ -54,8 +66,7 @@ export async function GET(request: NextRequest) {
       // The workbook remains the fallback source when the API is temporarily unavailable.
     }
 
-    const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanSystemsWorkbook);
-    const workbook = XLSX.read(await readFile(filePath), { type: 'buffer' });
+    const workbook = XLSX.read(workbookBytes, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!sheet) return NextResponse.json([]);
 

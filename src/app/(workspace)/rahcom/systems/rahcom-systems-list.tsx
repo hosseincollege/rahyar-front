@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { ArchiveRestore, Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, MapPinned, Pencil, Plus, Rows3, Save, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
+import { getAccessToken } from '@/lib/api-client';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
 import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
@@ -80,7 +81,6 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const [editMode, setEditMode] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
-  const restoreInputRef = useRef<HTMLInputElement>(null);
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const [newSystemBusy, setNewSystemBusy] = useState(false);
   const [newSystemForm, setNewSystemForm] = useState({ systemName: '', systemCode: '', latitude: '', longitude: '' });
@@ -187,7 +187,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     }
   }
 
-  async function uploadSystemsFile(file?: File, allowAllProvinces = false) {
+  async function uploadSystemsFile(file?: File, allowAllProvinces = false, keepBusy = false) {
     if (!file) return;
     if (!selectedProvince || (selectedProvince === 'all' && !allowAllProvinces)) { setError(t('rahcomProvince')); return; }
     setUploadBusy(true);
@@ -239,6 +239,26 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       const systemsByProvince = new Map<string, Array<Record<string, unknown>>>();
       parsed.forEach(({ province, system }) => systemsByProvince.set(province, [...(systemsByProvince.get(province) ?? []), system]));
       for (const [province, provinceSystems] of systemsByProvince) await rahcomApi.importSystems(province, provinceSystems);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
+    } finally { if (!keepBusy) setUploadBusy(false); }
+  }
+
+  async function restoreSystemsBackup() {
+    if (uploadBusy || loading) return;
+    if (selectedProvince !== 'isfahan' && selectedProvince !== 'all') { setError(t('rahcomProvince')); return; }
+    const token = getAccessToken();
+    if (!token) { setError(t('rahcomSystemsLoadError')); return; }
+    setUploadBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/provinces/isfahan/systems?source=backup', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(t('rahcomSystemsLoadError'));
+      const backup = new File([await response.arrayBuffer()], 'isfahan-systems.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      await uploadSystemsFile(backup, true, true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
     } finally { setUploadBusy(false); }
@@ -556,8 +576,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         <SystemsSearchInput value={query} onChange={setQuery} placeholder={t('rahcomSearchSystems')} clearLabel={t('searchClear')} />
         {canManage && selectedProvince !== 'all' && <button type="button" onClick={() => { setNewSystemOpen(true); setError(''); }} aria-label={t('rahcomAddSystem')} title={t('rahcomAddSystem')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
         <button type="button" onClick={() => void saveSystemsBackup()} disabled={backupBusy || loading || systems.length === 0} aria-label={t('rahcomSaveSystemsBackup')} title={t('rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} aria-hidden="true" />}</button>
-        <button type="button" onClick={() => restoreInputRef.current?.click()} disabled={uploadBusy || loading} aria-label={t('rahcomRestoreSystemsBackup')} title={t('rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} aria-hidden="true" />}</button>
-        <input ref={restoreInputRef} type="file" accept=".xlsx,.xls" disabled={uploadBusy || loading} className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void uploadSystemsFile(file, true); }} />
+        <button type="button" onClick={() => void restoreSystemsBackup()} disabled={uploadBusy || loading || (selectedProvince !== 'isfahan' && selectedProvince !== 'all')} aria-label={t('rahcomRestoreSystemsBackup')} title={t('rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} aria-hidden="true" />}</button>
         <label aria-label={t('rahcomUploadExcel')} title={t('rahcomUploadExcel')} className={`grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted ${uploadBusy ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} aria-hidden="true" />}<input type="file" accept=".xlsx,.xls" disabled={uploadBusy} className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void uploadSystemsFile(file); }} /></label>
         <button type="button" onClick={downloadSystems} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted"><Download size={17} aria-hidden="true" /></button>
         <button type="button" aria-pressed={showTrafficLongOutage} onClick={() => setShowTrafficLongOutage((enabled) => !enabled)} aria-label="نمایش سرقت و تخریب ثبت‌شده در فایل تردد" title="نمایش سرقت و تخریب ثبت‌شده در فایل تردد" style={showTrafficLongOutage ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`flex size-9 shrink-0 flex-col items-center justify-center rounded-full border transition-colors ${showTrafficLongOutage ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={15} className="-translate-y-0.5" /><span className="text-[10px] font-bold leading-[10px]">تردد</span></button>
