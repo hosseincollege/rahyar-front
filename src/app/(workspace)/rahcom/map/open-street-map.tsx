@@ -208,9 +208,14 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
     const headers = trafficSnapshot?.headers ?? [];
     const codeIndex = headers.findIndex((value) => { const key = normalize(value); return key.includes('\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647') || key.includes('systemcode'); });
     const incidentIndexes = headers.flatMap((value, index) => { const key = normalize(value); return ['\u0633\u0631\u0642\u062a', '\u062a\u062e\u0631\u06cc\u0628', '\u062a\u0639\u0631\u06cc\u0636', '\u062c\u0627\u0628\u062c\u0627\u06cc\u06cc', 'theft', 'damage', 'widening', 'relocation'].some((term) => key.includes(normalize(term))) ? [index] : []; });
-    if (codeIndex < 0 || incidentIndexes.length === 0) return new Set<string>();
+    // Persistent outage flags come from the systems database, independent of
+    // the selected traffic snapshot. Seed the map's incident set from them.
+    const keys = new Set(systems
+      .filter((system) => (system.longOutage || system.longOutageReason)
+        && (province === 'all' || system.province === province))
+      .map((system) => rahcomSystemKey(system.province, system.systemCode)));
+    if (codeIndex < 0 || incidentIndexes.length === 0) return keys;
     const provinceIndex = headers.findIndex((value) => /province|\u0627\u0633\u062a\u0627\u0646/i.test(value));
-    const keys = new Set<string>();
     for (const row of trafficSnapshot?.rows ?? []) {
       if (!incidentIndexes.some((index) => isRahcomIncidentValue(row[index]))) continue;
       const code = (row[codeIndex] ?? '').trim().toUpperCase();
@@ -334,9 +339,11 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
   const mapSystems = useMemo(() => {
     if (!normalizedMapSearchQuery) return displayedSystems;
     return mapSystemSearchIndex
-      .filter(({ system, text }) => hasRegisteredMapLocation(system) && text.includes(normalizedMapSearchQuery))
+      .filter(({ system, text }) => hasRegisteredMapLocation(system)
+        && text.includes(normalizedMapSearchQuery)
+        && (showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode))))
       .map(({ system }) => system);
-  }, [displayedSystems, mapSystemSearchIndex, normalizedMapSearchQuery]);
+  }, [displayedSystems, incidentCodes, mapSystemSearchIndex, normalizedMapSearchQuery, showMapIncidents]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
     name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axisCode: t('rahcomAxisCode'), announcedAxis: t('rahcomAxis'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'),
