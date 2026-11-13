@@ -12,11 +12,18 @@ export type RahcomInfoField = { label: string; value: string };
 type PopupPosition = { top: number; left: number; maxWidth: number; maxHeight: number };
 type RowInfoPopup = { title: string; systemCode: string; fields: RahcomInfoField[]; position: PopupPosition; trigger: HTMLButtonElement; system?: RahcomSystem | null };
 
+function getWorkspaceMainBounds() {
+  const workspaceMain = document.querySelector<HTMLElement>('[data-workspace-main]');
+  if (workspaceMain) return workspaceMain.getBoundingClientRect();
+  const pageMain = document.querySelector('main');
+  return pageMain?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+}
+
 export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trigger?: HTMLElement | null, point?: { x: number; y: number }, systemCode = '', system?: RahcomSystem | null) {
   const resolvedCode = systemCode || fields.find((field) => /system\s*code|کد\s*(?:سامانه|ایستگاه)/i.test(field.label))?.value || '';
   const resolvedTitle = fields.find((field) => /system\s*name|systemname|نام\s*(?:سامانه|ایستگاه)|nome.*sistema|nom.*système|nombre.*sistema|назван.*систем|系统名称|システム名|اسم النظام/i.test(field.label) && field.value.trim())?.value || title;
   const systemFields = fields.filter((field) => field.value.trim() !== '' && field.value !== resolvedCode && field.value !== resolvedTitle && /axis|محور|استان|province|província|provincia|провинц|محافظة|المحافظ|ولاية|จังหวัด|省/i.test(field.label));
-  const bounds = trigger?.closest('main')?.getBoundingClientRect() ?? document.querySelector('main')?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+  const bounds = getWorkspaceMainBounds();
   const rect = trigger?.getBoundingClientRect();
   const maxWidth = Math.max(240, Math.min(340, bounds.width - 24));
   const maxHeight = Math.max(160, Math.min(window.innerHeight * 0.8, 440, bounds.height - 24));
@@ -77,7 +84,7 @@ export function RahcomRowInfoHost() {
     flushSync(() => setPopup(null));
   };
   if (!popup || typeof document === 'undefined') return null;
-  const contentBounds = popup.trigger.closest('main')?.getBoundingClientRect() ?? document.querySelector('main')?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+  const contentBounds = getWorkspaceMainBounds();
   const axisLabel = 'محور:';
   const visibleFields = popup.system
     ? [{ label: axisLabel, value: `${popup.system.announcedAxis || '\u2014'}${popup.system.axisCode ? ` (${popup.system.axisCode})` : ''}` }].filter((field) => field.value.trim() && field.value !== '\u2014')
@@ -127,8 +134,12 @@ export function RahcomRowInfoHost() {
     const [latitude, longitude] = coordinates.split(', ');
     return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
   };
+  const appShell = document.querySelector<HTMLElement>('.erp-app-shell');
+  // Keep the compact popup on its original document-level theme. Expanded
+  // details live inside the app shell so they inherit the active workspace theme.
+  const portalRoot = expanded ? appShell ?? document.body : document.body;
   return createPortal(<div className="fixed inset-0 z-[1000] bg-transparent" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <section role="dialog" aria-modal="true" aria-label={canonicalTitle} style={expanded ? { position: 'fixed', top: contentBounds.top, left: contentBounds.left, width: contentBounds.width, maxWidth: contentBounds.width, height: contentBounds.height, maxHeight: contentBounds.height, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 } : { position: 'fixed', top: popup.position.top, left: popup.position.left, width: popup.position.maxWidth, maxWidth: popup.position.maxWidth, maxHeight: popup.position.maxHeight, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 }} className={expanded ? 'border-0 p-4 text-card-foreground shadow-none' : 'rounded-xl border border-border p-2 text-card-foreground shadow-2xl'}>
+    <section role="dialog" aria-modal="true" aria-label={canonicalTitle} style={expanded ? { position: 'fixed', top: contentBounds.top, left: contentBounds.left, width: contentBounds.width, maxWidth: contentBounds.width, height: contentBounds.height, maxHeight: contentBounds.height, overflowY: 'auto', backgroundColor: 'var(--background)', opacity: 1 } : { position: 'fixed', top: popup.position.top, left: popup.position.left, width: popup.position.maxWidth, maxWidth: popup.position.maxWidth, maxHeight: popup.position.maxHeight, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 }} className={expanded ? 'border-0 p-4 text-foreground shadow-none' : 'rounded-xl border border-border p-2 text-card-foreground shadow-2xl'}>
       <div className={`rahcom-system-popup${expanded ? ' rahcom-system-popup-expanded' : ''}`}>
         <header className="rahcom-popup-header"><div className="rahcom-popup-heading"><span className="rahcom-popup-code"><strong className="rahcom-popup-subtitle" dir="ltr">{canonicalCode}</strong><button type="button" className="rahcom-popup-code-copy" onClick={() => void copyCode()} aria-label="کپی کد سامانه" title="کپی کد سامانه">{codeCopied ? <Check size={15} /> : <Copy size={15} />}</button></span><strong className="rahcom-popup-title">{canonicalTitle}</strong></div></header>
         <div className="rahcom-popup-data" dir={popup.system ? 'rtl' : 'auto'}>{visibleFields.map((field, index) => <div key={`${field.label}:${index}`} dir={popup.system ? 'rtl' : undefined} style={popup.system ? { direction: 'rtl', textAlign: 'right' } : undefined} className={`rahcom-popup-row${popup.system ? ' rahcom-popup-axis-row' : ''}`}>{popup.system ? <b className="rahcom-popup-title rahcom-popup-axis-text">{field.label} {popup.system.announcedAxis} {popup.system.axisCode && <bdi dir="ltr">({popup.system.axisCode})</bdi>}</b> : <><span>{field.label}</span><b className="whitespace-pre-wrap">{field.value}</b></>}</div>)}</div>
@@ -139,7 +150,7 @@ export function RahcomRowInfoHost() {
           <button type="button" data-popup-action="history" aria-expanded={panel === 'history'} onClick={() => setPanel((current) => current === 'history' ? null : 'history')} aria-label="تاریخچه مراجعات" title="تاریخچه مراجعات"><ClipboardList size={16} /></button>
           {popup.system && <button type="button" data-popup-action="expand" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)} aria-label={expanded ? 'کوچک‌کردن پنجره' : 'نمایش جزئیات سامانه'} title={expanded ? 'کوچک‌کردن پنجره' : 'نمایش جزئیات سامانه'}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
         </div>
-        {expanded && <div className="rahcom-details-grid grid gap-2 p-1 sm:grid-cols-2 lg:grid-cols-3">{expandedFields.map((field) => <div key={field.label} className="min-w-0 rounded-lg border border-border/70 bg-background p-3"><div className="text-xs text-muted-foreground">{field.label}</div><div dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{field.value}</div></div>)}</div>}
+        {expanded && <div className="rahcom-details-grid grid gap-2 p-1 sm:grid-cols-2 lg:grid-cols-3">{expandedFields.map((field) => <div key={field.label} className="min-w-0 rounded-lg border border-border/70 bg-card p-3"><div className="text-xs text-muted-foreground">{field.label}</div><div dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{field.value}</div></div>)}</div>}
         {panel === 'location' && <div className="mt-1 flex min-h-9 items-center gap-1.5 text-xs">
           {coordinates && <><bdi dir="ltr" className="min-w-0 shrink-0 text-end text-foreground">{coordinates}</bdi><button type="button" onClick={() => { void navigator.clipboard.writeText(coordinates).then(() => { setCoordinatesCopied(true); window.setTimeout(() => setCoordinatesCopied(false), 900); }); }} className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground hover:border-primary hover:text-primary" aria-label="کپی مختصات" title="کپی مختصات">{coordinatesCopied ? <Check size={15} /> : <Copy size={15} />}</button><a href={googleMapsUrl()} target="_blank" rel="noreferrer" className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background font-bold text-base text-[#4285f4] hover:border-primary hover:bg-muted" aria-label="Google Maps" title="Google Maps">G</a></>}
           {!coordinates && <span className="px-2 py-1 text-muted-foreground">مختصات برای این سامانه ثبت نشده است.</span>}
@@ -147,5 +158,5 @@ export function RahcomRowInfoHost() {
         {panel === 'history' && <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-background p-2">{popup.system ? <RahcomSystemHistory system={popup.system} /> : <span className="text-xs text-muted-foreground">سامانهٔ متناظر پیدا نشد.</span>}</div>}
       </div>
     </section>
-  </div>, document.body);
+  </div>, portalRoot);
 }

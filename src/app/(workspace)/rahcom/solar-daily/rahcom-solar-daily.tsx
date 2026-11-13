@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, parseRahcomSolarList as parseList, rahcomTrafficLongOutageColumns, rahcomTrafficLongOutageValues, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, parseRahcomSolarList as parseList, rahcomLongOutageReasonLabel, rahcomTrafficLongOutageColumns, rahcomTrafficLongOutageValues, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
@@ -75,7 +75,45 @@ function captureTimestamp(dateValue: string, timeValue: string) {
   return new Date(wallClockAsUtc - (representedAsUtc - wallClockAsUtc)).toISOString();
 }
 
-function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
+type SolarCellPresentation = {
+  fontFamily: string;
+  fontSize: number;
+  bold: boolean;
+  horizontal: 'left' | 'center' | 'right';
+  vertical: 'top' | 'center' | 'bottom';
+  wrapText: boolean;
+};
+
+type SolarTablePresentation = { headers: SolarCellPresentation[]; cells: SolarCellPresentation[] };
+
+function readSolarCellPresentation(cell: HTMLElement | undefined): SolarCellPresentation {
+  if (!cell) return { fontFamily: 'Arial', fontSize: 10.5, bold: false, horizontal: 'center', vertical: 'center', wrapText: false };
+  const style = window.getComputedStyle(cell);
+  const firstFont = style.fontFamily.split(',')[0]?.trim().replace(/^['"]|['"]$/g, '') || 'Arial';
+  const pixelSize = Number.parseFloat(style.fontSize);
+  const horizontal = style.textAlign === 'right' || (style.textAlign === 'end' && style.direction === 'ltr') || (style.textAlign === 'start' && style.direction === 'rtl')
+    ? 'right'
+    : style.textAlign === 'left' || (style.textAlign === 'start' && style.direction === 'ltr') || (style.textAlign === 'end' && style.direction === 'rtl') ? 'left' : 'center';
+  const vertical = style.verticalAlign === 'top' ? 'top' : style.verticalAlign === 'bottom' ? 'bottom' : 'center';
+  return {
+    fontFamily: firstFont,
+    fontSize: Number.isFinite(pixelSize) ? Math.round(pixelSize * 0.75 * 10) / 10 : 10.5,
+    bold: Number.parseInt(style.fontWeight, 10) >= 600 || style.fontWeight === 'bold',
+    horizontal,
+    vertical,
+    wrapText: !style.whiteSpace.includes('nowrap'),
+  };
+}
+
+function captureSolarTablePresentation(table: HTMLTableElement): SolarTablePresentation {
+  const visibleCells = (row: HTMLTableRowElement | undefined) => row ? Array.from(row.cells).filter((_cell, index) => index !== 1) : [];
+  return {
+    headers: visibleCells(table.tHead?.rows[0]).map(readSolarCellPresentation),
+    cells: visibleCells(table.tBodies[0]?.rows[0]).map(readSolarCellPresentation),
+  };
+}
+
+function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook, presentation: SolarTablePresentation) {
   const original = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   const archive = XLSX.CFB.read(new Uint8Array(original), { type: 'array' });
   const worksheetFile = XLSX.CFB.find(archive, '/xl/worksheets/sheet1.xml');
@@ -88,8 +126,7 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
   const existingXfCount = Number(stylesXml.match(/<cellXfs\b[^>]*count="(\d+)"/)?.[1] ?? 1);
   const worksheet = workbook.Sheets.Solar;
   const sheetRange = worksheet?.['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null;
-  const lteColumnIndex = sheetRange ? Array.from({ length: sheetRange.e.c - sheetRange.s.c + 1 }, (_, index) => sheetRange.s.c + index)
-    .find((columnIndex) => String(worksheet[XLSX.utils.encode_cell({ r: sheetRange.s.r, c: columnIndex })]?.v ?? '').trim().toUpperCase() === 'LTE') ?? -1 : -1;
+  const columnCount = sheetRange ? sheetRange.e.c - sheetRange.s.c + 1 : 0;
   const newFills = [
     '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>',
     '<fill><patternFill patternType="solid"><fgColor rgb="FFF0F4F8"/><bgColor indexed="64"/></patternFill></fill>',
@@ -99,26 +136,26 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
     const updatedAttributes = attributes.replace(/\s+count="\d+"/, '').trim();
     return `<fills ${updatedAttributes} count="${existingFillCount + 3}">${body}${newFills}</fills>`;
   });
-  const newHeaderFont = '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>';
+  const xmlEscape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const fontXml = (style: SolarCellPresentation, color: string) => `<font>${style.bold ? '<b/>' : ''}<color rgb="${color}"/><sz val="${style.fontSize}"/><name val="${xmlEscape(style.fontFamily)}"/></font>`;
+  const headerFonts = Array.from({ length: columnCount }, (_, index) => fontXml(presentation.headers[index] ?? readSolarCellPresentation(undefined), 'FFFFFFFF')).join('');
+  const bodyFonts = Array.from({ length: columnCount }, (_, index) => fontXml(presentation.cells[index] ?? readSolarCellPresentation(undefined), 'FF111827')).join('');
   stylesXml = stylesXml.replace(/<fonts\b([^>]*)>([\s\S]*?)<\/fonts>/, (_all, attributes: string, body: string) => {
     const updatedAttributes = attributes.replace(/\s+count="\d+"/, '').trim();
-    const newBodyFont = '<font><color rgb="FF111827"/><sz val="11"/><name val="Arial"/></font>';
-    return `<fonts ${updatedAttributes} count="${existingFontCount + 2}">${body}${newHeaderFont}${newBodyFont}</fonts>`;
+    return `<fonts ${updatedAttributes} count="${existingFontCount + columnCount * 2}">${body}${headerFonts}${bodyFonts}</fonts>`;
   });
-  const bodyFontId = existingFontCount + 1;
-  const alignment = '<alignment horizontal="center" vertical="center" wrapText="1"/>';
-  const noWrapAlignment = '<alignment horizontal="center" vertical="center" wrapText="0" shrinkToFit="1"/>';
-  const newCellFormats = [
-    `<xf numFmtId="0" fontId="${bodyFontId}" fillId="${existingFillCount}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignment}</xf>`,
-    `<xf numFmtId="0" fontId="${bodyFontId}" fillId="${existingFillCount + 1}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignment}</xf>`,
-    `<xf numFmtId="0" fontId="${existingFontCount}" fillId="${existingFillCount + 2}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignment}</xf>`,
-    `<xf numFmtId="0" fontId="${bodyFontId}" fillId="${existingFillCount}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${noWrapAlignment}</xf>`,
-    `<xf numFmtId="0" fontId="${bodyFontId}" fillId="${existingFillCount + 1}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${noWrapAlignment}</xf>`,
-    `<xf numFmtId="0" fontId="${existingFontCount}" fillId="${existingFillCount + 2}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${noWrapAlignment}</xf>`,
-  ].join('');
+  const alignmentXml = (style: SolarCellPresentation) => `<alignment horizontal="${style.horizontal}" vertical="${style.vertical}"${style.wrapText ? ' wrapText="1"' : ''}/>`;
+  const newCellFormats = Array.from({ length: columnCount }, (_, index) => {
+    const header = presentation.headers[index] ?? readSolarCellPresentation(undefined);
+    const cell = presentation.cells[index] ?? readSolarCellPresentation(undefined);
+    const headerXf = `<xf numFmtId="0" fontId="${existingFontCount + index}" fillId="${existingFillCount + 2}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignmentXml(header)}</xf>`;
+    const evenXf = `<xf numFmtId="0" fontId="${existingFontCount + columnCount + index}" fillId="${existingFillCount}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignmentXml(cell)}</xf>`;
+    const oddXf = `<xf numFmtId="0" fontId="${existingFontCount + columnCount + index}" fillId="${existingFillCount + 1}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">${alignmentXml(cell)}</xf>`;
+    return `${headerXf}${evenXf}${oddXf}`;
+  }).join('');
   stylesXml = stylesXml.replace(/<cellXfs\b([^>]*)>([\s\S]*?)<\/cellXfs>/, (_all, attributes: string, body: string) => {
     const updatedAttributes = attributes.replace(/\s+count="\d+"/, '').trim();
-    return `<cellXfs ${updatedAttributes} count="${existingXfCount + 6}">${body}${newCellFormats}</cellXfs>`;
+    return `<cellXfs ${updatedAttributes} count="${existingXfCount + columnCount * 3}">${body}${newCellFormats}</cellXfs>`;
   });
 
   let worksheetXml = new TextDecoder().decode(worksheetFile.content as Uint8Array);
@@ -161,10 +198,9 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook) {
       }
     }
     const columnIndex = XLSX.utils.decode_cell(cellReference).c;
-    const isNoWrapColumn = columnIndex === lteColumnIndex || columnIndex === sheetRange?.e.c;
     return styledCellXml.replace(/<c\b([^>]*)>/, (_all, attributes: string) => {
       const updatedAttributes = attributes.replace(/\s+s="[^"]*"/, '').trim();
-      const rowStyleId = rowNumber === 1 ? existingXfCount + (isNoWrapColumn ? 5 : 2) : rowNumber % 2 === 0 ? existingXfCount + (isNoWrapColumn ? 3 : 0) : existingXfCount + (isNoWrapColumn ? 4 : 1);
+      const rowStyleId = existingXfCount + columnIndex * 3 + (rowNumber === 1 ? 0 : rowNumber % 2 === 0 ? 1 : 2);
       return `<c ${updatedAttributes} s="${rowStyleId}">`;
     });
   });
@@ -181,15 +217,15 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
   const lteColumnIndex = Array.from({ length: range.e.c - range.s.c + 1 }, (_, index) => range.s.c + index)
     .find((columnIndex) => String(worksheet[XLSX.utils.encode_cell({ r: range.s.r, c: columnIndex })]?.v ?? '').trim().toUpperCase() === 'LTE') ?? -1;
   const rowNumberIndex = 0;
-  const incidentIndex = showIncidents ? 2 : -1;
-  const systemCodeIndex = showIncidents ? 3 : 2;
+  const incidentIndex = showIncidents ? 1 : -1;
+  const systemCodeIndex = showIncidents ? 2 : 1;
   const systemNameIndex = systemCodeIndex + 1;
-  const axisCodeIndex = systemCodeIndex + 2;
-  const axisNameIndex = systemCodeIndex + 3;
-  const equipmentStartIndex = axisNameIndex + 1;
-  const equipmentEndIndex = range.e.c - 3;
-  const outageIndex = range.e.c - 3;
-  const crmIndex = range.e.c - 2;
+  const crmIndex = systemNameIndex + 1;
+  const outageIndex = range.e.c - 4;
+  const axisCodeIndex = outageIndex + 1;
+  const axisNameIndex = outageIndex + 2;
+  const equipmentStartIndex = crmIndex + 1;
+  const equipmentEndIndex = outageIndex;
   const solarStatusIndex = range.e.c - 1;
   const historyIndex = range.e.c;
   const columnWidths = Array.from({ length: range.e.c + 1 }, (_, columnIndex) => {
@@ -217,7 +253,7 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
     return Math.min(maximum, Math.max(minimum, naturalWidth));
   });
   const displayedColumnWidths = displayedTable
-    ? Array.from(displayedTable.querySelectorAll('thead th'), (header) => Math.max(8, Math.ceil((header.getBoundingClientRect().width - 5) / 7)))
+    ? Array.from(displayedTable.querySelectorAll('thead th'), (header, index) => ({ header, index })).filter(({ index }) => index !== 1).map(({ header }) => Math.max(8, Math.ceil((header.getBoundingClientRect().width - 5) / 7)))
     : [];
   worksheet['!cols'] = columnWidths.map((wch, columnIndex) => ({ wch: displayedColumnWidths[columnIndex] ?? wch }));
   const displayedRows = displayedTable ? Array.from(displayedTable.querySelectorAll('tr')) : [];
@@ -296,13 +332,13 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     if (incidentValues.length) trafficIncidentsByCode.set(code, [...new Set(incidentValues)]);
   }
   const trafficIncidentSites = new Set(trafficIncidentsByCode.keys());
-  const sites = [...new Set([...solarSites, ...(showIncidents ? trafficIncidentSites : [])])]
+  const systemLongOutageSites = new Set(provinceSystems.filter((system) => system.longOutage || system.longOutageReason).map((system) => system.systemCode.trim().toUpperCase()));
+  // Keep the Solar report equipment-driven. Incident fields are metadata and
+  // must not create a row when none of the selected Solar equipment is present.
+  const sites = [...new Set(solarSites)]
     .filter((site) => systemsByCode.has(site))
-    .filter((site) => {
-      const hasTrafficIncident = trafficIncidentSites.has(site);
-      if (hasTrafficIncident && !showIncidents) return false;
-      return true;
-    }).sort();
+    .filter((site) => showIncidents || (!trafficIncidentSites.has(site) && !systemLongOutageSites.has(site)))
+    .sort();
   useEffect(() => { onRowCountChange?.(sites.length); }, [onRowCountChange, sites.length]);
   const bySiteEquipment = new Map<string, 'down' | 'unreachable'>();
   for (const entry of validEntries) {
@@ -322,6 +358,9 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     ...extraEquipment.map((equipment) => ({ label: equipment, equipment: [equipment] })),
   ];
   const displayedEquipmentCodes = [...new Set(equipmentGroups.flatMap((group) => group.equipment.map((equipment) => equipment.toUpperCase())))];
+  const systemLongOutageText = (system: RahcomSystem | null) => system && (system.longOutage || system.longOutageReason)
+    ? (system.longOutageReason ? rahcomLongOutageReasonLabel(system.longOutageReason, system.longOutageDetails) : 'دلیل مشخص نشده')
+    : '';
   const recordRows = sites.map((site) => {
     const system = systemsByCode.get(site) ?? null;
     const trafficRow = trafficRowsByCode.get(site);
@@ -340,10 +379,11 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     exportTable.querySelectorAll<HTMLElement>('[data-export-state]').forEach((status) => {
       status.append(document.createTextNode(`[[RAHCOM_STATUS_${status.dataset.exportState?.toUpperCase()}]]`));
     });
+    const presentation = captureSolarTablePresentation(tableRef.current);
     const workbook = XLSX.utils.table_to_book(exportTable, { sheet: 'Solar' });
     sizeSolarWorksheetColumns(workbook, showIncidents, tableRef.current);
     const timestamp = (currentSnapshot?.capturedAt ?? new Date().toISOString()).replace(/[-:T.Z]/g, '').slice(0, 14);
-    const fileData = workbookWithColoredSolarStatuses(workbook);
+    const fileData = workbookWithColoredSolarStatuses(workbook, presentation);
     const fileBytes = new Uint8Array(fileData as ArrayBuffer);
     const fileUrl = URL.createObjectURL(new Blob([fileBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const downloadLink = document.createElement('a');
@@ -365,7 +405,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
       const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
-      const incidentText = trafficIncident;
+      const longOutageText = systemLongOutageText(system);
       const currentState: 'normal' | 'cut' = displayedEquipmentCodes.some((equipment) => bySiteEquipment.has(site + ':' + equipment)) ? 'cut' : 'normal';
       const previousState: 'normal' | 'cut' = previousCutSites.has(site) ? 'cut' : 'normal';
       const historyChange = previousSnapshot
@@ -373,8 +413,8 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         : currentState === 'cut' ? { from: null, to: currentState } : null;
       return <tr key={site} className="border-t border-border">
         <td className="p-2 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
-        <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || site} systemCode={site} system={system} fields={[{ label: t('rahcomSystemCode'), value: site }, { label: t('rahcomSystemName'), value: system?.systemName ?? '' }, { label: t('rahcomIncidentFilter'), value: incidentText }, { label: t('rahcomDailyTraffic'), value: trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() ?? '' : '' }, ...displayedEquipmentCodes.map((equipment) => ({ label: equipment, value: bySiteEquipment.has(`${site}:${equipment}`) ? statusText(bySiteEquipment.get(`${site}:${equipment}`)!) : '' })), { label: t('rahcomOutageDaysColumn'), value: outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() ?? '' : '' }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomAxisName'), value: axisName }]} /></td>
-        {showIncidents && <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{incidentText || '\u2014'}</td>}
+        <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || site} systemCode={site} system={system} fields={[{ label: t('rahcomSystemCode'), value: site }, { label: t('rahcomSystemName'), value: system?.systemName ?? '' }, { label: t('rahcomIncidentFilter'), value: longOutageText }, { label: 'سرقت و تخریب تردد', value: trafficIncident }, { label: t('rahcomDailyTraffic'), value: trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() ?? '' : '' }, ...displayedEquipmentCodes.map((equipment) => ({ label: equipment, value: bySiteEquipment.has(`${site}:${equipment}`) ? statusText(bySiteEquipment.get(`${site}:${equipment}`)!) : '' })), { label: t('rahcomOutageDaysColumn'), value: outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() ?? '' : '' }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomAxisName'), value: axisName }]} /></td>
+        {showIncidents && <td title={longOutageText} className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{longOutageText || '\u2014'}</td>}
         <td className="p-2 font-mono" dir="ltr">{site}</td>
         <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
         <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>

@@ -252,6 +252,7 @@ export function AppShell({ children }: AppShellProps) {
         />
 
         <main
+          data-workspace-main
           dir={direction === 'rtl' ? 'ltr' : 'rtl'}
           className="erp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto bg-[color:var(--background)]"
         >

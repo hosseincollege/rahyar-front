@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/lib/api-environment';
+import { isfahanBillIdentifiersWorkbook } from '@/provinces/isfahan';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 type BillList = { headers: string[]; rows: string[][] };
 const province = 'isfahan';
@@ -43,12 +47,12 @@ export async function GET(request: NextRequest) {
     const { response } = await readList(authHeader(request));
     if (!response.ok) return jsonError(response.status, 'database_unavailable');
     try {
-      const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', 'bill-identifiers.xlsx');
+      const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanBillIdentifiersWorkbook);
       const workbookBytes = await readFile(filePath);
       return new NextResponse(new Uint8Array(workbookBytes), {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': 'attachment; filename="isfahan-bill-identifiers.xlsx"',
+          'Content-Disposition': `attachment; filename="${isfahanBillIdentifiersWorkbook}"`,
           'Cache-Control': 'private, no-store, max-age=0',
         },
       });
@@ -64,6 +68,40 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   if (unauthorized(request)) return jsonError(401, 'unauthorized');
+  if ((request.headers.get('content-type') ?? '').includes('spreadsheetml.sheet')) {
+    if (process.env.NODE_ENV !== 'development') return jsonError(501, 'local_backup_only');
+    try {
+      const accessResponse = await fetch(`${API_BASE_URL}/rahcom/me`, {
+        headers: { Authorization: authHeader(request), Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!accessResponse.ok) return jsonError(accessResponse.status === 401 ? 401 : 403, 'unauthorized');
+      const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null }; isAdmin?: boolean; province?: string | null };
+      const access = accessPayload.data ?? accessPayload;
+      if (!access.isAdmin && access.province !== province) return jsonError(403, 'forbidden');
+
+      const bytes = Buffer.from(await request.arrayBuffer());
+      if (!bytes.length || bytes.length > 20 * 1024 * 1024) return jsonError(400, 'invalid_workbook');
+      const workbook = XLSX.read(bytes, { type: 'buffer' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const values = sheet ? XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '', blankrows: false }) : [];
+      const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
+      if (headers.length < 2 || headers.length > 100 || findColumn(headers, billIdAliases) < 0 || values.length > 20001) return jsonError(400, 'invalid_workbook');
+
+      const filePath = path.join(process.cwd(), 'src', 'provinces', province, isfahanBillIdentifiersWorkbook);
+      const tempPath = `${filePath}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(tempPath, bytes, { flag: 'wx' });
+        await rename(tempPath, filePath);
+      } catch (error) {
+        await unlink(tempPath).catch(() => undefined);
+        throw error;
+      }
+      return NextResponse.json({ saved: true, fileName: isfahanBillIdentifiersWorkbook });
+    } catch {
+      return jsonError(500, 'backup_save_failed');
+    }
+  }
   const body = await request.json().catch(() => null) as { headers?: unknown; rows?: unknown; rowIndex?: unknown; systemCodes?: unknown } | null;
   if (!body) return jsonError(400, 'invalid_request');
   if (Array.isArray(body.headers) && Array.isArray(body.rows)) {

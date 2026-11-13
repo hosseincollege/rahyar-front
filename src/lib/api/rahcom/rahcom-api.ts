@@ -38,6 +38,7 @@ async function afterTicketsMutation<T>(request: Promise<T>): Promise<T> {
 
 export type RahcomSystem = {
   id: string; province: string; systemName: string; systemCode: string; axisCode: string | null; announcedAxis: string | null;
+  stationName?: string | null; aggregationCode?: string | null;
   createdAt: string; updatedAt: string;
   longOutage: boolean;
   longOutageReason: 'THEFT_DAMAGE' | 'RELOCATION' | 'ELECTRICITY_DEBT' | 'PAYMENT_ARREARS' | 'POWER_OUTAGE' | 'OTHER' | null; longOutageDetails: string | null;

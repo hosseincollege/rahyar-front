@@ -260,7 +260,6 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
             <td className="w-[150px] max-w-[150px] p-2 align-middle">
               <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => { setDescriptionDraft(ticket.description ?? ''); setEditingDescription(false); setDescriptionTicketId(ticket.id); }} aria-label={uiMessage(locale, 'rahcomTicketDescription')} title={ticket.description || uiMessage(locale, 'rahcomTicketDescription')} className="group flex h-5 min-h-0 w-full items-center gap-2 overflow-hidden text-start text-foreground hover:text-primary disabled:opacity-50">
                 <span className="line-clamp-1 min-w-0 flex-1 whitespace-nowrap">{ticket.description || '—'}</span>
-                {access?.canManageAssignments && <Pencil size={14} className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />}
               </button>
             </td>
             <td className="whitespace-nowrap p-3">{trafficIncidentsByCode.get(normalize(ticket.systemCode)) || '—'}</td>

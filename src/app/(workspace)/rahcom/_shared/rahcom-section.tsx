@@ -1,7 +1,7 @@
 'use client';
 
-import { CircleHelp, ClipboardList, Download, Layers, LocateFixed, MapPin, Plus, Route, Scan, Sun, Ticket, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { CircleHelp, ClipboardList, Download, Layers, LocateFixed, MapPin, Plus, Route, Scan, Search, Sun, Ticket, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { OpenStreetMap, type IncidentMapSummary, type UnmappedSolarDetail } from '@/app/(workspace)/rahcom/map/open-street-map';
@@ -24,6 +24,34 @@ import { tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from './rahcom-date';
 
 export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
+
+const MapSearchCapsule = memo(function MapSearchCapsule({ locale, initialQuery, onQueryChange }: { locale: Parameters<typeof uiMessage>[0]; initialQuery: string; onQueryChange: (query: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const clearButtonRef = useRef<HTMLButtonElement>(null);
+  const searchTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
+  }, []);
+  const updateQuery = (value: string) => {
+    if (clearButtonRef.current) clearButtonRef.current.hidden = !value;
+    if (searchTimerRef.current !== null) window.clearTimeout(searchTimerRef.current);
+    // Keep native input echo immediate; map filtering can wait until typing settles.
+    searchTimerRef.current = window.setTimeout(() => {
+      searchTimerRef.current = null;
+      startTransition(() => onQueryChange(value));
+    }, 220);
+  };
+  const clearQuery = () => {
+    if (inputRef.current) inputRef.current.value = '';
+    updateQuery('');
+    inputRef.current?.focus();
+  };
+  return <label className="rahcom-search-capsule rahcom-search-capsule--outer-focus inline-flex h-9 w-44 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-foreground focus-within:border-primary" aria-label={uiMessage(locale, 'rahcomSearchOnMap')}>
+    <Search size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+    <input ref={inputRef} defaultValue={initialQuery} onInput={(event) => updateQuery(event.currentTarget.value)} placeholder={uiMessage(locale, 'rahcomSearchSystems')} aria-label={uiMessage(locale, 'rahcomSearchOnMap')} className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0" dir="auto" />
+    <button ref={clearButtonRef} type="button" hidden={!initialQuery} onClick={clearQuery} aria-label={uiMessage(locale, 'searchClear')} title={uiMessage(locale, 'searchClear')} className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><X size={14} /></button>
+  </label>;
+}, (previous, next) => previous.locale === next.locale && previous.onQueryChange === next.onQueryChange);
 
 export function SolarSnapshotPicker({ snapshots, selectedId, locale, onSelect, canDelete = false, deletingId = null, onDelete }: { snapshots: RahcomSolarSnapshot[]; selectedId: string; locale: Parameters<typeof uiMessage>[0]; onSelect: (id: string) => void; canDelete?: boolean; deletingId?: string | null; onDelete?: (snapshot: RahcomSolarSnapshot) => void }) {
   const [open, setOpen] = useState(false);
@@ -154,6 +182,8 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   }, [section, province]);
   const [focusProvince, setFocusProvince] = useState(true);
   const [mapSystemsCount, setMapSystemsCount] = useState(0);
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const renderedMapSearchQuery = useDeferredValue(mapSearchQuery);
   const [mapUnmappedSolarDetails, setMapUnmappedSolarDetails] = useState<UnmappedSolarDetail[]>([]);
   const [mapIncidentSummary, setMapIncidentSummary] = useState<IncidentMapSummary>({ totalCodes: 0, mappedCodes: 0, details: [] });
   const [sectionSystemsCount, setSectionSystemsCount] = useState(0);
@@ -319,6 +349,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <div className={section === 'map' || section === 'solar-daily' || section === 'aggregate' ? 'contents' : 'flex flex-wrap items-center gap-2'}>
           {section === 'map' && <><RahcomHeaderDate compact /><SolarSnapshotPicker snapshots={snapshotsForDate} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManageRahcom} deletingId={deletingSolarSnapshotId} onDelete={(snapshot) => void deleteSolarSnapshot(snapshot)} /></>}
           {section === 'map' && <MapSystemsCapsule systemsCount={mapSystemsCount} details={mapDiscrepancyDetails} locale={locale} />}
+          {section === 'map' && <MapSearchCapsule locale={locale} initialQuery={mapSearchQuery} onQueryChange={setMapSearchQuery} />}
           {section !== 'map' && <><RahcomHeaderDate compact loadMarkedDates={['solar-daily', 'tickets', 'aggregate', 'actions'].includes(section) ? loadSectionMarkedDates : undefined} />{['solar-daily', 'aggregate'].includes(section) && solarSnapshotPicker}</>}
           {section === 'solar-daily' && solarSnapshotDeleteError && <span role="alert" className="max-w-56 truncate text-xs text-destructive" title={solarSnapshotDeleteError}>{solarSnapshotDeleteError}</span>}
           {['solar-daily', 'tickets', 'aggregate'].includes(section) && <RahcomCountCapsule count={sectionSystemsCount} />}
@@ -380,7 +411,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessCheckFailed')}</p>
       ) : section === 'map' ? (
         <section aria-label={uiMessage(locale, 'rahcomMap')} className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} mapSourceFilterActive={renderedMapSourceFilterActive} mapFilterSource={renderedMapFilterSource} selectedSolarSnapshotId={renderedSolarSnapshotId} showMapIncidents={renderedShowMapIncidents} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onUnmappedSolarDetailsChange={handleUnmappedSolarDetails} onIncidentCountChange={handleMapIncidentCount} onIncidentMapSummaryChange={handleIncidentMapSummary} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onLocateMeReady={handleLocateMeReady} onSolarSnapshotsChange={handleSolarSnapshots} />
+          <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} mapSearchQuery={renderedMapSearchQuery} mapSourceFilterActive={renderedMapSourceFilterActive} mapFilterSource={renderedMapFilterSource} selectedSolarSnapshotId={renderedSolarSnapshotId} showMapIncidents={renderedShowMapIncidents} onAxisOptionsChange={handleAxisOptions} onSystemsCountChange={handleMapCount} onUnmappedSolarDetailsChange={handleUnmappedSolarDetails} onIncidentCountChange={handleMapIncidentCount} onIncidentMapSummaryChange={handleIncidentMapSummary} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onLocateMeReady={handleLocateMeReady} onSolarSnapshotsChange={handleSolarSnapshots} />
         </section>
       ) : section === 'actions' ? (
         <>

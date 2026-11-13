@@ -87,9 +87,20 @@ function getStoredProvince() {
 export type UnmappedSolarDetail = { code: string; reason: 'unregistered' | 'no-coordinates' };
 export type IncidentMapSummary = { totalCodes: number; mappedCodes: number; details: UnmappedSolarDetail[] };
 
-export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilterActive = false, mapFilterSource = 'none', selectedSolarSnapshotId = '', showMapIncidents = true, onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentCountChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
+function normalizeMapSearchText(value: string) {
+  return value.normalize('NFKC').toLocaleLowerCase('fa')
+    .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9')
+    .replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => {
+      const code = digit.charCodeAt(0);
+      return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
+    })
+    .replace(/[\s\u200c\p{P}\p{S}]/gu, '');
+}
+
+export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery = '', mapSourceFilterActive = false, mapFilterSource = 'none', selectedSolarSnapshotId = '', showMapIncidents = true, onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentCountChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
   focusProvince: boolean;
   canManage?: boolean;
+  mapSearchQuery?: string;
   mapSourceFilterActive?: boolean;
   mapFilterSource?: 'none' | 'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate';
   selectedSolarSnapshotId?: string;
@@ -315,6 +326,17 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   const displayedSystems = useMemo(() => visibleSystems.filter((system) => hasRegisteredMapLocation(system)
     && (showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode)))),
   [visibleSystems, incidentCodes, showMapIncidents]);
+  const mapSystemSearchIndex = useMemo(() => systems.map((system) => ({
+    system,
+    text: `${normalizeMapSearchText(system.systemCode)} ${normalizeMapSearchText(system.systemName)}`,
+  })), [systems]);
+  const normalizedMapSearchQuery = useMemo(() => normalizeMapSearchText(mapSearchQuery), [mapSearchQuery]);
+  const mapSystems = useMemo(() => {
+    if (!normalizedMapSearchQuery) return displayedSystems;
+    return mapSystemSearchIndex
+      .filter(({ system, text }) => hasRegisteredMapLocation(system) && text.includes(normalizedMapSearchQuery))
+      .map(({ system }) => system);
+  }, [displayedSystems, mapSystemSearchIndex, normalizedMapSearchQuery]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({
     name: t('rahcomSystemName'), code: t('rahcomSystemCode'), axisCode: t('rahcomAxisCode'), announcedAxis: t('rahcomAxis'), latitude: t('rahcomLatitude'), longitude: t('rahcomLongitude'),
@@ -331,7 +353,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
 
     void import('leaflet').then((leaflet) => {
       if (cancelled || !mapElement.current) return;
-      map = leaflet.map(mapElement.current, { zoomControl: false }).setView([32.2, 52.2], 7);
+      map = leaflet.map(mapElement.current, { zoomControl: false, minZoom: 3 }).setView([32.2, 52.2], 7);
       map.createPane('rahcomProvinceShade').style.zIndex = '350';
       map.createPane('rahcomProvinceBoundary').style.zIndex = '430';
       systemsLayer.current = leaflet.layerGroup().addTo(map);
@@ -386,6 +408,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
       const streetUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       const streetOptions = {
         maxZoom: 19,
+        noWrap: true,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
       };
       tileLayerRef.current = leaflet.tileLayer(streetUrl, streetOptions).addTo(map);
@@ -514,7 +537,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
   }, [province, systemsRevision]);
 
   useEffect(() => { onAxisOptionsChange?.(axisOptions); }, [axisOptions, onAxisOptionsChange]);
-  useEffect(() => { onSystemsCountChange?.(displayedSystems.length); }, [onSystemsCountChange, displayedSystems.length]);
+  useEffect(() => { onSystemsCountChange?.(mapSystems.length); }, [onSystemsCountChange, mapSystems.length]);
   useEffect(() => { onUnmappedSolarCountChange?.(unmappedSolarCount); }, [onUnmappedSolarCountChange, unmappedSolarCount]);
   useEffect(() => { onUnmappedSolarDetailsChange?.(unmappedSolarDetails); }, [onUnmappedSolarDetailsChange, unmappedSolarDetails]);
   useEffect(() => { onIncidentCountChange?.(incidentSystemsCount); }, [onIncidentCountChange, incidentSystemsCount]);
@@ -550,7 +573,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
       const layer = systemsLayer.current; layer.clearLayers();
       const nextSystemMarkers = new Map<string, Marker>();
       const markers: Marker[] = [];
-      displayedSystems.forEach((system) => {
+      mapSystems.forEach((system) => {
         const systemCode = rahcomSystemKey(system.province, system.systemCode);
         const axisLabel = activeAxisBySystem.get(systemCode);
         const popupAxisName = system.announcedAxis?.trim() ?? '';
@@ -723,7 +746,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
       let focusedSystem = false;
       const focusSystemId = window.sessionStorage.getItem('rahyar-rahcom-focus-system');
       if (focusSystemId) {
-        const focusedRecord = visibleSystems.find((system) => system.id === focusSystemId);
+        const focusedRecord = mapSystems.find((system) => system.id === focusSystemId);
         const marker = focusedRecord ? systemMarkers.current.get(rahcomSystemKey(focusedRecord.province, focusedRecord.systemCode)) : undefined;
         if (marker && systemsLayer.current?.hasLayer(marker)) {
           mapRef.current?.setView(marker.getLatLng(), 15, { animate: false });
@@ -732,12 +755,22 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
         }
         window.sessionStorage.removeItem('rahyar-rahcom-focus-system');
       }
-      const viewKey = `${province}:${mapSourceFilterActive ? mapFilterSource : 'all'}:${showMapIncidents ? 'incidents-included' : 'incidents-hidden'}`;
-      const provinceAlreadyFocused = province === 'isfahan' && provinceBoundary && focusProvince;
+      const viewKey = `${province}:${mapSourceFilterActive ? mapFilterSource : 'all'}:${showMapIncidents ? 'incidents-included' : 'incidents-hidden'}:search:${normalizedMapSearchQuery}`;
+      const wasSearchView = fittedSystemsView.current.includes(':search:') && !fittedSystemsView.current.endsWith(':search:');
+      const provinceAlreadyFocused = province === 'isfahan' && provinceBoundary && focusProvince && !normalizedMapSearchQuery && !wasSearchView;
       if (!focusedSystem && markers.length && fittedSystemsView.current !== viewKey && !provinceAlreadyFocused) {
         const bounds = latLngBounds(markers.map((marker) => marker.getLatLng()));
         if (markers.length === 1) mapRef.current?.setView(markers[0].getLatLng(), 12, { animate: false });
-        else mapRef.current?.fitBounds(bounds, { padding: [36, 36], maxZoom: 12 });
+        else {
+          const size = mapRef.current?.getSize();
+          const searchPadding: [number, number] = size
+            ? [Math.round(size.x * 0.12), Math.round(size.y * 0.12)]
+            : [24, 24];
+          mapRef.current?.fitBounds(bounds, {
+            padding: normalizedMapSearchQuery ? searchPadding : [36, 36],
+            ...(normalizedMapSearchQuery ? {} : { maxZoom: 12 }),
+          });
+        }
         fittedSystemsView.current = viewKey;
       }
     });
@@ -746,7 +779,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
       if (scheduleLabelLayout) map.off('zoomend moveend resize', scheduleLabelLayout);
       if (labelLayoutFrame) window.cancelAnimationFrame(labelLayoutFrame);
     };
-  }, [mapReady, displayedSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, mapSourceFilterActive, mapFilterSource, showMapIncidents, axisOptions, activeAxisBySystem]);
+  }, [mapReady, mapSystems, t, popupLabels, province, provinceBoundary, focusProvince, canManage, mapSourceFilterActive, mapFilterSource, showMapIncidents, axisOptions, activeAxisBySystem, normalizedMapSearchQuery]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -776,7 +809,7 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSourceFilte
       (position) => {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
         setLocation(point);
-        mapRef.current?.setView([point.lat, point.lng], 14);
+        mapRef.current?.setView([point.lat, point.lng], 10);
         setLocating(false);
       },
       () => {
