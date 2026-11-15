@@ -20,7 +20,7 @@ Source paths
 - rahyar-front/src/app/(workspace)/rahcom/road-list/
 - rahyar-front/src/lib/api/rahcom/rahcom-api.ts
 - rahyar-front/src/components/layout/sidebar.tsx
-- rahyar-front/src/languages/messages/
+- rahyar-front/src/lib/languages/messages/
 - rahyar-front/docs/templates/Ù„ÛŒØ³Øª-Ø±Ø§Ù‡Ø¯Ø§Ø±ÛŒ-Ù†Ù…ÙˆÙ†Ù‡.xlsx
 - rahyar-back/src/rahcom/rahcom.controller.ts
 - rahyar-back/src/rahcom/rahcom.service.ts

@@ -4,7 +4,7 @@ import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/lib/api-environment';
-import { isfahanBillIdentifiersWorkbook } from '@/provinces/isfahan';
+import { esfElectricityWorkbook } from '@/provinces';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -47,12 +47,12 @@ export async function GET(request: NextRequest) {
     const { response } = await readList(authHeader(request));
     if (!response.ok) return jsonError(response.status, 'database_unavailable');
     try {
-      const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanBillIdentifiersWorkbook);
+      const filePath = path.join(process.cwd(), 'src', 'provinces', esfElectricityWorkbook);
       const workbookBytes = await readFile(filePath);
       return new NextResponse(new Uint8Array(workbookBytes), {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename="${isfahanBillIdentifiersWorkbook}"`,
+          'Content-Disposition': `attachment; filename="${esfElectricityWorkbook}"`,
           'Cache-Control': 'private, no-store, max-age=0',
         },
       });
@@ -88,7 +88,7 @@ export async function PUT(request: NextRequest) {
       const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
       if (headers.length < 2 || headers.length > 100 || findColumn(headers, billIdAliases) < 0 || values.length > 20001) return jsonError(400, 'invalid_workbook');
 
-      const filePath = path.join(process.cwd(), 'src', 'provinces', province, isfahanBillIdentifiersWorkbook);
+      const filePath = path.join(process.cwd(), 'src', 'provinces', esfElectricityWorkbook);
       const tempPath = `${filePath}.${randomUUID()}.tmp`;
       try {
         await writeFile(tempPath, bytes, { flag: 'wx' });
@@ -97,7 +97,7 @@ export async function PUT(request: NextRequest) {
         await unlink(tempPath).catch(() => undefined);
         throw error;
       }
-      return NextResponse.json({ saved: true, fileName: isfahanBillIdentifiersWorkbook });
+      return NextResponse.json({ saved: true, fileName: esfElectricityWorkbook });
     } catch {
       return jsonError(500, 'backup_save_failed');
     }

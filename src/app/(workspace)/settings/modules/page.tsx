@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Activity, BarChart3, Bell, BriefcaseBusiness, Building2, CalendarDays, Calculator, ClipboardList, Clock3, Database, Eye, FileText, History, LayoutDashboard, Layers, LifeBuoy, List, MapPinned, Megaphone, MessageSquare, Package, Save, Search, Settings, ShoppingCart, Sun, User, UsersRound, Wallet, type LucideIcon } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
-import { getLocaleDirection } from '@/languages';
+import { getLocaleDirection } from '@/lib/languages';
 import { uiMessage } from '@/lib/ui-messages';
 import { isReducedEdition } from '@/lib/product-edition';
 import { HEADER_CONTROL_IDS, NAVIGATION_MODULE_IDS, readShellVisibility, saveModuleVisibility, type HeaderControlId, type NavigationModuleId, type ModuleVisibility } from '@/lib/module-visibility';
-import type { UiMessage } from '@/languages/types';
+import type { UiMessage } from '@/lib/languages/types';
 
 const moduleTitles: Record<NavigationModuleId, Parameters<typeof uiMessage>[1]> = {
   rahcom: 'sidebarRahkam',

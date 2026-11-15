@@ -30,7 +30,7 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isRahcomMap = pathname === '/rahcom/map';
   const isRahcomPage = pathname.startsWith('/rahcom/');
-  const isRahcomMobileOverflowPage = pathname === '/rahcom/daily-traffic' || pathname === '/rahcom/road-list';
+  const isRahcomMobileOverflowPage = pathname === '/rahcom/daily-traffic' || pathname === '/rahcom/road-list' || pathname === '/rahcom/systems';
   const isRahcomSystems = pathname === '/rahcom/systems';
   const isRahcomSolarDaily = pathname === '/rahcom/solar-daily';
   const isRahcomTickets = pathname === '/rahcom/tickets';
@@ -237,7 +237,7 @@ export function AppShell({ children }: AppShellProps) {
             aria-hidden="true"
             tabIndex={-1}
             onClick={() => setIsMobileNavOpen(false)}
-            className="fixed inset-x-0 bottom-0 top-16 z-30 bg-black/45 backdrop-blur-[1px] md:hidden"
+            className="fixed inset-x-0 bottom-0 top-16 z-[35] bg-black/45 backdrop-blur-[1px] md:hidden"
           />
         )}
         <Sidebar

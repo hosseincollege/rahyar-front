@@ -9,7 +9,7 @@ import { useTheme } from '@/components/theme-provider';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import 'leaflet/dist/leaflet.css';
-import { formatRahcomCoordinates, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { formatRahcomCoordinates, hasRahcomCoordinates, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
@@ -18,6 +18,7 @@ import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
 type Point = { lat: number; lng: number };
+type LocatedRahcomSystem = RahcomSystem & { latitude: number; longitude: number };
 type PopupLabels = {
   name: string; code: string; axisCode: string; announcedAxis: string; latitude: string; longitude: string; copy: string; copyCoordinates: string; copied: string;
   electricityBillId: string; simIp: string; radarIp: string; cameraIp: string; pcIp: string; routerIp: string; laptopIp: string;
@@ -26,6 +27,7 @@ type PopupLabels = {
 };
 
 function routeUrl(provider: 'osm' | 'google' | 'neshan' | 'balad', system: RahcomSystem, from: Point | null) {
+  if (!hasRegisteredMapLocation(system)) return '#';
   const destination = `${system.latitude},${system.longitude}`;
   if (provider === 'google') return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
   if (provider === 'neshan') return `https://nshn.ir/?destination=${encodeURIComponent(destination)}`;
@@ -38,8 +40,8 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
-function hasRegisteredMapLocation(system: Pick<RahcomSystem, 'latitude' | 'longitude'>) {
-  return Number.isFinite(system.latitude) && Number.isFinite(system.longitude)
+function hasRegisteredMapLocation<T extends Pick<RahcomSystem, 'latitude' | 'longitude'>>(system: T): system is T & { latitude: number; longitude: number } {
+  return typeof system.latitude === 'number' && Number.isFinite(system.latitude) && typeof system.longitude === 'number' && Number.isFinite(system.longitude)
     && system.latitude >= -90 && system.latitude <= 90
     && system.longitude >= -180 && system.longitude <= 180
     && !(system.latitude === 0 && system.longitude === 0);
@@ -58,6 +60,7 @@ const popupIcons = {
 } as const;
 
 function systemPopupHtml(system: RahcomSystem, axisName: string, labels: PopupLabels, canManage: boolean, editing: boolean, status: string, copiedValue = '') {
+  if (!hasRegisteredMapLocation(system)) return '';
   const copyButton = (value: string, label: string, icon: string = popupIcons.copy) => `<button type="button" class="rahcom-popup-copy" data-copy-value="${escapeHtml(value).replace(/\r?\n/g, '&#10;')}" aria-label="${escapeHtml(copiedValue === value ? labels.copied : label)}" title="${escapeHtml(copiedValue === value ? labels.copied : label)}">${copiedValue === value ? popupIcons.save : icon}</button>`;
   const coordinatePair = formatRahcomCoordinates(system.latitude, system.longitude);
   const axisCode = system.axisCode?.trim() ?? '';
@@ -328,21 +331,22 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
     !mapSourceFilterActive || selectedMapSourceCodes.has(rahcomSystemKey(system.province, system.systemCode)),
   ), [mapSourceFilterActive, selectedMapSourceCodes, systems]);
   const incidentSystemsCount = useMemo(() => visibleSystems.filter((system) => incidentCodes.has(rahcomSystemKey(system.province, system.systemCode))).length, [visibleSystems, incidentCodes]);
-  const displayedSystems = useMemo(() => visibleSystems.filter((system) => hasRegisteredMapLocation(system)
-    && (showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode)))),
-  [visibleSystems, incidentCodes, showMapIncidents]);
+  const locatedVisibleSystems = useMemo(() => visibleSystems.filter(hasRegisteredMapLocation), [visibleSystems]);
+  const displayedSystems = useMemo(() => locatedVisibleSystems.filter((system) =>
+    showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode)),
+  ), [locatedVisibleSystems, incidentCodes, showMapIncidents]);
   const mapSystemSearchIndex = useMemo(() => systems.map((system) => ({
     system,
     text: `${normalizeMapSearchText(system.systemCode)} ${normalizeMapSearchText(system.systemName)}`,
   })), [systems]);
   const normalizedMapSearchQuery = useMemo(() => normalizeMapSearchText(mapSearchQuery), [mapSearchQuery]);
-  const mapSystems = useMemo(() => {
+  const mapSystems = useMemo<LocatedRahcomSystem[]>(() => {
     if (!normalizedMapSearchQuery) return displayedSystems;
     return mapSystemSearchIndex
-      .filter(({ system, text }) => hasRegisteredMapLocation(system)
-        && text.includes(normalizedMapSearchQuery)
+      .filter(({ system, text }) => text.includes(normalizedMapSearchQuery)
         && (showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode))))
-      .map(({ system }) => system);
+      .map(({ system }) => system)
+      .filter(hasRegisteredMapLocation);
   }, [displayedSystems, incidentCodes, mapSystemSearchIndex, normalizedMapSearchQuery, showMapIncidents]);
   const [provinceBoundary, setProvinceBoundary] = useState<Feature<Polygon> | null>(null);
   const popupLabels = useMemo<PopupLabels>(() => ({

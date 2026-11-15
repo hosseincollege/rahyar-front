@@ -751,7 +751,7 @@ const faMessages = {
   rahcomIncidentDamage: "تخریب",
   rahcomIncidentBoth: "سرقت و تخریب",
   rahcomIncidentDetails: "توضیحات سرقت/تخریب",
-  rahcomIncidentFilter: "قطعی‌های زمان‌بر",
+  rahcomIncidentFilter: "برچسب",
   rahcomIncidentDiscrepancyDetails: "جزئیات اختلاف آمار",
   rahcomIncidentAll: "نمایش همه",
   rahcomIncidentHide: "پنهان‌کردن موارد ویژه",

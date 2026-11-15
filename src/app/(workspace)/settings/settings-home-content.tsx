@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Activity, ArrowLeft, Database, FileCode2, Lock, ShieldCheck, Users } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
-import { getLocaleDirection } from '@/languages';
+import { getLocaleDirection } from '@/lib/languages';
 import { uiMessage } from '@/lib/ui-messages';
 
 export function SettingsHomeContent() {

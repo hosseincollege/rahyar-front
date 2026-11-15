@@ -119,236 +119,96 @@ export function GeneralSettingsContent() {
   };
 
   return (
-    <div className="space-y-6" dir={localeOptions.find((option) => option.id === locale)?.direction}>
-      <header>
-        <h1 className="text-2xl font-black text-foreground">{message('settingsTitle')}</h1>
-        <p className="mt-2 text-sm leading-7 text-muted-foreground">{message('settingsDescription')}</p>
-      </header>
+    <div className="space-y-3" dir={localeOptions.find((option) => option.id === locale)?.direction}>
+      <h1 className="text-xl font-bold text-foreground">{message('settingsTitle')}</h1>
 
-      <section className="space-y-6 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <div>
-          <h2 className="text-base font-bold text-foreground">{message('organizationAppearanceTitle')}</h2>
-          <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('organizationAppearanceDescription')}</p>
-          <p className="mt-2 rounded-xl border border-border bg-background px-3 py-2 text-xs leading-6 text-muted-foreground">
-            {message(canEditOrganizationAppearance ? 'organizationAppearanceSharedNotice' : 'organizationAppearanceReadOnly')}
-          </p>
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-foreground">{message('organizationAppearanceTitle')}</h2>
+          {!canEditOrganizationAppearance && <span className="text-xs text-muted-foreground">{message('organizationAppearanceReadOnly')}</span>}
         </div>
-
-        <fieldset disabled={!canEditOrganizationAppearance} className="space-y-5 disabled:opacity-75">
+        <fieldset disabled={!canEditOrganizationAppearance} className="grid gap-x-5 gap-y-4 lg:grid-cols-2 disabled:opacity-70">
           <div>
-            <h3 className="text-sm font-bold text-foreground">{message('accentTitle')}</h3>
-            <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('accentDescription')}</p>
-            <div className="mt-3 flex flex-wrap gap-2.5">
+            <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{message('accentTitle')}</h3>
+            <div className="flex flex-wrap gap-1.5">
               {accentOptions.map((option) => {
                 const selected = draftAppearance.accentPreset === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setAccentPreset(option)}
-                    className={`inline-flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition ${selected ? 'border-primary bg-primary-soft text-foreground ring-2 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}
-                  >
-                    <span className="flex gap-1" aria-hidden="true">
-                      <span className="size-4 rounded-full border border-black/10" style={{ backgroundColor: resolvedTheme === 'dark' ? option.dark : option.light }} />
-                      <span className="size-4 rounded-full border border-black/10" style={{ backgroundColor: resolvedTheme === 'dark' ? option.light : option.dark }} />
-                    </span>
-                    {message(option.message)}
-                  </button>
-                );
+                return <button key={option.id} type="button" aria-label={message(option.message)} aria-pressed={selected} onClick={() => setAccentPreset(option)} className={`inline-flex h-9 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition ${selected ? 'border-primary bg-primary-soft text-foreground ring-1 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}>
+                  <span className="flex gap-0.5" aria-hidden="true"><span className="size-3.5 rounded-full border border-black/10" style={{ backgroundColor: resolvedTheme === 'dark' ? option.dark : option.light }} /><span className="size-3.5 rounded-full border border-black/10" style={{ backgroundColor: resolvedTheme === 'dark' ? option.light : option.dark }} /></span>{message(option.message)}
+                </button>;
               })}
-              <button
-                type="button"
-                aria-pressed={draftAppearance.accentPreset === 'custom'}
-                onClick={() => setDraftAppearance((current) => ({ ...current, accentPreset: 'custom' }))}
-                className={`rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition ${draftAppearance.accentPreset === 'custom' ? 'border-primary bg-primary-soft text-foreground ring-2 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}
-              >
-                {message('customColor')}
-              </button>
+              <button type="button" aria-pressed={draftAppearance.accentPreset === 'custom'} onClick={() => setDraftAppearance((current) => ({ ...current, accentPreset: 'custom' }))} className={`h-9 rounded-lg border px-2.5 text-xs font-semibold transition ${draftAppearance.accentPreset === 'custom' ? 'border-primary bg-primary-soft text-foreground ring-1 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}>{message('customColor')}</button>
             </div>
-            {draftAppearance.accentPreset === 'custom' && (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {([
-                  ['accentLightColor', 'accentLightColor'],
-                  ['accentDarkColor', 'accentDarkColor'],
-                ] as const).map(([field, label]) => (
-                  <label key={field} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3 text-sm font-medium text-foreground">
-                    <span>{message(label)}</span>
-                    <input
-                      type="color"
-                      aria-label={message(label)}
-                      value={draftAppearance[field]}
-                      onChange={(event) => setDraftAppearance((current) => ({ ...current, [field]: event.target.value as `#${string}` }))}
-                      className="size-9 cursor-pointer rounded-lg border-0 bg-transparent p-0"
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
+            {draftAppearance.accentPreset === 'custom' && <div className="mt-2 flex flex-wrap gap-2">{([
+              ['accentLightColor', 'accentLightColor'], ['accentDarkColor', 'accentDarkColor'],
+            ] as const).map(([field, label]) => <label key={field} className="flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-2.5 text-xs"><span>{message(label)}</span><input type="color" aria-label={message(label)} value={draftAppearance[field]} onChange={(event) => setDraftAppearance((current) => ({ ...current, [field]: event.target.value as `#${string}` }))} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></label>)}</div>}
           </div>
 
           <div>
-            <h3 className="text-sm font-bold text-foreground">{message('backgroundStyleTitle')}</h3>
-            <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('backgroundStyleDescription')}</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label={message('backgroundStyleTitle')}>
-              {(['GRAY', 'NAVY', 'THEME'] as const).map((style) => (
-                <button
-                  key={style}
-                  type="button"
-                  role="radio"
-                  aria-checked={draftAppearance.backgroundStyle === style}
-                  onClick={() => setDraftAppearance((current) => ({ ...current, backgroundStyle: style }))}
-                  className={`rounded-xl border p-3 text-start text-sm font-semibold transition ${draftAppearance.backgroundStyle === style ? 'border-primary bg-primary-soft text-foreground ring-2 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}
-                >
-                  {message(style === 'THEME' ? 'backgroundTheme' : style === 'NAVY' ? 'backgroundNavy' : 'backgroundGray')}
-                </button>
-              ))}
+            <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{message('backgroundStyleTitle')}</h3>
+            <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label={message('backgroundStyleTitle')}>
+              {(['GRAY', 'NAVY', 'THEME'] as const).map((style) => <button key={style} type="button" role="radio" aria-checked={draftAppearance.backgroundStyle === style} onClick={() => setDraftAppearance((current) => ({ ...current, backgroundStyle: style }))} className={`h-9 rounded-lg border px-2 text-xs font-semibold transition ${draftAppearance.backgroundStyle === style ? 'border-primary bg-primary-soft text-foreground ring-1 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}>{message(style === 'THEME' ? 'backgroundTheme' : style === 'NAVY' ? 'backgroundNavy' : 'backgroundGray')}</button>)}
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <h3 className="text-sm font-bold text-foreground">{message('calendarTitle')}</h3>
-              <p className="mb-2 mt-1 text-xs leading-6 text-muted-foreground">{message('calendarDescription')}</p>
-              <label className="block text-sm font-semibold text-foreground" htmlFor="organization-calendar">
-                {message('calendarLabel')}
-              <select
-                id="organization-calendar"
-                value={draftAppearance.calendar}
-                onChange={(event) => setDraftAppearance((current) => ({ ...current, calendar: event.target.value as SaveOrganizationAppearance['calendar'] }))}
-                className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-normal outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="persian">{message('calendarPersian')}</option>
-                <option value="islamic">{message('calendarIslamic')}</option>
-                <option value="gregorian">{message('calendarGregorian')}</option>
-              </select>
-              </label>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">{message('timezoneTitle')}</h3>
-              <p className="mb-2 mt-1 text-xs leading-6 text-muted-foreground">{message('timezoneDescription')}</p>
-              <label className="block text-sm font-semibold text-foreground" htmlFor="organization-timezone">
-                {message('timezoneLabel')}
-              <select
-                id="organization-timezone"
-                dir="ltr"
-                value={draftAppearance.timezone}
-                onChange={(event) => setDraftAppearance((current) => ({ ...current, timezone: event.target.value }))}
-                className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-normal outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              >
-                {!timezones.includes(draftAppearance.timezone) && <option value={draftAppearance.timezone}>{draftAppearance.timezone}</option>}
-                {timezones.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-              </select>
-              </label>
-            </div>
-          </div>
+          <label className="text-xs font-semibold text-muted-foreground" htmlFor="organization-calendar">{message('calendarTitle')}
+            <select id="organization-calendar" value={draftAppearance.calendar} onChange={(event) => setDraftAppearance((current) => ({ ...current, calendar: event.target.value as SaveOrganizationAppearance['calendar'] }))} className="mt-1.5 h-9 w-full rounded-lg border border-border bg-background px-2.5 text-sm font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+              <option value="persian">{message('calendarPersian')}</option><option value="islamic">{message('calendarIslamic')}</option><option value="gregorian">{message('calendarGregorian')}</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-muted-foreground" htmlFor="organization-timezone">{message('timezoneTitle')}
+            <select id="organization-timezone" dir="ltr" value={draftAppearance.timezone} onChange={(event) => setDraftAppearance((current) => ({ ...current, timezone: event.target.value }))} className="mt-1.5 h-9 w-full rounded-lg border border-border bg-background px-2.5 text-sm font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+              {!timezones.includes(draftAppearance.timezone) && <option value={draftAppearance.timezone}>{draftAppearance.timezone}</option>}{timezones.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+            </select>
+          </label>
         </fieldset>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-base font-bold text-foreground">{message('brightnessTitle')}</h2>
-          <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('brightnessDescription')}</p>
-        </div>
-        <div className="grid gap-5 md:grid-cols-2">
-          {brightnessModes.map((mode) => (
-            <div key={mode.id}>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">{message(mode.message)}</h3>
-              <div className="flex flex-wrap gap-2" role="group" aria-label={message(mode.message)}>
-                {brightnessOptions[mode.id].map((option) => {
-                  const selected = draftBrightness[mode.id] === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => setDraftBrightness((current) => ({ ...current, [mode.id]: option.id }))}
-                      className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${selected ? 'border-primary bg-primary-soft text-primary ring-2 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}
-                    >
-                      {message(option.message)}
-                    </button>
-                  );
-                })}
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="grid gap-x-5 gap-y-4 lg:grid-cols-2">
+          {([{ title: 'brightnessTitle', options: brightnessOptions, values: draftBrightness, update: setDraftBrightness }, { title: 'contrastTitle', options: { light: contrastOptions, dark: contrastOptions }, values: draftContrast, update: setDraftContrast }] as const).map((group) => <div key={group.title}>
+            <h2 className="mb-2 text-sm font-bold text-foreground">{message(group.title)}</h2>
+            <div className="grid gap-2 sm:grid-cols-2">{brightnessModes.map((mode) => <div key={mode.id} className="rounded-lg border border-border/70 bg-background/50 p-2">
+              <h3 className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{message(mode.message)}</h3>
+              <div className="flex gap-1" role="group" aria-label={`${message(group.title)}: ${message(mode.message)}`}>
+                {group.options[mode.id].map((option) => { const selected = group.values[mode.id] === option.id; return <button key={option.id} type="button" aria-pressed={selected} onClick={() => group.update((current) => ({ ...current, [mode.id]: option.id }))} className={`min-h-8 flex-1 rounded-md border px-1.5 text-[11px] font-medium transition ${selected ? 'border-primary bg-primary-soft text-primary' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'}`}>{message(option.message)}</button>; })}
               </div>
-            </div>
-          ))}
+            </div>)}</div>
+          </div>)}
+
+          <label htmlFor="display-language" className="text-xs font-semibold text-muted-foreground">{message('languageTitle')}
+            <select id="display-language" value={draftLocale} onChange={(event) => { const nextLocale = event.target.value as Locale; setDraftLocale(nextLocale); previewLocale(nextLocale); }} className="mt-1.5 h-9 w-full rounded-lg border border-border bg-background px-2.5 text-sm font-normal text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+              {localeOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </select>
+          </label>
+
+          <div className="flex flex-wrap items-end justify-between gap-3 lg:col-span-2">
+            {saveError && <p role="alert" className="text-xs text-red-600">{message('preferencesSaveFailed')}</p>}
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                setSaveError(false);
+                try {
+                  await savePreferences({ locale: draftLocale, contrastPreferences: draftContrast, brightnessPreferences: draftBrightness });
+                  if (canEditOrganizationAppearance) await saveOrganizationAppearance(draftAppearance);
+                  previewContrastPreferences(null);
+                  previewOrganizationAppearance(null);
+                  previewLocale(null);
+                } catch {
+                  setSaveError(true);
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              className="ms-auto rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
+            >
+              {isSaving ? message('preferencesSaving') : message('saveChanges')}
+            </button>
+          </div>
         </div>
       </section>
-
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-base font-bold text-foreground">{message('contrastTitle')}</h2>
-          <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('contrastDescription')}</p>
-        </div>
-        <div className="grid gap-5 md:grid-cols-2">
-          {brightnessModes.map((mode) => (
-            <div key={mode.id}>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">{message(mode.message)}</h3>
-              <div className="flex flex-wrap gap-2" role="group" aria-label={message(mode.message)}>
-                {contrastOptions.map((option) => {
-                  const selected = draftContrast[mode.id] === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => setDraftContrast((current) => ({ ...current, [mode.id]: option.id }))}
-                      className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ${selected ? 'border-primary bg-primary-soft text-primary ring-2 ring-primary/20' : 'border-border bg-background text-foreground hover:border-primary/50'}`}
-                    >
-                      {message(option.message)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <h2 className="text-base font-bold text-foreground">{message('languageTitle')}</h2>
-        <p className="mt-1 text-xs leading-6 text-muted-foreground">{message('languageDescription')}</p>
-        <p className="mt-2 text-xs leading-6 text-muted-foreground">{message('languageHelp')}</p>
-        <label htmlFor="display-language" className="mb-1.5 mt-4 block text-xs font-semibold text-muted-foreground">{message('languageLabel')}</label>
-        <select
-          id="display-language"
-          value={draftLocale}
-          onChange={(event) => {
-            const nextLocale = event.target.value as Locale;
-            setDraftLocale(nextLocale);
-            previewLocale(nextLocale);
-          }}
-          className="w-full max-w-sm rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-        >
-          {localeOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-        </select>
-      </section>
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          disabled={isSaving}
-          onClick={async () => {
-            setIsSaving(true);
-            setSaveError(false);
-            try {
-              await savePreferences({ locale: draftLocale, contrastPreferences: draftContrast, brightnessPreferences: draftBrightness });
-              if (canEditOrganizationAppearance) await saveOrganizationAppearance(draftAppearance);
-              previewContrastPreferences(null);
-              previewOrganizationAppearance(null);
-              previewLocale(null);
-            } catch {
-              setSaveError(true);
-            } finally {
-              setIsSaving(false);
-            }
-          }}
-          className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary-hover"
-        >
-          {isSaving ? message('preferencesSaving') : message('saveChanges')}
-        </button>
-      </div>
-      {saveError && <p role="alert" className="text-sm text-red-600">{message('preferencesSaveFailed')}</p>}
     </div>
   );
 }

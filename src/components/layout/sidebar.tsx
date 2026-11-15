@@ -12,7 +12,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getCurrentOrganizationId, getCurrentUser, logout, AuthUser } from '@/lib/api/shared/auth-api';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/languages/types';
+import type { UiMessage } from '@/lib/languages/types';
 import { settingsApi, type OrganizationAccess } from '@/app/(workspace)/settings/settings-api';
 import { isReducedEdition } from '@/lib/product-edition';
 import { readShellVisibility } from '@/lib/module-visibility';
@@ -67,7 +67,11 @@ const navigation: NavigationItem[] = [
     href: '/settings',
     sub: [
       { titleKey: 'sidebarGeneral', href: '/settings/general' },
-      { titleKey: 'settingsOrganizationWorkspace', href: '/settings/company', activeHrefs: ['/settings/company', '/settings/organization', '/settings/projects', '/settings/roles', '/settings/accounts'] },
+      { titleKey: 'sidebarCompanyInformation', href: '/settings/company' },
+      { titleKey: 'sidebarOrganizationStructure', href: '/settings/organization' },
+      { titleKey: 'sidebarRolesPermissions', href: '/settings/roles' },
+      { titleKey: 'sidebarUserAccounts', href: '/settings/accounts' },
+      { titleKey: 'sidebarProjectManagement', href: '/settings/projects' },
       { titleKey: 'settingsDisplayManagement', href: '/settings/modules' },
     ],
   },

@@ -43,7 +43,7 @@ export type RahcomSystem = {
   longOutage: boolean;
   longOutageReason: 'THEFT_DAMAGE' | 'RELOCATION' | 'ELECTRICITY_DEBT' | 'PAYMENT_ARREARS' | 'POWER_OUTAGE' | 'OTHER' | null; longOutageDetails: string | null;
   incidentType: 'THEFT' | 'DAMAGE' | 'THEFT_AND_DAMAGE' | 'WIDENING_RELOCATION' | null; incidentDetails: string | null;
-  latitude: number; longitude: number; details: string | null;
+  latitude: number | null; longitude: number | null; details: string | null;
   electricityBillId: string | null; simIp: string | null; radarIp: string | null;
   cameraIp: string | null; pcIp: string | null; routerIp: string | null; laptopIp: string | null;
 };
@@ -78,6 +78,10 @@ export type RahcomAccess = { memberId: string | null; province: string | null; s
 export function formatRahcomCoordinates(latitude: number, longitude: number) {
   return `${latitude}, ${longitude}`;
 }
+export function hasRahcomCoordinates<T extends Pick<RahcomSystem, 'latitude' | 'longitude'>>(system: T): system is T & { latitude: number; longitude: number } {
+  return typeof system.latitude === 'number' && Number.isFinite(system.latitude)
+    && typeof system.longitude === 'number' && Number.isFinite(system.longitude);
+}
 export const iranProvinces = [
   ['isfahan', '\u0627\u0635\u0641\u0647\u0627\u0646'], ['tehran', '\u062a\u0647\u0631\u0627\u0646'], ['east-azerbaijan', '\u0622\u0630\u0631\u0628\u0627\u06cc\u062c\u0627\u0646 \u0634\u0631\u0642\u06cc'], ['west-azerbaijan', '\u0622\u0630\u0631\u0628\u0627\u06cc\u062c\u0627\u0646 \u063a\u0631\u0628\u06cc'],
   ['ardabil', '\u0627\u0631\u062f\u0628\u06cc\u0644'], ['alborz', '\u0627\u0644\u0628\u0631\u0632'], ['ilam', '\u0627\u06cc\u0644\u0627\u0645'], ['bushehr', '\u0628\u0648\u0634\u0647\u0631'], ['charmahal-bakhtiari', '\u0686\u0647\u0627\u0631\u0645\u062d\u0627\u0644 \u0648 \u0628\u062e\u062a\u06cc\u0627\u0631\u06cc'],
@@ -95,6 +99,7 @@ export const rahcomApi = {
   systems: async (province?: string) => {
     return apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
   },
+  createSystem: (data: { province: string; systemName: string; systemCode: string; axisCode: string; announcedAxis: string; latitude?: number; longitude?: number; electricityBillId?: string }) => afterSystemsMutation(apiClient.post<RahcomSystem>('/rahcom/systems', data)),
   solarSnapshots: (province?: string, date?: string) => apiClient.get<RahcomSolarSnapshot[]>(`/rahcom/solar-snapshots?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   createSolarSnapshot: (data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.post<RahcomSolarSnapshot>('/rahcom/solar-snapshots', data)),
   updateSolarSnapshot: (id: string, data: { province: string; downText: string; unreachableText: string; equipmentColumns: string[]; capturedAt: string }) => afterSolarSnapshotMutation(apiClient.put<RahcomSolarSnapshot>(`/rahcom/solar-snapshots/${encodeURIComponent(id)}`, data)),

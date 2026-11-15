@@ -4,7 +4,7 @@ import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/lib/api-environment';
-import { isfahanSystemsWorkbook } from '@/provinces/isfahan';
+import { esfSystemsWorkbook } from '@/provinces';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,13 +38,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
-    const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanSystemsWorkbook);
+    const filePath = path.join(process.cwd(), 'src', 'provinces', esfSystemsWorkbook);
     const workbookBytes = await readFile(filePath);
     if (request.nextUrl.searchParams.get('source') === 'backup') {
       return new NextResponse(new Uint8Array(workbookBytes), {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': 'attachment; filename="isfahan-systems.xlsx"',
+          'Content-Disposition': `attachment; filename="${esfSystemsWorkbook}"`,
           'Cache-Control': 'private, no-store, max-age=0',
         },
       });
@@ -76,9 +76,11 @@ export async function GET(request: NextRequest) {
       const id = String(row.id ?? '').trim();
       const systemName = String(row.systemName ?? '').trim();
       const systemCode = String(row.systemCode ?? '').trim();
-      const latitude = Number(row.latitude);
-      const longitude = Number(row.longitude);
-      if (!id || !systemName || !systemCode || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
+      const hasLatitude = row.latitude !== null && row.latitude !== undefined && String(row.latitude).trim() !== '';
+      const hasLongitude = row.longitude !== null && row.longitude !== undefined && String(row.longitude).trim() !== '';
+      const latitude = hasLatitude ? Number(row.latitude) : null;
+      const longitude = hasLongitude ? Number(row.longitude) : null;
+      if (!id || !systemName || !systemCode || hasLatitude !== hasLongitude || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) return [];
 
       const nullableText = (field: typeof fields[number]) => {
         const value = row[field];
@@ -160,10 +162,16 @@ export async function PUT(request: NextRequest) {
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null, raw: true });
     const headers = new Set(Object.keys(rows[0] ?? {}));
     if (rows.length > 10000 || !['id', 'province', 'systemName', 'systemCode', 'latitude', 'longitude'].every((header) => headers.has(header))
-      || rows.some((row) => String(row.province ?? '') !== 'isfahan' || !String(row.id ?? '').trim() || !String(row.systemName ?? '').trim() || !String(row.systemCode ?? '').trim() || !Number.isFinite(Number(row.latitude)) || !Number.isFinite(Number(row.longitude)))) {
+      || rows.some((row) => {
+        const hasLatitude = row.latitude !== null && row.latitude !== undefined && String(row.latitude).trim() !== '';
+        const hasLongitude = row.longitude !== null && row.longitude !== undefined && String(row.longitude).trim() !== '';
+        const latitude = hasLatitude ? Number(row.latitude) : null;
+        const longitude = hasLongitude ? Number(row.longitude) : null;
+        return String(row.province ?? '') !== 'isfahan' || !String(row.id ?? '').trim() || !String(row.systemName ?? '').trim() || !String(row.systemCode ?? '').trim() || hasLatitude !== hasLongitude || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180));
+      })) {
       return NextResponse.json({ error: 'invalid_workbook' }, { status: 400 });
     }
-    const filePath = path.join(process.cwd(), 'src', 'provinces', 'isfahan', isfahanSystemsWorkbook);
+    const filePath = path.join(process.cwd(), 'src', 'provinces', esfSystemsWorkbook);
     const tempPath = `${filePath}.${randomUUID()}.tmp`;
     try {
       await writeFile(tempPath, bytes, { flag: 'wx' });
@@ -172,7 +180,7 @@ export async function PUT(request: NextRequest) {
       await unlink(tempPath).catch(() => undefined);
       throw error;
     }
-    return NextResponse.json({ saved: true, fileName: isfahanSystemsWorkbook });
+    return NextResponse.json({ saved: true, fileName: esfSystemsWorkbook });
   } catch {
     return NextResponse.json({ error: 'backup_save_failed' }, { status: 500 });
   }

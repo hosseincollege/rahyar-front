@@ -118,6 +118,14 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
     max-width: 100%;
     overscroll-behavior-x: contain;
   }
+
+  /* Keep the wide systems table within the mobile viewport. Its height cap
+     comes from .rahcom-traffic-table-frame so rows scroll inside the table. */
+  .rahcom-systems-table-frame {
+    width: 100%;
+    min-height: 0;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 639px) {

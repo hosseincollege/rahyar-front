@@ -28,7 +28,7 @@ import {
   getLocaleDirection,
 } from "@/components/preferences-provider";
 import { uiMessage } from "@/lib/ui-messages";
-import type { UiMessage } from "@/languages/types";
+import type { UiMessage } from "@/lib/languages/types";
 import {
   parseRolesImportData,
   rolesImportDataToItems,

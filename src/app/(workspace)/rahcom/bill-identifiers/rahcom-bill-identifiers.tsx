@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { ArchiveRestore, Download, LoaderCircle, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
+import { ArchiveRestore, Download, LoaderCircle, Plus, Save, Search, Trash2, Upload, X, Zap } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
+
 import { getAccessToken } from '@/lib/api-client';
 import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
+import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
 type BillWorkbook = { headers: string[]; rows: string[][] };
 type ExternalSystemType = 'USO' | 'VSAT';
@@ -61,6 +63,24 @@ export function RahcomBillIdentifiers() {
   const [importBusy, setImportBusy] = useState(false);
   const [operationError, setOperationError] = useState('');
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const backupActionsRef = useRef<HTMLDivElement>(null);
+  const [backupActionsOpen, setBackupActionsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!backupActionsOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!backupActionsRef.current?.contains(event.target as Node)) setBackupActionsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBackupActionsOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [backupActionsOpen]);
 
   useEffect(() => {
     let active = true;
@@ -351,7 +371,7 @@ export function RahcomBillIdentifiers() {
         cache: 'no-store',
       });
       if (!response.ok) throw new Error('backup_unavailable');
-      const file = new File([await response.arrayBuffer()], 'isfahan-bill-identifiers.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const file = new File([await response.arrayBuffer()], 'ESF-electricity.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       await importBillWorkbook(file, { confirmed: true, keepBusy: true });
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : 'backup_failed');
@@ -390,16 +410,22 @@ export function RahcomBillIdentifiers() {
 
   return <section dir={direction} className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
     <header className="rahcom-page-toolbar flex shrink-0 flex-wrap items-center justify-start gap-3">
+      <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)} رکورد`} title="تعداد رکوردها" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Zap size={16} className="text-primary" aria-hidden="true" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}</strong><span>رکورد</span></span>
       <button type="button" onClick={() => { setAddBillError(''); setNewBillIdentifier(''); setNewBillSystemIds([]); setNewBillSystemQuery(''); setNewBillFields({}); setNewExternalSystems([]); setNewExternalDraft({ type: 'USO', code: '', name: '' }); setAddingBill(true); }} aria-label={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} title={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={18} /></button>
-      <button type="button" onClick={() => void saveBackup()} disabled={backupBusy || loading || !workbook?.headers.length} aria-label={uiMessage(locale, 'rahcomSaveSystemsBackup')} title={uiMessage(locale, 'rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}</button>
-      <button type="button" onClick={() => void restoreBillBackup()} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
       <button type="button" onClick={() => { setOperationError(''); uploadInputRef.current?.click(); }} disabled={importBusy} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}</button>
       <input ref={uploadInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />
+      <button type="button" onClick={downloadDisplayedTable} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} aria-hidden="true" /></button>
       <label className="rahcom-search-capsule relative block w-full max-w-[15rem] rounded-full">
         <Search aria-hidden="true" size={17} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiMessage(locale, 'headerSearch')} aria-label={uiMessage(locale, 'rahcomBillIdentifiersSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
       </label>
-      <button type="button" onClick={downloadDisplayedTable} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} aria-hidden="true" /></button>
+      <div ref={backupActionsRef} className="flex shrink-0 items-center gap-2">
+        <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="bill-backup-actions" onClick={() => setBackupActionsOpen((open) => !open)} aria-label="همگام‌سازی ابری" title="همگام‌سازی ابری" style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
+        {backupActionsOpen && <div id="bill-backup-actions" className="flex items-center gap-2">
+          <button type="button" onClick={() => void saveBackup()} disabled={backupBusy || loading || !workbook?.headers.length} aria-label={uiMessage(locale, 'rahcomSaveSystemsBackup')} title={uiMessage(locale, 'rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}</button>
+          <button type="button" onClick={() => void restoreBillBackup()} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
+        </div>}
+      </div>
     </header>
     {operationError && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-3 text-sm text-destructive">{operationError}</p>}
     {loading && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
@@ -414,12 +440,16 @@ export function RahcomBillIdentifiers() {
             const narrowColumnClass = normalizedHeader === normalizeBillHeader('آدرس انشعاب')
               ? 'w-48 min-w-48 max-w-48'
               : normalizedHeader === normalizeBillHeader('وضعیت بررسی') ? 'w-28 min-w-28 max-w-28' : '';
-            return <th key={`${header}-${index}`} scope="col" title={index === -2 ? 'ویرایش' : header} aria-label={index === -2 ? 'ویرایش' : undefined} className={`overflow-hidden text-ellipsis whitespace-nowrap p-2 text-center align-middle ${narrowColumnClass}`}>{index === -2 ? <span className="inline-flex w-full justify-center"><Pencil size={15} aria-hidden="true" /></span> : header || '—'}</th>;
+            return <th key={`${header}-${index}`} scope="col" title={index === -2 ? 'ویرایش' : header} aria-label={index === -2 ? 'ویرایش' : undefined} className={`overflow-hidden text-ellipsis whitespace-nowrap p-2 text-center align-middle ${narrowColumnClass}`}>{index === -2 ? <span className="inline-flex w-full justify-center"><Zap size={15} fill="currentColor" aria-hidden="true" /></span> : header || '—'}</th>;
           })}</tr></thead>
           <tbody>{rows.map((row, rowIndex) => <tr key={`${row[0] || 'bill'}-${rowIndex}`} className="border-t border-border">
             {displayColumns.map(({ header, index: columnIndex }) => {
               if (columnIndex === -2) return <td key={`${header}-${columnIndex}`} className="whitespace-nowrap p-2 text-center align-middle"><div className="flex items-center justify-center gap-1">
-                <button type="button" onClick={() => openRecordEditor(row)} aria-label={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0631\u06a9\u0648\u0631\u062f'} title={'\u0648\u06cc\u0631\u0627\u06cc\u0634 \u0631\u06a9\u0648\u0631\u062f'} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Pencil size={14} /></button>
+                <button type="button" onClick={(event) => {
+                  const fields = displayColumns.filter(({ index }) => index !== -2).map(({ header, index }) => ({ label: header, value: getCellValue(row, index) }));
+                  const billId = row[billIdentifierIndex] ?? '';
+                  openRahcomRowInfo(billId || 'شناسه قبض', fields, event.currentTarget, { x: event.clientX, y: event.clientY }, billId, null, () => openRecordEditor(row));
+                }} aria-label="نمایش اطلاعات شناسه قبض" title="نمایش اطلاعات شناسه قبض" className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Zap size={14} fill="currentColor" /></button>
               </div></td>;
               const value = getCellValue(row, columnIndex);
               const isCode = columnIndex === systemCodeIndex;

@@ -11,7 +11,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { getLocaleDirection, supportedLocales, type Locale } from '@/languages';
+import { getLocaleDirection, supportedLocales, type Locale } from '@/lib/languages';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import {
   preferencesApi,
@@ -25,8 +25,8 @@ export {
   getLocaleDirection,
   localeOptions,
   supportedLocales,
-} from '@/languages';
-export type { Locale } from '@/languages';
+} from '@/lib/languages';
+export type { Locale } from '@/lib/languages';
 
 export type ContrastLevel = 'soft' | 'balanced' | 'strong';
 export type ContrastPreferences = { light: ContrastLevel; dark: ContrastLevel };

@@ -3,8 +3,8 @@ import packageJson from "./package.json";
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
-    '/api/provinces/isfahan/systems': ['./src/provinces/isfahan/isfahan-systems.xlsx'],
-    '/api/rahcom/bill-identifiers': ['./src/provinces/isfahan/bill-identifiers.xlsx'],
+    '/api/provinces/isfahan/systems': ['./src/provinces/ESF-systems.xlsx'],
+    '/api/rahcom/bill-identifiers': ['./src/provinces/ESF-electricity.xlsx'],
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,

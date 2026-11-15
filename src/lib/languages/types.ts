@@ -1043,6 +1043,8 @@ export type UiMessage =
   | "rahcomRoadListPreviousPage"
   | "rahcomRoadListNextPage"
   | "rahcomAddSystem"
+  | "rahcomOptionalSystemDetails"
+  | "rahcomCoordinatesOptionalHint"
   | "rahcomOpenSystemPage"
   | "rahcomSystemDetails"
   | "rahcomLongOutageReason";

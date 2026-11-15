@@ -24,7 +24,7 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { API_BASE_URL } from '@/lib/api-environment';
 import { applyPublicAppearance, fetchPublicBranding, resolvePublicLogoUrl, type PublicBranding } from '@/lib/public-branding';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/languages/types';
+import type { UiMessage } from '@/lib/languages/types';
 
 type SetupStatusResponse = {
   hasUsers: boolean;

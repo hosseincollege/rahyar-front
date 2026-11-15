@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, Pencil, RefreshCw, Save, Search, Users, X } from 'lucide-react';
@@ -6,7 +6,7 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/app/(workspace)/development/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
-import type { UiMessage } from '@/languages/types';
+import type { UiMessage } from '@/lib/languages/types';
 
 const moduleLabels: Record<string, UiMessage> = {
   dashboard: 'sidebarDashboard', accounting: 'sidebarAccounting', commerce: 'sidebarCommercial',

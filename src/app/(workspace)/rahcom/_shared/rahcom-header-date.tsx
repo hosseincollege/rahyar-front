@@ -128,11 +128,11 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
   };
 
   return <div ref={wrapperRef} className={`grid ${compact ? 'h-9' : 'h-10'} w-[11.5rem] shrink-0 grid-cols-[0.9fr_1fr] overflow-hidden rounded-full border border-border bg-background`}>
-    <button type="button" aria-expanded={weekOpen} aria-label={weekday} onClick={() => {
-      setOpen(false);
-      setWeekStart(startOfPersianWeek(date ?? fallbackDate));
-      setWeekOpen((value) => !value);
-    }} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap px-1 text-sm font-semibold transition-colors hover:bg-muted ${weekOpen ? 'bg-primary/10 text-primary' : 'text-foreground'}`}>
+    <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={weekday} onClick={() => {
+      setWeekOpen(false);
+      setOpen((value) => !value);
+      setViewMonth(persianParts(activeDate));
+    }} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap px-1 text-sm font-semibold transition-colors hover:bg-muted ${open ? 'bg-primary/10 text-primary' : 'text-foreground'}`}>
       {weekday}
     </button>
     <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={uiMessage(locale, 'rahcomVisitDate')} onClick={() => { setWeekOpen(false); setOpen((value) => !value); setViewMonth(persianParts(activeDate)); }} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap border-s border-border px-1 font-mono text-[13px] font-medium tabular-nums transition-colors hover:bg-muted ${open ? 'bg-primary/10 text-primary' : 'text-foreground'}`}>

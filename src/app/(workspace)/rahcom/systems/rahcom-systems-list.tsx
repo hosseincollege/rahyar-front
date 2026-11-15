@@ -3,24 +3,27 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { ArchiveRestore, Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, MapPinned, Pencil, Plus, Rows3, Save, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
+import { ArchiveRestore, Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, MapPinned, Pencil, Plus, Save, Search, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { getAccessToken } from '@/lib/api-client';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
-import { formatRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { formatRahcomCoordinates, hasRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import type { RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { normalizeRahcomSystemCode, rahcomLongOutageReasonLabel, rahcomProvinceFromLabel, rahcomSystemHasLongOutage, rahcomTrafficLongOutageValues } from '@/lib/api/rahcom/solar-status';
 import { uiMessage } from '@/lib/ui-messages';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
-import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
-import { tehranDateKey } from '@/lib/api/rahcom/solar-status';
-import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
+import { RahcomInfoHeader, RahcomRowInfo, type RahcomElectricityDetail } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { normalizeRahcomSystemSearchText } from '@/lib/rahcom-system-search';
 
 function provinceName(provinceId: string) {
   return iranProvinces.find(([id]) => id === provinceId)?.[1] ?? provinceId;
 }
+
+type BillIdentifierWorkbook = { headers: string[]; rows: string[][] };
+const normalizeBillIdentifierHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
+  .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c]/g, '').replace(/[\/\\_-]/g, '');
+const splitBillSystemCodes = (value: string) => value.split(/[;,|\u060c\u061b]/).map((code) => code.trim()).filter(Boolean);
 
 const outageReasons = [
   ['THEFT_DAMAGE', 'سرقت و تخریب'], ['RELOCATION', 'جابجایی یا تعریض'],
@@ -61,6 +64,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
+  const [billIdentifierWorkbook, setBillIdentifierWorkbook] = useState<BillIdentifierWorkbook | null>(null);
   const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,12 +84,32 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const [editMode, setEditMode] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [backupActionsOpen, setBackupActionsOpen] = useState(false);
+  const backupActionsRef = useRef<HTMLDivElement>(null);
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const [newSystemBusy, setNewSystemBusy] = useState(false);
-  const [newSystemForm, setNewSystemForm] = useState({ systemName: '', systemCode: '', latitude: '', longitude: '' });
+  const [newSystemForm, setNewSystemForm] = useState({ systemName: '', systemCode: '', axisCode: '', announcedAxis: '', latitude: '', longitude: '', electricityBillId: '' });
+  const [newSystemOptionalOpen, setNewSystemOptionalOpen] = useState(false);
+  const [newSystemPosition, setNewSystemPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const canEditSystems = canManage;
   const loadTrafficDatesForCalendar = useCallback((from: string, to: string) => rahcomApi.trafficSnapshotDates(selectedProvince, from, to), [selectedProvince]);
+
+  useEffect(() => {
+    if (!backupActionsOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!backupActionsRef.current?.contains(event.target as Node)) setBackupActionsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBackupActionsOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [backupActionsOpen]);
 
   useEffect(() => {
     const onSearch = (event: Event) => {
@@ -129,6 +153,22 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
 
   useEffect(() => {
     let active = true;
+    setBillIdentifierWorkbook(null);
+    if (selectedProvince !== 'all' && selectedProvince !== 'isfahan') return () => { active = false; };
+    const token = getAccessToken();
+    if (!token) return () => { active = false; };
+    void fetch('/api/rahcom/bill-identifiers', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Bill identifiers unavailable');
+        return await response.json() as BillIdentifierWorkbook;
+      })
+      .then((data) => { if (active) setBillIdentifierWorkbook(data); })
+      .catch(() => { if (active) setBillIdentifierWorkbook(null); });
+    return () => { active = false; };
+  }, [selectedProvince]);
+
+  useEffect(() => {
+    let active = true;
     const load = () => {
       setTrafficSnapshot(null);
       void rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined).then((snapshot) => { if (active) setTrafficSnapshot(snapshot); }).catch(() => { if (active) setTrafficSnapshot(null); });
@@ -145,6 +185,13 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     return () => window.removeEventListener('keydown', onEscape);
   }, [selectedSystemId]);
 
+  useEffect(() => {
+    if (!newSystemOpen) return;
+    const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !newSystemBusy) setNewSystemOpen(false); };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [newSystemBusy, newSystemOpen]);
+
   const deferredQuery = useDeferredValue(query);
   const searchableSystems = useMemo(() => systems.map((system) => {
     const axis = [system.axisCode, system.announcedAxis].filter(Boolean).join(' · ');
@@ -154,6 +201,28 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     return { system, axis, provinceLabel, searchable: normalizeRahcomSystemSearchText(searchable, locale) };
   }), [locale, systems, t]);
   const searchableById = useMemo(() => new Map(searchableSystems.map(({ system, searchable }) => [system.id, searchable])), [searchableSystems]);
+  const electricityDetailsBySystem = useMemo(() => {
+    const detailsBySystem = new Map<string, RahcomElectricityDetail[]>();
+    if (!billIdentifierWorkbook) return detailsBySystem;
+    const findColumn = (aliases: string[]) => billIdentifierWorkbook.headers.findIndex((header) => aliases.includes(normalizeBillIdentifierHeader(header)));
+    const systemCodeIndex = findColumn(['\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647', '\u06a9\u062f\u0633\u06cc\u0633\u062a\u0645']);
+    const billIdIndex = findColumn(['\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636', '\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636\u0628\u0631\u0642']);
+    const meterBodyIndex = findColumn(['\u0634\u0645\u0627\u0631\u0647\u0628\u062f\u0646\u0647\u06a9\u0646\u062a\u0648\u0631']);
+    if (systemCodeIndex < 0) return detailsBySystem;
+    for (const row of billIdentifierWorkbook.rows) {
+      const billId = billIdIndex >= 0 ? row[billIdIndex]?.trim() : '';
+      const meterBody = meterBodyIndex >= 0 ? row[meterBodyIndex]?.trim() : '';
+      if (!billId && !meterBody) continue;
+      for (const code of splitBillSystemCodes(row[systemCodeIndex] ?? '')) {
+        const key = normalizeRahcomSystemCode(code);
+        const details = detailsBySystem.get(key) ?? [];
+        if (billId) details.push({ label: '\u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636 \u0628\u0631\u0642', value: billId });
+        if (meterBody) details.push({ label: '\u0634\u0645\u0627\u0631\u0647 \u0628\u062f\u0646\u0647 \u06a9\u0646\u062a\u0648\u0631', value: meterBody });
+        detailsBySystem.set(key, details);
+      }
+    }
+    return detailsBySystem;
+  }, [billIdentifierWorkbook]);
   const baseGroups = useMemo(() => {
     const grouped = new Map<string, { label: string; rows: RahcomSystem[] }>();
     for (const { system, axis, provinceLabel } of searchableSystems) {
@@ -204,7 +273,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         axis: 'announcedAxis', route: 'announcedAxis', announcedaxis: 'announcedAxis', [normalize('\u0645\u062d\u0648\u0631')]: 'announcedAxis', axiscode: 'axisCode', [normalize('\u06a9\u062f \u0645\u062d\u0648\u0631')]: 'axisCode', aggregationcode: 'aggregationCode', aggregation: 'aggregationCode', [normalize('\u06a9\u062f \u062a\u062c\u0645\u06cc\u0639')]: 'aggregationCode',
         electricitybillid: 'electricityBillId', simip: 'simIp', radarip: 'radarIp', cameraip: 'cameraIp', pcip: 'pcIp', routerip: 'routerIp', laptopip: 'laptopIp',
         longoutage: 'longOutage', longoutageenabled: 'longOutage', [normalize('\u0648\u0636\u0639\u06cc\u062a \u0642\u0637\u0639\u06cc \u0632\u0645\u0627\u0646\u200c\u0628\u0631')]: 'longOutage',
-        longoutagereason: 'longOutageReason', outagecause: 'longOutageReason', [normalize('\u0642\u0637\u0639\u06cc\u200c\u0647\u0627\u06cc \u0632\u0645\u0627\u0646\u200c\u0628\u0631')]: 'longOutageReason', [normalize('\u062f\u0644\u06cc\u0644 \u0642\u0637\u0639\u06cc \u0632\u0645\u0627\u0646\u200c\u0628\u0631')]: 'longOutageReason',
+        longoutagereason: 'longOutageReason', outagecause: 'longOutageReason', [normalize('\u0628\u0631\u0686\u0633\u0628')]: 'longOutageReason', [normalize('\u0642\u0637\u0639\u06cc\u200c\u0647\u0627\u06cc \u0632\u0645\u0627\u0646\u200c\u0628\u0631')]: 'longOutageReason', [normalize('\u062f\u0644\u06cc\u0644 \u0642\u0637\u0639\u06cc \u0632\u0645\u0627\u0646\u200c\u0628\u0631')]: 'longOutageReason',
         longoutagedetails: 'longOutageDetails',
         [normalize('توضیحات دلیل')]: 'longOutageDetails',
         details: 'details', description: 'details', [normalize('\u062a\u0648\u0636\u06cc\u062d\u0627\u062a')]: 'details',
@@ -220,8 +289,10 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         const toNumber = (value: unknown) => String(value ?? '').replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) >= 0x06f0 ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660)).replace(/[\u066b]/g, '.').trim();
         const latitudeText = toNumber(values.latitude);
         const longitudeText = toNumber(values.longitude);
-        const latitude = Number(latitudeText);
-        const longitude = Number(longitudeText);
+        const hasLatitude = Boolean(latitudeText);
+        const hasLongitude = Boolean(longitudeText);
+        const latitude = hasLatitude ? Number(latitudeText) : null;
+        const longitude = hasLongitude ? Number(longitudeText) : null;
         const longOutage = typeof values.longOutage === 'boolean' ? values.longOutage : /^(true|1|yes|بله|آری)$/i.test(String(values.longOutage ?? '').trim());
         const rawOutageReason = String(values.longOutageReason ?? '').trim();
         const outageReason = outageReasons.find(([value, label]) => value === rawOutageReason || normalize(label) === normalize(rawOutageReason))?.[0] ?? null;
@@ -229,7 +300,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         const normalizedCode = systemCode.normalize('NFKC').trim().toUpperCase();
         const rowProvince = selectedProvince === 'all' ? rahcomProvinceFromLabel(String(values.province ?? '').trim()) : selectedProvince;
         if (!rowProvince || (selectedProvince !== 'all' && values.province && rahcomProvinceFromLabel(String(values.province)) !== selectedProvince)) return [];
-        if (!systemName || !normalizedCode || seenCodes.has(normalizedCode) || !latitudeText || !longitudeText || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return [];
+        if (!systemName || !normalizedCode || seenCodes.has(normalizedCode) || hasLatitude !== hasLongitude || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) return [];
         seenCodes.add(normalizedCode);
         const incidentType = String(values.incidentType ?? '').trim();
         return [{ province: rowProvince, system: { systemName, systemCode, stationName: String(values.stationName ?? '').trim(), aggregationCode: String(values.aggregationCode ?? '').trim(), latitude, longitude, longOutage: longOutage || Boolean(outageReason), longOutageReason: outageReason, longOutageDetails: outageDetails, incidentType: ['THEFT', 'DAMAGE', 'THEFT_AND_DAMAGE', 'WIDENING_RELOCATION'].includes(incidentType) ? incidentType : null, incidentDetails: String(values.incidentDetails ?? '').trim(), announcedAxis: String(values.announcedAxis ?? '').trim(), axisCode: String(values.axisCode ?? '').trim(), details: String(values.details ?? '').trim(), electricityBillId: String(values.electricityBillId ?? '').trim(), simIp: String(values.simIp ?? '').trim(), radarIp: String(values.radarIp ?? '').trim(), cameraIp: String(values.cameraIp ?? '').trim(), pcIp: String(values.pcIp ?? '').trim(), routerIp: String(values.routerIp ?? '').trim(), laptopIp: String(values.laptopIp ?? '').trim() } }];
@@ -256,7 +327,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         cache: 'no-store',
       });
       if (!response.ok) throw new Error(t('rahcomSystemsLoadError'));
-      const backup = new File([await response.arrayBuffer()], 'isfahan-systems.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const backup = new File([await response.arrayBuffer()], 'ESF-systems.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       await uploadSystemsFile(backup, true, true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
@@ -269,7 +340,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       [t('rahcomSystemName')]: system.systemName,
       [t('rahcomStationName')]: system.stationName ?? '',
       [t('rahcomAggregationCode')]: system.aggregationCode ?? '',
-      ['قطعی‌های زمان‌بر']: system.longOutageReason ?? '',
+      [t('rahcomIncidentFilter')]: system.longOutageReason ?? '',
       ['توضیحات دلیل']: system.longOutageDetails ?? '',
       [t('rahcomAxisCode')]: system.axisCode ?? '',
       [t('rahcomAxisName')]: system.announcedAxis ?? '',
@@ -350,7 +421,17 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   }
 
   function startEdit(system: RahcomSystem) {
+    const workspaceBounds = document.querySelector<HTMLElement>('[data-workspace-main]')?.getBoundingClientRect()
+      ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+    const maxWidth = Math.max(240, Math.min(420, workspaceBounds.width - 24));
+    const maxHeight = Math.max(180, Math.min(window.innerHeight * 0.85, workspaceBounds.height - 24));
     setSelectedSystemId(system.id);
+    setSystemPopupPosition({
+      top: workspaceBounds.top + Math.max(12, (workspaceBounds.height - maxHeight) / 2),
+      left: workspaceBounds.left + Math.max(12, (workspaceBounds.width - maxWidth) / 2),
+      maxWidth,
+      maxHeight,
+    });
     setEditingSystemId(system.id);
     setEditForm({ systemName: system.systemName, systemCode: system.systemCode, latitude: system.latitude, longitude: system.longitude, details: system.details ?? '', electricityBillId: system.electricityBillId ?? '', simIp: system.simIp ?? '', radarIp: system.radarIp ?? '', cameraIp: system.cameraIp ?? '', pcIp: system.pcIp ?? '', routerIp: system.routerIp ?? '', laptopIp: system.laptopIp ?? '', incidentType: system.incidentType, incidentDetails: system.incidentDetails ?? '', longOutage: system.longOutage, longOutageReason: system.longOutageReason ?? null, longOutageDetails: system.longOutageDetails ?? '', stationName: system.stationName ?? '', aggregationCode: system.aggregationCode ?? '', axisCode: system.axisCode ?? '', announcedAxis: system.announcedAxis ?? '' });
   }
@@ -382,30 +463,43 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     finally { setSavingSystem(false); }
   }
 
+  function openAddSystem() {
+    const bounds = document.querySelector<HTMLElement>('[data-workspace-main]')?.getBoundingClientRect()
+      ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+    const width = Math.max(260, Math.min(440, bounds.width - 24));
+    const maxHeight = Math.max(220, Math.min(window.innerHeight * 0.82, bounds.height - 24));
+    setNewSystemPosition({ top: bounds.top + Math.max(12, (bounds.height - maxHeight) / 2), left: bounds.left + Math.max(12, (bounds.width - width) / 2), width, maxHeight });
+    setNewSystemForm({ systemName: '', systemCode: '', axisCode: '', announcedAxis: '', latitude: '', longitude: '', electricityBillId: '' });
+    setNewSystemOptionalOpen(false);
+    setError('');
+    setNewSystemOpen(true);
+  }
+
   async function createSystem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (selectedProvince === 'all') return;
-    const latitude = Number(newSystemForm.latitude);
-    const longitude = Number(newSystemForm.longitude);
-    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      setError(t('rahcomDataUploadHint'));
+    const hasLatitude = Boolean(newSystemForm.latitude.trim());
+    const hasLongitude = Boolean(newSystemForm.longitude.trim());
+    const latitude = hasLatitude ? Number(newSystemForm.latitude) : undefined;
+    const longitude = hasLongitude ? Number(newSystemForm.longitude) : undefined;
+    if (hasLatitude !== hasLongitude || (latitude !== undefined && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== undefined && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) {
+      setError(t('rahcomCoordinatesOptionalHint'));
       return;
     }
     setNewSystemBusy(true);
     setError('');
     try {
-      await rahcomApi.importSystems(selectedProvince, [{
+      await rahcomApi.createSystem({
         province: selectedProvince,
         systemName: newSystemForm.systemName.trim(),
         systemCode: newSystemForm.systemCode.trim(),
-        latitude,
-        longitude,
-        announcedAxis: '',
-        axisCode: '',
-        details: '',
-      }]);
+        axisCode: newSystemForm.axisCode.trim(),
+        announcedAxis: newSystemForm.announcedAxis.trim(),
+        ...(latitude !== undefined && longitude !== undefined ? { latitude, longitude } : {}),
+        ...(newSystemForm.electricityBillId.trim() ? { electricityBillId: newSystemForm.electricityBillId.trim() } : {}),
+      });
       setNewSystemOpen(false);
-      setNewSystemForm({ systemName: '', systemCode: '', latitude: '', longitude: '' });
+      setNewSystemForm({ systemName: '', systemCode: '', axisCode: '', announcedAxis: '', latitude: '', longitude: '', electricityBillId: '' });
       setSystemsRevision((revision) => revision + 1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
@@ -529,47 +623,63 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const systemRows = useMemo(() => showTrafficLongOutage
     ? combinedSystemRows.filter(({ system, trafficValues }) => rahcomSystemHasLongOutage(system) || Boolean(trafficValues.incidents))
     : allSystemRows, [allSystemRows, combinedSystemRows, showTrafficLongOutage]);
-  const latestSystemUpdate = systems.reduce<string | null>((latest, system) => !latest || new Date(system.updatedAt) > new Date(latest) ? system.updatedAt : latest, null);
   const editingOutageSystem = systems.find((system) => system.id === editingOutageId) ?? null;
 
   return (
-    <section aria-label={t('rahcomSystemsList')} className="flex h-full min-h-0 min-w-0 max-w-full flex-col gap-3 overflow-hidden">
+    <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 max-w-full flex-col gap-3 overflow-hidden">
       <div className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
         <RahcomHeaderDate compact loadMarkedDates={loadTrafficDatesForCalendar} />
         <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(systems.length)} ${t('rahcomSystemsList')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground"><MapPinned size={16} className="text-primary" />{new Intl.NumberFormat(locale).format(systems.length)}</span>
-        <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(groups.length)} ${t('rahcomAxisCount')}`} title={`${new Intl.NumberFormat(locale).format(groups.length)} ${t('rahcomAxisCount')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Rows3 size={16} className="text-primary" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(groups.length)}</strong><span>{t('rahcomAxis')}</span></span>
         <SystemsSearchInput value={query} onChange={setQuery} placeholder={t('rahcomSearchSystems')} clearLabel={t('searchClear')} />
-        {canManage && selectedProvince !== 'all' && <button type="button" onClick={() => { setNewSystemOpen(true); setError(''); }} aria-label={t('rahcomAddSystem')} title={t('rahcomAddSystem')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
-        <button type="button" onClick={() => void saveSystemsBackup()} disabled={backupBusy || loading || systems.length === 0 || selectedProvince !== 'isfahan'} aria-label={t('rahcomSaveSystemsBackup')} title={t('rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} aria-hidden="true" />}</button>
-        <button type="button" onClick={() => void restoreSystemsBackup()} disabled={uploadBusy || loading || (selectedProvince !== 'isfahan' && selectedProvince !== 'all')} aria-label={t('rahcomRestoreSystemsBackup')} title={t('rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} aria-hidden="true" />}</button>
+        {canManage && selectedProvince !== 'all' && <button type="button" onClick={openAddSystem} aria-label={t('rahcomAddSystem')} title={t('rahcomAddSystem')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
+        {canEditSystems && <button type="button" aria-pressed={editMode} onClick={() => setEditMode((enabled) => !enabled)} aria-label={t('rahcomEditSystem')} title={t('rahcomEditSystem')} style={editMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${editMode ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Pencil size={16} /></button>}
         <label aria-label={t('rahcomUploadExcel')} title={t('rahcomUploadExcel')} className={`grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted ${uploadBusy ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} aria-hidden="true" />}<input type="file" accept=".xlsx,.xls" disabled={uploadBusy} className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void uploadSystemsFile(file); }} /></label>
         <button type="button" onClick={downloadSystems} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted"><Download size={17} aria-hidden="true" /></button>
         <button type="button" aria-pressed={showTrafficLongOutage} onClick={() => setShowTrafficLongOutage((enabled) => !enabled)} aria-label="نمایش سرقت و تخریب ثبت‌شده در فایل تردد" title="نمایش سرقت و تخریب ثبت‌شده در فایل تردد" style={showTrafficLongOutage ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`flex size-9 shrink-0 flex-col items-center justify-center rounded-full border transition-colors ${showTrafficLongOutage ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={15} className="-translate-y-0.5" /><span className="text-[10px] font-bold leading-[10px]">تردد</span></button>
-        {canEditSystems && <button type="button" aria-pressed={editMode} onClick={() => setEditMode((enabled) => !enabled)} aria-label={t('rahcomEditSystem')} title={t('rahcomEditSystem')} style={editMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${editMode ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Pencil size={16} /></button>}
-        <span className="mx-1 h-6 shrink-0 border-s border-border" aria-hidden="true" />
-
-        {systems.length > 0 && latestSystemUpdate && <div className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-background px-3"><RahcomRecordSummary bare locale={locale} source={t('rahcomSystemsList')} showSource={false} showRecordDate={false} showCount={false} recordDate={tehranDateKey(latestSystemUpdate)} count={groups.length} savedAt={latestSystemUpdate} /></div>}
-      </div>
-      {newSystemOpen && <form onSubmit={(event) => void createSystem(event)} className="shrink-0 rounded-xl border border-border bg-card p-3" aria-label={t('rahcomAddSystem')}>
-        <div className="mb-3 flex items-center justify-between gap-2"><strong className="text-sm">{t('rahcomAddSystem')}</strong><button type="button" onClick={() => setNewSystemOpen(false)} aria-label={t('rahcomCancel')} className="grid size-8 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground"><X size={16}/></button></div>
-        <div className="grid gap-2 sm:grid-cols-4">
-          {([['systemName', 'rahcomSystemName', 'text'], ['systemCode', 'rahcomSystemCode', 'text'], ['latitude', 'rahcomLatitude', 'number'], ['longitude', 'rahcomLongitude', 'number']] as const).map(([field, label, type]) => <label key={field} className="grid gap-1 text-xs text-muted-foreground">{t(label)}<input required type={type} step={type === 'number' ? 'any' : undefined} dir={type === 'number' || field === 'systemCode' ? 'ltr' : undefined} value={newSystemForm[field]} onChange={(event) => setNewSystemForm((current) => ({ ...current, [field]: event.target.value }))} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-primary" /></label>)}
+        <div ref={backupActionsRef} className="flex shrink-0 items-center gap-2">
+          <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="systems-backup-actions" onClick={() => setBackupActionsOpen((open) => !open)} aria-label={t('rahcomSaveSystemsBackup')} title={t('rahcomSaveSystemsBackup')} style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
+          {backupActionsOpen && <div id="systems-backup-actions" className="flex items-center gap-2">
+            <button type="button" onClick={() => void saveSystemsBackup()} disabled={backupBusy || loading || systems.length === 0 || selectedProvince !== 'isfahan'} aria-label={t('rahcomSaveSystemsBackup')} title={t('rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} aria-hidden="true" />}</button>
+            <button type="button" onClick={() => void restoreSystemsBackup()} disabled={uploadBusy || loading || (selectedProvince !== 'isfahan' && selectedProvince !== 'all')} aria-label={t('rahcomRestoreSystemsBackup')} title={t('rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} aria-hidden="true" />}</button>
+          </div>}
         </div>
-        <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setNewSystemOpen(false)} className="h-9 rounded-lg border border-border px-3 text-sm">{t('rahcomCancel')}</button><button type="submit" disabled={newSystemBusy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm text-primary-foreground disabled:opacity-60">{newSystemBusy && <LoaderCircle size={15} className="animate-spin"/>}{t('rahcomAdd')}</button></div>
-      </form>}
+
+      </div>
+      {newSystemOpen && newSystemPosition && typeof document !== 'undefined' && createPortal(<div className="fixed inset-0 z-[1000] bg-transparent" onMouseDown={(event) => { if (event.target === event.currentTarget && !newSystemBusy) setNewSystemOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-label={t('rahcomAddSystem')} style={{ position: 'fixed', top: newSystemPosition.top, left: newSystemPosition.left, width: newSystemPosition.width, maxWidth: newSystemPosition.width, maxHeight: newSystemPosition.maxHeight, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 }} className="rounded-xl border border-border p-2 text-card-foreground shadow-2xl">
+          <div className="rahcom-system-popup">
+            <header className="rahcom-popup-header"><strong className="rahcom-popup-title">{t('rahcomAddSystem')}</strong><button type="button" onClick={() => setNewSystemOpen(false)} aria-label={t('rahcomCancel')} className="rahcom-popup-copy"><X size={16}/></button></header>
+            <form onSubmit={(event) => void createSystem(event)} className="grid gap-3" aria-label={t('rahcomAddSystem')}>
+              <div className="rahcom-popup-edit-fields">
+                {([['systemCode', 'rahcomSystemCode', 'text'], ['systemName', 'rahcomSystemName', 'text'], ['axisCode', 'rahcomAxisCode', 'text'], ['announcedAxis', 'rahcomAxisName', 'text']] as const).map(([field, label, type]) => <label key={field}>{t(label)}<input required type={type} dir={field === 'systemCode' || field === 'axisCode' ? 'ltr' : undefined} value={newSystemForm[field]} onChange={(event) => setNewSystemForm((current) => ({ ...current, [field]: event.target.value }))} /></label>)}
+              </div>
+              <button type="button" aria-expanded={newSystemOptionalOpen} onClick={() => setNewSystemOptionalOpen((open) => !open)} className="inline-flex min-h-9 items-center gap-2 justify-self-start rounded-lg border border-border bg-background px-3 text-xs text-muted-foreground hover:text-foreground"><MapPin size={15}/>{t('rahcomOptionalSystemDetails')}</button>
+              {newSystemOptionalOpen && <div className="grid gap-2 rounded-lg border border-border p-2">
+                <div className="rahcom-popup-edit-fields">
+                  {([['latitude', 'rahcomLatitude'], ['longitude', 'rahcomLongitude']] as const).map(([field, label]) => <label key={field}>{t(label)}<input type="number" step="any" inputMode="decimal" dir="ltr" value={newSystemForm[field]} onChange={(event) => setNewSystemForm((current) => ({ ...current, [field]: event.target.value }))} /></label>)}
+                  <label className="col-span-2">{t('rahcomElectricityBillId')}<input dir="ltr" value={newSystemForm.electricityBillId} onChange={(event) => setNewSystemForm((current) => ({ ...current, electricityBillId: event.target.value }))} /></label>
+                </div>
+                <p className="text-[11px] text-muted-foreground">{t('rahcomCoordinatesOptionalHint')}</p>
+              </div>}
+              {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-2 text-xs text-red-600 dark:text-red-300">{error}</div>}
+              <div className="rahcom-popup-actions"><button type="button" onClick={() => setNewSystemOpen(false)} className="danger" title={t('rahcomCancel')} aria-label={t('rahcomCancel')}><X size={16}/></button><button type="submit" disabled={newSystemBusy} title={t('rahcomAdd')} aria-label={t('rahcomAdd')}>{newSystemBusy ? <LoaderCircle size={16} className="animate-spin"/> : <Plus size={16}/>}</button></div>
+            </form>
+          </div>
+        </section>
+      </div>, document.body)}
       {canEditSystems && editMode && selectedProvince !== 'all' && <div className="space-y-3 rounded-xl border border-border bg-card p-3"><button type="button" onClick={async () => { if (window.confirm(t('rahcomDeleteProvinceConfirm'))) { await rahcomApi.deleteSystems({ province: selectedProvince }); setSystemsRevision((value) => value + 1); } }} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs text-destructive">{t('rahcomDeleteProvinceSystems')}</button></div>}
 
       {loading ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</div> : null}
       {error ? <div role="alert" className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
       {!loading && !error && (!anyRows || showTrafficLongOutage && systemRows.length === 0) ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{showTrafficLongOutage && anyRows ? t('solarNoEntries') : t('rahcomSystemsEmpty')}</div> : null}
 
-      {systemRows.length > 0 && <section className="rahcom-traffic-table-frame me-auto flex min-h-0 w-fit max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="min-h-0 flex-1 overflow-auto">
+      {systemRows.length > 0 && <section className="rahcom-systems-table-frame rahcom-traffic-table-frame flex min-h-0 w-fit max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="rahcom-contained-table-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-auto">
           <table className="rahcom-sticky-table w-[80.5rem] table-fixed border-separate border-spacing-0 text-sm">
             <colgroup><col style={{ width: '3rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '17rem' }} /><col style={{ width: '8rem' }} />{showTrafficLongOutage && <col style={{ width: '10rem' }} />}<col style={{ width: '13rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '4rem' }} /><col style={{ width: '6rem' }} /></colgroup>
             <thead className="text-xs text-muted-foreground"><tr>
               <th scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{t('rahcomRowNumber')}</th><th scope="col" className="sticky top-0 z-30 border-b border-border bg-card p-1 text-center"><RahcomInfoHeader /></th>
-              {[t('rahcomSystemCode'), t('rahcomSystemName'), 'قطعی‌های زمان‌بر', ...(showTrafficLongOutage ? ['سرقت و تخریب'] : []), t('rahcomStationName'), t('rahcomAggregationCode'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomProvince'), t('rahcomBillId')].map((heading) => <th key={heading} scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}
+              {[t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomIncidentFilter'), ...(showTrafficLongOutage ? ['سرقت و تخریب'] : []), t('rahcomStationName'), t('rahcomAggregationCode'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomProvince'), t('rahcomBillId')].map((heading) => <th key={heading} scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}
             </tr></thead>
             <tbody>{systemRows.map(({ system, axisCode, axisName, stationName, aggregationCode, trafficValues }, rowIndex) => {
               const trafficLongOutage = trafficValues.incidents;
@@ -584,7 +694,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                   className="odd:bg-background even:bg-muted/30"
                 >
                   <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>
-                  <td className="border-b border-border/70 px-1 py-2 text-center align-middle"><RahcomRowInfo title={system.systemName} systemCode={system.systemCode} system={{ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }} fields={[{ label: t('rahcomSystemCode'), value: system.systemCode }, { label: t('rahcomSystemName'), value: system.systemName }, { label: t('rahcomAxisName'), value: axisName }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomProvince'), value: provinceName(system.province) }]} /></td>
+                  <td className="border-b border-border/70 px-1 py-2 text-center align-middle"><RahcomRowInfo title={system.systemName} systemCode={system.systemCode} system={{ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }} fields={[{ label: t('rahcomSystemCode'), value: system.systemCode }, { label: t('rahcomSystemName'), value: system.systemName }, { label: t('rahcomAxisName'), value: axisName }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomProvince'), value: provinceName(system.province) }]} electricityDetails={electricityDetailsBySystem.get(normalizeRahcomSystemCode(system.systemCode)) ?? []} onEdit={canEditSystems ? () => startEdit({ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }) : undefined} /></td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono font-bold tracking-wide text-foreground">
                   {selectedSystemId === system.id && systemPopupPosition && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[100] bg-transparent" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSystemId(null); }}>
                     <section role="dialog" aria-modal="true" aria-labelledby={`rahcom-system-title-${system.id}`} style={{ position: 'fixed', top: systemPopupPosition.top, left: systemPopupPosition.left, width: systemPopupPosition.maxWidth, maxWidth: systemPopupPosition.maxWidth, maxHeight: systemPopupPosition.maxHeight, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 }} className="rounded-xl border border-border p-2 shadow-2xl">
@@ -598,7 +708,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                             <label>{t('rahcomAxisCode')}<input dir="ltr" value={editForm.axisCode ?? ''} onChange={(event) => setEditForm((current) => current ? { ...current, axisCode: event.target.value } : current)} /></label>
                             <label>{t('rahcomAxisName')}<input value={editForm.announcedAxis ?? ''} onChange={(event) => setEditForm((current) => current ? { ...current, announcedAxis: event.target.value } : current)} /></label>
                             <label>{t('solarSpecialCategory')}<select value={editForm.incidentType ?? ''} onChange={(event) => setEditForm((current) => current ? { ...current, incidentType: (event.target.value || null) as typeof current.incidentType } : current)}><option value="">—</option><option value="THEFT">{t('rahcomIncidentTheft')}</option><option value="DAMAGE">{t('rahcomIncidentDamage')}</option><option value="THEFT_AND_DAMAGE">{t('rahcomIncidentBoth')}</option><option value="WIDENING_RELOCATION">{t('solarWideningRelocation')}</option></select></label>
-                            <label>قطعی زمان‌بر<select value={editForm.longOutageReason ?? ''} onChange={(event) => setEditForm((current) => current ? { ...current, longOutageReason: (event.target.value || null) as typeof current.longOutageReason, longOutage: Boolean(event.target.value), longOutageDetails: event.target.value === 'OTHER' ? current.longOutageDetails : '' } : current)}><option value="">ندارد</option>{outageReasons.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                            <label>{t('rahcomIncidentFilter')}<select value={editForm.longOutageReason ?? ''} onChange={(event) => setEditForm((current) => current ? { ...current, longOutageReason: (event.target.value || null) as typeof current.longOutageReason, longOutage: Boolean(event.target.value), longOutageDetails: event.target.value === 'OTHER' ? current.longOutageDetails : '' } : current)}><option value="">ندارد</option>{outageReasons.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                             {editForm.longOutageReason === 'OTHER' && <label>شرح مورد دیگر<textarea maxLength={1000} value={editForm.longOutageDetails ?? ''} onChange={(event) => setEditForm((current) => current ? { ...current, longOutageDetails: event.target.value } : current)} /></label>}
                           </div>
                           <div className="rahcom-popup-actions"><button type="button" data-popup-action="save" disabled={savingSystem} onClick={() => void saveEdit(system.id)} title={t('rahcomSave')} aria-label={t('rahcomSave')}><Save size={16}/></button><button type="button" onClick={() => { setEditingSystemId(null); setEditForm(null); }} title={t('rahcomCancel')} aria-label={t('rahcomCancel')}><X size={16}/></button><button type="button" className="danger" onClick={() => void removeSystem(system)} title={t('rahcomDelete')} aria-label={t('rahcomDelete')}><Trash2 size={16}/></button></div>
@@ -613,11 +723,11 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                           <div className="rahcom-popup-actions">
                             <button type="button" className="danger" onClick={() => { setSelectedSystemId(null); setSystemPopupPanel(null); }} title={t('closeSidebar')} aria-label={t('closeSidebar')}><X size={16}/></button>
                             <button type="button" onClick={() => void copyValue(`details-${system.id}`, `${t('rahcomSystemCode')}: ${system.systemCode}\n${t('rahcomSystemName')}: ${system.systemName}\n${t('rahcomAxis')}: ${axisName || '—'}${axisCode ? ` / ${axisCode}` : ''}`)} title={copiedKey === `details-${system.id}` ? t('rahcomCopied') : t('rahcomCopy')} aria-label={t('rahcomCopy')}>{copiedKey === `details-${system.id}` ? <Check size={16}/> : <ClipboardCopy size={16}/>}</button>
-                            {Number.isFinite(system.latitude) && Number.isFinite(system.longitude) && <button type="button" data-popup-action="route" aria-expanded={systemPopupPanel === 'location'} onClick={() => setSystemPopupPanel((panel) => panel === 'location' ? null : 'location')} title={t('rahcomRoute')} aria-label={t('rahcomRoute')}><MapPin size={16}/></button>}
+                            {hasRahcomCoordinates(system) && <button type="button" data-popup-action="route" aria-expanded={systemPopupPanel === 'location'} onClick={() => setSystemPopupPanel((panel) => panel === 'location' ? null : 'location')} title={t('rahcomRoute')} aria-label={t('rahcomRoute')}><MapPin size={16}/></button>}
                             {!system.id.startsWith('traffic-') && <button type="button" data-popup-action="history" aria-expanded={systemPopupPanel === 'history'} onClick={() => setSystemPopupPanel((panel) => panel === 'history' ? null : 'history')} title={t('rahcomHistory')} aria-label={t('rahcomHistory')}><ClipboardList size={16}/></button>}
                             {canEditSystems && <button type="button" data-popup-action="edit" onClick={() => startEdit(system)} title={t('rahcomEditSystem')} aria-label={t('rahcomEditSystem')}><Pencil size={16}/></button>}
                           </div>
-                          {systemPopupPanel === 'location' && Number.isFinite(system.latitude) && Number.isFinite(system.longitude) && <div className="mt-1 grid gap-1.5 rounded-lg border border-border bg-background p-2 text-xs">
+                          {systemPopupPanel === 'location' && hasRahcomCoordinates(system) && <div className="mt-1 grid gap-1.5 rounded-lg border border-border bg-background p-2 text-xs">
                             <button type="button" onClick={() => void copyValue(coordinatesKey, formatRahcomCoordinates(system.latitude, system.longitude))} className="flex min-h-9 items-center gap-2 rounded-md px-2 text-start text-foreground hover:bg-muted">{copiedKey === coordinatesKey ? <Check size={15}/> : <MapPin size={15}/>} {copiedKey === coordinatesKey ? t('rahcomCopied') : t('rahcomCopyCoordinates')}</button>
                             {([['google', t('rahcomRouteGoogleMaps')], ['neshan', t('rahcomRouteNeshan')], ['balad', t('rahcomRouteBalad')]] as const).map(([provider, label]) => <a key={provider} href={routeUrl(provider, system)} target="_blank" rel="noreferrer" className="flex min-h-9 items-center justify-between rounded-md px-2 text-foreground hover:bg-muted">{label}<ExternalLink size={14} className="text-muted-foreground"/></a>)}
                           </div>}
@@ -652,16 +762,16 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         <section role="dialog" aria-modal="true" aria-labelledby="rahcom-long-outage-title" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="w-full max-w-[360px] rounded-xl border border-border p-2 shadow-2xl">
           <div className="rahcom-system-popup">
             <header className="rahcom-popup-header">
-              <div className="rahcom-popup-heading"><strong id="rahcom-long-outage-title" className="rahcom-popup-title">ویرایش قطعی زمان‌بر</strong><span className="text-xs text-muted-foreground">{editingOutageSystem.systemName} · <bdi dir="ltr">{editingOutageSystem.systemCode}</bdi></span></div>
+              <div className="rahcom-popup-heading"><strong id="rahcom-long-outage-title" className="rahcom-popup-title">ویرایش برچسب</strong><span className="text-xs text-muted-foreground">{editingOutageSystem.systemName} · <bdi dir="ltr">{editingOutageSystem.systemCode}</bdi></span></div>
               <button type="button" disabled={savingSystem} onClick={() => setEditingOutageId(null)} aria-label={t('rahcomCancel')} className="rahcom-popup-copy disabled:opacity-50"><X size={16}/></button>
             </header>
             <div className="rahcom-popup-edit-fields mt-2 grid-cols-1">
-              <label>قطعی زمان‌بر
+              <label>{t('rahcomIncidentFilter')}
                 <select autoFocus className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground" value={outageDraft.reason ?? ''} onChange={(event) => setOutageDraft((current) => ({ reason: (event.target.value || null) as RahcomSystem['longOutageReason'], details: event.target.value === 'OTHER' ? current.details : '' }))}>
                   <option value="">ندارد</option>{outageReasons.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </label>
-              {outageDraft.reason === 'OTHER' && <label>شرح مورد دیگر<textarea maxLength={1000} rows={2} value={outageDraft.details} onChange={(event) => setOutageDraft((current) => ({ ...current, details: event.target.value }))} placeholder="شرح قطعی زمان‌بر را بنویسید" className="w-full resize-y rounded-md border border-border bg-background p-2 text-xs text-foreground" /></label>}
+              {outageDraft.reason === 'OTHER' && <label>شرح مورد دیگر<textarea maxLength={1000} rows={2} value={outageDraft.details} onChange={(event) => setOutageDraft((current) => ({ ...current, details: event.target.value }))} placeholder="شرح برچسب را بنویسید" className="w-full resize-y rounded-md border border-border bg-background p-2 text-xs text-foreground" /></label>}
             </div>
             <div className="rahcom-popup-actions mt-2">
               <button type="button" disabled={savingSystem || (outageDraft.reason === 'OTHER' && !outageDraft.details.trim())} onClick={() => void saveOutageReason(editingOutageSystem)} title="ذخیره" aria-label="ذخیره" className="disabled:opacity-50">{savingSystem ? <LoaderCircle className="animate-spin"/> : <Save/>}</button>

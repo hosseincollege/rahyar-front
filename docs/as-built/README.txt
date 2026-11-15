@@ -22,7 +22,7 @@ src/components/layout/ : قاب برنامه، تاپ‌هدر، سایدبار 
 src/components/preferences-provider.tsx : دسترسی رابط به ترجیحات مشترک کاربر/سازمان.
 src/lib/api/rahcom/rahcom-api.ts : نوع‌ها و توابع ارتباطی API رهکام.
 src/lib/rahcom-system-search.ts : منطق جست‌وجوی سامانه‌ها در تاپ‌هدر.
-src/languages/ و src/lib/ui-messages.ts : زبان‌ها و متن‌های رابط؛ تغییر متن نمایشی باید در همه زبان‌های پشتیبانی‌شده منعکس شود.
+src/lib/languages/ و src/lib/ui-messages.ts : زبان‌ها و متن‌های رابط؛ تغییر متن نمایشی باید در همه زبان‌های پشتیبانی‌شده منعکس شود.
 src/provinces/ : داده‌های ثابت و قابل نگهداری محورها/استان‌ها، از جمله تعریف اصفهان.
 
 ۴) ساختار مهم بک‌اند
