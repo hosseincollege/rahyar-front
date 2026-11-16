@@ -2,13 +2,14 @@
 
 import { getCalendarLocale } from '@/lib/calendar';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Archive, CheckCircle2, CircleDashed, Download, FileJson2, FolderKanban, LoaderCircle, Pencil, Plus, Search, Ticket, Trash2, Upload, Users, X } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Download, FileJson2, FolderKanban, LoaderCircle, Pencil, Plus, Search, Ticket, Trash2, Upload, Users, X } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { projectsApi, type ProjectDraft, type ProjectImportRecord, type ProjectItem, type ProjectStatus } from '@/lib/api/shared/projects-api';
 import { parseProjectsImportData, PROJECTS_IMPORT_SAMPLE, projectsToExportData } from './projects-json';
 import type { UiMessage } from '@/lib/languages/types';
+import { SettingsPageToolbar } from '../components/settings-page-toolbar';
 
 const EMPTY_FORM: ProjectDraft = { code: '', name: '', description: '', status: 'ACTIVE' };
 
@@ -38,7 +39,10 @@ export default function ProjectsSettingsPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void loadProjects(); }, [loadProjects]);
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => { void loadProjects(); }, 0);
+    return () => window.clearTimeout(loadTimer);
+  }, [loadProjects]);
 
   const filteredProjects = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase(locale);
@@ -139,35 +143,26 @@ export default function ProjectsSettingsPage() {
   })[status];
 
   return (
-    <main dir={direction} className="w-full space-y-5">
-      <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderKanban size={21}/></span>
-          <div><h1 className="text-lg font-bold text-foreground">{t('projectsTitle')}</h1><p className="mt-1 text-sm text-muted-foreground">{t('projectsDescription')}</p></div>
-        </div>
-        <button type="button" onClick={openNewForm} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"><Plus size={17}/>{t('projectsNew')}</button>
+    <main dir={direction} className="w-full space-y-4">
+      <SettingsPageToolbar>
+        <button type="button" onClick={openNewForm} aria-label={t('projectsNew')} title={t('projectsNew')} className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90"><Plus size={17} aria-hidden="true"/></button>
+        <label className="rahcom-search-capsule relative block w-56 max-w-[15rem] shrink-0 rounded-full"><Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('projectsSearchPlaceholder')} aria-label={t('projectsSearchPlaceholder')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-3 text-sm outline-none focus:border-primary"/></label>
+        <button type="button" onClick={() => downloadJson('projects-template.json', PROJECTS_IMPORT_SAMPLE)} aria-label={t('projectsImportTemplate')} title={t('projectsImportTemplate')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} aria-hidden="true"/></button>
+        <button type="button" onClick={() => downloadJson('projects-export.json', projectsToExportData(projects))} disabled={!projects.length} aria-label={t('projectsExport')} title={t('projectsExport')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><FileJson2 size={17} aria-hidden="true"/></button>
+        <input ref={fileInput} type="file" accept=".json,application/json" disabled={importBusy} className="hidden" onChange={(event) => void chooseImportFile(event.target.files?.[0])}/>
+        <button type="button" onClick={() => fileInput.current?.click()} disabled={importBusy} aria-label={t('projectsImportAction')} title={t('projectsImportAction')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50"><Upload size={17} aria-hidden="true"/></button>
+        <span role="status" aria-label={`${t('projectsTotal')}: ${new Intl.NumberFormat(locale).format(projects.length)}`} title={t('projectsTotal')} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-foreground"><FolderKanban size={15} className="text-primary" aria-hidden="true"/>{new Intl.NumberFormat(locale).format(projects.length)}</span>
+        <span role="status" aria-label={`${t('projectsActiveCount')}: ${new Intl.NumberFormat(locale).format(activeCount)}`} title={t('projectsActiveCount')} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-foreground"><CheckCircle2 size={15} className="text-emerald-600" aria-hidden="true"/>{new Intl.NumberFormat(locale).format(activeCount)}</span>
+      </SettingsPageToolbar>
+      <header>
+        <h1 className="flex items-center gap-2 text-lg font-bold text-foreground"><FolderKanban size={19} className="text-primary" aria-hidden="true"/>{t('projectsTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('projectsDescription')}</p>
       </header>
-
-      <section className="grid gap-3 sm:grid-cols-2">
-        <article className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderKanban size={19}/></span><div><p className="text-xs text-muted-foreground">{t('projectsTotal')}</p><p className="mt-1 text-xl font-bold tabular-nums">{new Intl.NumberFormat(locale).format(projects.length)}</p></div></article>
-        <article className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600"><CheckCircle2 size={19}/></span><div><p className="text-xs text-muted-foreground">{t('projectsActiveCount')}</p><p className="mt-1 text-xl font-bold tabular-nums">{new Intl.NumberFormat(locale).format(activeCount)}</p></div></article>
-      </section>
-
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <label className="relative min-w-0 flex-1 xl:max-w-sm"><Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('projectsSearchPlaceholder')} className="h-10 w-full rounded-xl border border-border bg-background ps-9 pe-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"/></label>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => downloadJson('projects-template.json', PROJECTS_IMPORT_SAMPLE)} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium transition hover:bg-muted"><Download size={15}/>{t('projectsImportTemplate')}</button>
-            <button type="button" onClick={() => downloadJson('projects-export.json', projectsToExportData(projects))} disabled={!projects.length} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"><FileJson2 size={15}/>{t('projectsExport')}</button>
-            <input ref={fileInput} type="file" accept=".json,application/json" className="hidden" onChange={(event) => void chooseImportFile(event.target.files?.[0])}/>
-            <button type="button" onClick={() => fileInput.current?.click()} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary transition hover:bg-primary/10"><Upload size={15}/>{t('projectsImportAction')}</button>
-          </div>
-        </div>
+      <section className="space-y-3">
         <p className="text-xs leading-5 text-muted-foreground">{t('projectsImportHint')}</p>
-
         {importError && <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">{t(importError)}</p>}
         {importPreview && <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/[0.035] p-3 sm:p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><FileJson2 size={17} className="shrink-0 text-primary"/><span className="truncate text-sm font-semibold">{importPreview.fileName}</span><span className="text-xs text-muted-foreground">· {messageWithCount('projectsImportCount', importPreview.projects.length)}</span></div><button type="button" onClick={() => setImportPreview(null)} aria-label={t('projectsCancel')} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><X size={16}/></button></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><FileJson2 size={17} className="shrink-0 text-primary"/><span className="truncate text-sm font-semibold">{importPreview.fileName}</span><span className="text-xs text-muted-foreground">· {messageWithCount('projectsImportCount', importPreview.projects.length)}</span></div><button type="button" disabled={importBusy} onClick={() => setImportPreview(null)} aria-label={t('projectsCancel')} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"><X size={16}/></button></div>
           <div className="max-h-36 overflow-auto rounded-lg border border-border/70 bg-background"><ul className="divide-y divide-border/70">{importPreview.projects.slice(0, 6).map((item) => <li key={item.code} className="flex items-center gap-3 px-3 py-2 text-xs"><code dir="ltr" className="font-mono font-semibold text-primary">{item.code}</code><span className="truncate">{item.name}</span><span className="ms-auto shrink-0 text-muted-foreground">{t(statusLabel(item.status ?? 'ACTIVE'))}</span></li>)}</ul>{importPreview.projects.length > 6 && <p className="px-3 py-2 text-xs text-muted-foreground">+{new Intl.NumberFormat(locale).format(importPreview.projects.length - 6)}</p>}</div>
           <div className="flex justify-end"><button type="button" onClick={() => void importProjects()} disabled={importBusy} className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">{importBusy ? <LoaderCircle size={15} className="animate-spin"/> : <Upload size={15} />}{importBusy ? t('projectsImporting') : t('projectsImportConfirm')}</button></div>
         </div>}

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file src/components/layout/sidebar.tsx
  * @project Rahyar - Front-end
  * @description Rahyar application frontend
@@ -13,7 +13,7 @@ import { getCurrentOrganizationId, getCurrentUser, logout, AuthUser } from '@/li
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import type { UiMessage } from '@/lib/languages/types';
-import { settingsApi, type OrganizationAccess } from '@/app/(workspace)/settings/settings-api';
+import { settingsApi, type OrganizationAccess } from '@/lib/api/settings/settings-api';
 import { isReducedEdition } from '@/lib/product-edition';
 import { readShellVisibility } from '@/lib/module-visibility';
 

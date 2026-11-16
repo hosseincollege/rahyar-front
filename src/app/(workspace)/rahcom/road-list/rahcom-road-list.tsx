@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, LoaderCircle, LockKeyhole, Pencil, Save, TriangleAlert, X } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi } from '@/app/(workspace)/settings/settings-api';
+import { settingsApi } from '@/lib/api/settings/settings-api';
 import { apiClient } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -505,8 +505,8 @@ export function RahcomRoadList() {
             return <tr key={page * PAGE_SIZE + rowIndex} className="odd:bg-background even:bg-muted/30">
               <td className="border-b border-border/70 px-3 py-2 text-center tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(page * PAGE_SIZE + rowIndex + 1)}</td>
               <td className="w-9 border-b border-border/70 px-1 py-1 text-center"><RahcomRowInfo title={match?.systemName || match?.systemCode || `ردیف ${page * PAGE_SIZE + rowIndex + 1}`} systemCode={match?.systemCode ?? ''} system={match ? systemsByCode.get(normalizeIdentifier(match.systemCode)) ?? null : null} fields={[{ label: t('rahcomSystemName'), value: match?.systemName || '' }, { label: t('rahcomSystemCode'), value: match?.systemCode || '' }, { label: t('rahcomIncidentFilter'), value: getIncidentText(match) }, { label: t('rahcomAxisCode'), value: match ? systemsByCode.get(normalizeIdentifier(match.systemCode))?.axisCode ?? '' : '' }, ...headers.map((header, columnIndex) => ({ label: header, value: row[columnIndex] ?? '' }))]} /></td>
-              <td className="min-w-[220px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || '—'}</td>
-              <td dir="ltr" className="min-w-[120px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || '—'}</td>
+              <td className="min-w-[220px] whitespace-nowrap border-b border-border/70 px-3 py-2 align-top text-foreground">{match?.systemName || 'â€”'}</td>
+              <td dir="ltr" className="min-w-[120px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center font-mono text-foreground">{match?.systemCode || 'â€”'}</td>
               {showIncidents && <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>}
               {identifierIndex >= 0 && <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle font-mono text-foreground">{row[identifierIndex] ?? ''}</td>}
               {displayedDataColumns.map((column, index) => column === 'solar'

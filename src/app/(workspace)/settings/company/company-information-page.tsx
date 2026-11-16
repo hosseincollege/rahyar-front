@@ -33,7 +33,7 @@ import {
   resolveOrganizationLogoUrl,
   settingsApi,
   type CompanySettings,
-} from '@/app/(workspace)/settings/settings-api';
+} from '@/lib/api/settings/settings-api';
 
 import {
   companyImportSample,
@@ -433,7 +433,7 @@ export function CompanyInformationPage() {
       case 'EUR':
         return 'یورو (EUR)';
       default:
-        return code || '—';
+        return code || 'â€”';
     }
   };
 
@@ -639,32 +639,32 @@ export function CompanyInformationPage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">نام سازمان / برند</span>
-                  <span className="mt-1.5 block text-sm font-semibold text-foreground">{data.name || '—'}</span>
+                  <span className="mt-1.5 block text-sm font-semibold text-foreground">{data.name || 'â€”'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">نام کامل رسمی</span>
-                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.legalName || '—'}</span>
+                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.legalName || 'â€”'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شناسه یکتا (Slug)</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.slug || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.slug || 'â€”'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شناسه ملی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.nationalId || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.nationalId || 'â€”'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شماره ثبت</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.registrationNumber || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.registrationNumber || 'â€”'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">کد اقتصادی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.economicCode || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.economicCode || 'â€”'}</span>
                 </div>
               </div>
             </div>
@@ -677,7 +677,7 @@ export function CompanyInformationPage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">حوزه مالیاتی</span>
-                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.taxOffice || '—'}</span>
+                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.taxOffice || 'â€”'}</span>
                 </div>
 
                 <div>
@@ -687,7 +687,7 @@ export function CompanyInformationPage() {
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شروع سال مالی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.fiscalYearStart || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.fiscalYearStart || 'â€”'}</span>
                 </div>
               </div>
             </div>
@@ -702,7 +702,7 @@ export function CompanyInformationPage() {
                   <Phone className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">شماره تماس</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.phone || '—'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.phone || 'â€”'}</span>
                   </div>
                 </div>
 
@@ -710,7 +710,7 @@ export function CompanyInformationPage() {
                   <Mail className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">پست الکترونیکی</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.email || '—'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.email || 'â€”'}</span>
                   </div>
                 </div>
 
@@ -718,13 +718,13 @@ export function CompanyInformationPage() {
                   <Globe className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">وب‌سایت</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.website || '—'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.website || 'â€”'}</span>
                   </div>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">کد پستی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.postalCode || '—'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.postalCode || 'â€”'}</span>
                 </div>
 
                 <div>
@@ -741,7 +741,7 @@ export function CompanyInformationPage() {
                       />
                     ) : null}
                     <span className="block truncate font-mono text-xs text-muted-foreground dir-ltr text-end">
-                      {data.logoUrl || '—'}
+                      {data.logoUrl || 'â€”'}
                     </span>
                   </span>
                 </div>
@@ -750,7 +750,7 @@ export function CompanyInformationPage() {
                   <MapPin className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">نشانی دقیق شرکت</span>
-                    <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">{data.address || '—'}</p>
+                    <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">{data.address || 'â€”'}</p>
                   </div>
                 </div>
               </div>

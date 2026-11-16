@@ -36,9 +36,10 @@ import {
   type BranchItem,
   type DepartmentEmployeeSummary,
   type DepartmentItem,
-} from '@/app/(workspace)/settings/settings-api';
+} from '@/lib/api/settings/settings-api';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { DepartmentOverviewPanel } from './department-overview-panel';
+import { SettingsPageToolbar } from '../components/settings-page-toolbar';
 import {
   organizationStructureImportSample,
   organizationStructureToApiPayload,
@@ -130,7 +131,6 @@ export function OrganizationStructurePage() {
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const quickFileInputRef = useRef<HTMLInputElement | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((type: 'success' | 'error', text: string) => {
@@ -218,21 +218,30 @@ export function OrganizationStructurePage() {
   }, [showToast]);
 
   useEffect(() => {
-    void loadOrganizationStructure();
+    const loadTimer = window.setTimeout(() => {
+      void loadOrganizationStructure();
+    }, 0);
+    return () => window.clearTimeout(loadTimer);
   }, [loadOrganizationStructure]);
 
   useEffect(() => {
-    if (!selectedBranchId) { setProvinceEmployees([]); return; }
+    if (!selectedBranchId) {
+      const resetTimer = window.setTimeout(() => setProvinceEmployees([]), 0);
+      return () => window.clearTimeout(resetTimer);
+    }
     let active = true;
-    setIsLoadingProvinceEmployees(true);
-    settingsApi.getBranchEmployees(selectedBranchId).then((employees) => {
-      if (active) setProvinceEmployees(employees);
-    }).catch(() => {
-      if (active) setProvinceEmployees([]);
-    }).finally(() => {
-      if (active) setIsLoadingProvinceEmployees(false);
-    });
-    return () => { active = false; };
+    const loadTimer = window.setTimeout(() => {
+      if (!active) return;
+      setIsLoadingProvinceEmployees(true);
+      settingsApi.getBranchEmployees(selectedBranchId).then((employees) => {
+        if (active) setProvinceEmployees(employees);
+      }).catch(() => {
+        if (active) setProvinceEmployees([]);
+      }).finally(() => {
+        if (active) setIsLoadingProvinceEmployees(false);
+      });
+    }, 0);
+    return () => { active = false; window.clearTimeout(loadTimer); };
   }, [selectedBranchId]);
 
   const downloadJsonFile = (data: unknown, fileName: string) => {
@@ -614,34 +623,10 @@ export function OrganizationStructurePage() {
     }
   };
 
-  const handleQuickImport = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-
-    if (!file || isImporting) return;
-
-    setIsImporting(true);
-
-    try {
-      await executeImport(file);
-      showToast('success', 'ساختار سازمانی با موفقیت درون‌ریزی شد.');
-    } catch (error) {
-      console.error('Quick import failed:', error);
-      showToast(
-        'error',
-        error instanceof Error
-          ? error.message
-          : 'پردازش فایل JSON با خطا مواجه شد.',
-      );
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
   const selectedBranch = branches.find(
     (branch) => branch.id === selectedBranchId,
   );
-  const alphabeticalBranches = [...branches].sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+  const alphabeticalBranches = [...branches].sort((a, b) => a.name.localeCompare(b.name, locale, { numeric: true, sensitivity: 'base' }));
   const visibleDepartments = selectedBranchId
     ? departments.filter((department) => department.branchId === selectedBranchId)
     : departments;
@@ -670,112 +655,59 @@ export function OrganizationStructurePage() {
         </div>
       )}
 
-      {/* Header Toolbar & State Control */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-[var(--foreground)]">
-              ساختار سازمانی
-            </h2>
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                canEditStructure
-                  ? 'border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                  : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-              }`}
-            >
-              {!canManage ? (
-                <>
-                  <Eye size={12} />
-                  فقط خواندنی
-                </>
-              ) : isEditing ? (
-                <>
-                  <Edit3 size={12} />
-                  حالت ویرایش
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 size={12} />
-                  فقط خواندنی
-                </>
-              )}
-            </span>
-          </div>
-
-          <p className="mt-1 text-xs text-muted-foreground">
-            {uiMessage(locale, 'organizationStructureManagementDescription')}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleDownloadImportSample}
-            disabled={isImporting}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
-          >
-            <Download size={14} />
-            دانلود نمونه JSON
-          </button>
-
-          <button
-            type="button"
-            onClick={() => quickFileInputRef.current?.click()}
-            disabled={!canManage || isImporting}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
-          >
-            {isImporting ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : (
-              <Upload size={14} />
-            )}
-            بارگذاری JSON
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportOrganization}
-            disabled={
-              isImporting ||
-              (branches.length === 0 && departments.length === 0)
-            }
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-800"
-          >
-            <Download size={14} />
-            خروجی JSON
-          </button>
-
-          <input
-            ref={quickFileInputRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={(event) => void handleQuickImport(event)}
-            className="hidden"
-          />
-
-          <div className="mx-1 hidden h-5 w-px bg-[var(--border)] sm:block" />
-
-          {canManage && (!isEditing ? (
-            <button
-              type="button"
-              onClick={() => setIsEditing(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
-            >
-              <Edit3 size={14} />
-              ویرایش ساختار
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsEditing(false)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <Eye size={14} />
-              پایان ویرایش
-            </button>
-          ))}
-        </div>
+      {/* Toolbar follows the 36px Rahcom control pattern. */}
+      <SettingsPageToolbar>
+        <button
+          type="button"
+          onClick={handleDownloadImportSample}
+          disabled={isImporting}
+          aria-label="دانلود نمونه JSON"
+          title="دانلود نمونه JSON"
+          className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50"
+        >
+          <FileJson size={17} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={openImportModal}
+          disabled={!canManage || isImporting}
+          aria-label="بارگذاری JSON"
+          title="بارگذاری JSON"
+          className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isImporting ? <RefreshCw size={17} className="animate-spin" aria-hidden="true" /> : <Upload size={17} aria-hidden="true" />}
+        </button>
+        <button
+          type="button"
+          onClick={handleExportOrganization}
+          disabled={isImporting || (branches.length === 0 && departments.length === 0)}
+          aria-label="خروجی JSON"
+          title="خروجی JSON"
+          className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={17} aria-hidden="true" />
+        </button>
+        {canManage && <button
+          type="button"
+          aria-pressed={isEditing}
+          onClick={() => setIsEditing((editing) => !editing)}
+          aria-label={isEditing ? 'پایان ویرایش ساختار' : 'ویرایش ساختار'}
+          title={isEditing ? 'پایان ویرایش ساختار' : 'ویرایش ساختار'}
+          style={isEditing ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined}
+          className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${isEditing ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}
+        >
+          {isEditing ? <Eye size={17} aria-hidden="true" /> : <Edit3 size={17} aria-hidden="true" />}
+        </button>}
+        <span role="status" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-foreground">
+          {!canManage ? <Eye size={15} className="text-muted-foreground" aria-hidden="true" /> : isEditing ? <Edit3 size={15} className="text-primary" aria-hidden="true" /> : <CheckCircle2 size={15} className="text-muted-foreground" aria-hidden="true" />}
+          {isEditing ? 'حالت ویرایش' : 'فقط خواندنی'}
+        </span>
+      </SettingsPageToolbar>
+      <div>
+        <h2 className="text-base font-bold text-foreground">ساختار سازمانی</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {uiMessage(locale, 'organizationStructureManagementDescription')}
+        </p>
       </div>
 
       {/* Branches Section */}
@@ -928,7 +860,7 @@ export function OrganizationStructurePage() {
 
                       <td className="whitespace-nowrap px-6 py-4">
                         <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                          {department.code || '—'}
+                          {department.code || 'â€”'}
                         </span>
                       </td>
 

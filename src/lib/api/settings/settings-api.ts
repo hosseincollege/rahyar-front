@@ -3,7 +3,7 @@
 // این فایل مسئول برقراری ارتباط با APIهای بخش تنظیمات و سازمان در بک‌اند است.
 //
 // نکته مهم: apiClient مستقیماً به بک‌اند (NEXT_PUBLIC_API_BASE_URL یا
-// http://localhost:3016) درخواست می‌زند و بک‌اند پیشوند /api ندارد؛
+// http://localhost:3006) درخواست می‌زند و بک‌اند پیشوند /api ندارد؛
 // بنابراین همه مسیرها باید بدون /api باشند. فقط مسیرهای پروکسی Next.js
 // (زیر src/app/api/...) با پیشوند /api فراخوانی می‌شوند.
 
@@ -34,13 +34,13 @@ export interface CompanySettings {
 export interface OrganizationAccess {
   canView: boolean;
   canEdit: boolean;
+  canViewRahcom: boolean;
+  canManageRahcom: boolean;
   canAccessWorkspace?: boolean;
   canViewUsers?: boolean;
-  canViewRahcom?: boolean;
-  canManageRahcom?: boolean;
+  canManageUsers?: boolean;
   canViewRoles?: boolean;
   canManageRoles?: boolean;
-  canManageUsers?: boolean;
   isAdmin?: boolean;
   permissionKeys?: string[];
   branchId?: string | null;
@@ -121,7 +121,17 @@ export interface BranchItem {
   postalCode?: string;
   isActive: boolean;
   isHeadquarters: boolean;
+  isMain?: boolean;
   organizationId: string;
+}
+
+type BranchApiResponse = Omit<BranchItem, 'isHeadquarters' | 'isMain'> & {
+  isHeadquarters?: boolean;
+  isMain?: boolean;
+};
+
+function normalizeBranch(branch: BranchApiResponse): BranchItem {
+  return { ...branch, isHeadquarters: branch.isHeadquarters ?? branch.isMain ?? false };
 }
 
 export interface DepartmentItem {
@@ -193,6 +203,7 @@ export interface UserItem {
   lastName?: string;
   email?: string | null;
   phone?: string | null;
+  nationalId?: string | null;
   status?: string;
   isSystemUser?: boolean;
   role?: string | null;
@@ -360,26 +371,33 @@ export const settingsApi = {
 
   async getBranches(orgId: string): Promise<BranchItem[]> {
     const id = assertOrgId(orgId);
-    return apiClient.get<BranchItem[]>(`/settings/branches/${id}`);
+    const branches = await apiClient.get<BranchApiResponse[]>(`/settings/branches/${id}`);
+    return branches.map(normalizeBranch);
   },
 
   async createBranch(data: Omit<BranchItem, 'id'>): Promise<BranchItem> {
     assertOrgId(data.organizationId);
-    return apiClient.post<BranchItem, Omit<BranchItem, 'id'>>(
+    const { isHeadquarters, isMain, ...rest } = data;
+    const payload = { ...rest, isMain: isMain ?? isHeadquarters };
+    const created = await apiClient.post<BranchApiResponse, typeof payload>(
       '/settings/branches',
-      data,
+      payload,
     );
+    return normalizeBranch(created);
   },
 
   async updateBranch(
     id: string,
     data: Partial<BranchItem>,
   ): Promise<BranchItem> {
-    const { organizationId: _ignored, ...payload } = data;
-    return apiClient.put<BranchItem, Partial<BranchItem>>(
+    const { organizationId: _ignored, isHeadquarters, isMain, ...rest } = data;
+    void _ignored;
+    const payload = { ...rest, ...((isHeadquarters !== undefined || isMain !== undefined) ? { isMain: isMain ?? isHeadquarters } : {}) };
+    const updated = await apiClient.put<BranchApiResponse, typeof payload>(
       `/settings/branches/${encodeURIComponent(id)}`,
       payload,
     );
+    return normalizeBranch(updated);
   },
 
   async deleteBranch(id: string): Promise<void> {
@@ -395,6 +413,10 @@ export const settingsApi = {
     return apiClient.get<DepartmentOverview>(
       `/settings/departments/${encodeURIComponent(id)}/overview`,
     );
+  },
+
+  async getBranchEmployees(id: string): Promise<DepartmentEmployeeSummary[]> {
+    return apiClient.get<DepartmentEmployeeSummary[]>(`/settings/branches/${encodeURIComponent(id)}/employees`);
   },
 
   async getAvailableDepartmentEmployees(
@@ -507,12 +529,20 @@ export const settingsApi = {
   async saveUsers(
     users: UserItem[],
     orgId: string,
-    deletedUserIds: string[] = [],
   ): Promise<UserItem[]> {
     const id = assertOrgId(orgId);
-    return apiClient.put<UserItem[], { users: UserItem[]; deletedUserIds: string[] }>(
+    return apiClient.put<UserItem[], UserItem[]>(
       `/settings/users/${id}`,
-      { users, deletedUserIds },
+      users,
+    );
+  },
+
+  async removeUser(orgId: string, userId: string): Promise<UserItem[]> {
+    const organization = assertOrgId(orgId);
+    const user = encodeURIComponent(userId.trim());
+    if (!user) throw new Error();
+    return apiClient.delete<UserItem[]>(
+      `/settings/users/${organization}/${user}`,
     );
   },
 
@@ -524,13 +554,9 @@ export const settingsApi = {
   async saveRoles(
     roles: RoleItem[],
     orgId: string,
-    deletedRoleIds: string[] = [],
   ): Promise<RoleItem[]> {
     const id = assertOrgId(orgId);
-    return apiClient.put<RoleItem[], { roles: RoleItem[]; deletedRoleIds: string[] }>(
-      `/settings/roles/${id}`,
-      { roles, deletedRoleIds },
-    );
+    return apiClient.put<RoleItem[], RoleItem[]>(`/settings/roles/${id}`, roles);
   },
 
   async importOrganization(
@@ -556,6 +582,16 @@ export const settingsApi = {
     return apiClient.get<OrganizationAccess>(
       `/settings/organization/${id}/access`,
     );
+  },
+
+  async getOrganizationShellVisibility(orgId: string): Promise<{ shellVisibility: Record<string, unknown> }> {
+    const id = assertOrgId(orgId);
+    return apiClient.get(`/settings/organization/${id}/shell-visibility`);
+  },
+
+  async updateOrganizationShellVisibility(orgId: string, shellVisibility: Record<string, unknown>): Promise<{ shellVisibility: Record<string, unknown> }> {
+    const id = assertOrgId(orgId);
+    return apiClient.put(`/settings/organization/${id}/shell-visibility`, { shellVisibility });
   },
 
   async getOrganizationBranding(
@@ -592,8 +628,7 @@ export const getUsers = (orgId: string): Promise<UserItem[]> =>
 export const saveUsers = (
   users: UserItem[],
   orgId: string,
-  deletedUserIds?: string[],
-): Promise<UserItem[]> => settingsApi.saveUsers(users, orgId, deletedUserIds);
+): Promise<UserItem[]> => settingsApi.saveUsers(users, orgId);
 
 export const getRoles = (orgId: string): Promise<RoleItem[]> =>
   settingsApi.getRoles(orgId);
@@ -601,5 +636,4 @@ export const getRoles = (orgId: string): Promise<RoleItem[]> =>
 export const saveRoles = (
   roles: RoleItem[],
   orgId: string,
-  deletedRoleIds?: string[],
-): Promise<RoleItem[]> => settingsApi.saveRoles(roles, orgId, deletedRoleIds);
+): Promise<RoleItem[]> => settingsApi.saveRoles(roles, orgId);

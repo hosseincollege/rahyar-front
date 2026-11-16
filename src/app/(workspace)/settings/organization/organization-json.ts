@@ -1,11 +1,11 @@
-// Frontend — src/app/(workspace)/settings/general/organization-json.ts
+﻿// Frontend â€” src/app/(workspace)/settings/general/organization-json.ts
 // منطق JSON ساختار سازمانی: نمونه، اعتبارسنجی و تبدیل شعب و دپارتمان‌ها.
 
 import type {
   BranchItem,
   DepartmentItem,
   OrganizationImportPayload,
-} from '@/app/(workspace)/settings/settings-api';
+} from '@/lib/api/settings/settings-api';
 
 /**
  * دادهٔ هر شعبه در فایل JSON ورودی/خروجی.

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { LoaderCircle, Plus, Save, Trash2, Users, X } from 'lucide-react';
@@ -8,7 +8,7 @@ import {
   type DepartmentEmployeeSummary,
   type DepartmentOverview,
   type DepartmentTeamSummary,
-} from '@/app/(workspace)/settings/settings-api';
+} from '@/lib/api/settings/settings-api';
 
 type Props = {
   departmentId: string;
@@ -216,7 +216,7 @@ export function DepartmentOverviewPanel({
                     <option value="">تعیین نشده</option>
                     {overview.employees.map((employee) => (
                       <option key={employee.id} value={employee.id}>
-                        {employeeName(employee)} — {employee.jobTitle || employee.employeeCode}
+                        {employeeName(employee)} â€” {employee.jobTitle || employee.employeeCode}
                       </option>
                     ))}
                   </select>
@@ -250,7 +250,7 @@ export function DepartmentOverviewPanel({
                   <option value="">انتخاب کارمندِ بدون دپارتمان</option>
                   {availableEmployees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
-                      {employeeName(employee)} — {employee.jobTitle || employee.employeeCode}
+                      {employeeName(employee)} â€” {employee.jobTitle || employee.employeeCode}
                     </option>
                   ))}
                 </select>
@@ -432,7 +432,7 @@ export function DepartmentOverviewPanel({
                       <option value="">تعیین نشده</option>
                       {overview.employees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
-                          {employeeName(employee)} — {employee.jobTitle || employee.employeeCode}
+                          {employeeName(employee)} â€” {employee.jobTitle || employee.employeeCode}
                         </option>
                       ))}
                     </select>

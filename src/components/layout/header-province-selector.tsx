@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, MapPinned } from 'lucide-react';
 import { getCurrentOrganizationId, getCurrentUser } from '@/lib/api/shared/auth-api';
-import { settingsApi, type BranchItem } from '@/app/(workspace)/settings/settings-api';
+import { settingsApi, type BranchItem } from '@/lib/api/settings/settings-api';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomAccess } from '@/lib/api/rahcom/rahcom-api';

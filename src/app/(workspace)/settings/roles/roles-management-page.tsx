@@ -22,13 +22,14 @@ import {
   getRoles,
   saveRoles,
   type RoleItem,
-} from "@/app/(workspace)/settings/settings-api";
+} from "@/lib/api/settings/settings-api";
 import {
   usePreferences,
   getLocaleDirection,
 } from "@/components/preferences-provider";
 import { uiMessage } from "@/lib/ui-messages";
 import type { UiMessage } from "@/lib/languages/types";
+import { SettingsPageToolbar } from "../components/settings-page-toolbar";
 import {
   parseRolesImportData,
   rolesImportDataToItems,
@@ -399,105 +400,22 @@ export function RolesManagementPage() {
   }
 
   return (
-    <section dir={direction} className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-lg font-semibold text-foreground">
-              {message("rolesTitle")}
-            </h2>
-          </div>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            {message("rolesDescription")}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span>
-              {message("rolesCount").replace(
-                "{count}",
-                formatCount(roles.length),
-              )}
-            </span>
-            {hasUnsavedChanges && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 font-medium text-primary">
-                {message("rolesUnsaved")}
-              </span>
-            )}
-          </div>
+    <section dir={direction} className="space-y-4">
+      <SettingsPageToolbar>
+        <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={(event) => void handleFileUpload(event)} />
+        <button type="button" onClick={handleDownloadSample} disabled={!organizationId || isSaving || isImporting} aria-label={message("rolesDownloadSample")} title={message("rolesDownloadSample")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet className="size-4" aria-hidden="true" /></button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!organizationId || !hasLoadedRoles || hasUnsavedChanges || isSaving || isImporting} aria-label={isImporting ? message("rolesUploading") : message("rolesUploadJson")} title={isImporting ? message("rolesUploading") : message("rolesUploadJson")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">{isImporting ? <Upload className="size-4 animate-pulse" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}</button>
+        <button type="button" onClick={handleAddRole} disabled={!organizationId || !hasLoadedRoles || isSaving || isImporting} aria-label={message("rolesAdd")} title={message("rolesAdd")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" aria-hidden="true" /></button>
+        <button type="button" onClick={() => void handleSave()} disabled={!organizationId || !hasLoadedRoles || !hasUnsavedChanges || isSaving || isImporting} aria-label={isSaving ? message("rolesSaving") : message("rolesSave")} title={isSaving ? message("rolesSaving") : message("rolesSave")} className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? <Key className="size-4 animate-pulse" aria-hidden="true" /> : <Key className="size-4" aria-hidden="true" />}</button>
+        <span role="status" className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-background px-3 text-xs font-medium text-foreground">{message("rolesCount").replace("{count}", formatCount(roles.length))}</span>
+        {hasUnsavedChanges && <span role="status" className="inline-flex h-9 shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary">{message("rolesUnsaved")}</span>}
+      </SettingsPageToolbar>
+      <div>
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+          <h2 className="text-lg font-semibold text-foreground">{message("rolesTitle")}</h2>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={(e) => void handleFileUpload(e)}
-          />
-
-          <button
-            type="button"
-            onClick={handleDownloadSample}
-            disabled={!organizationId || isSaving || isImporting}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FileSpreadsheet
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-            {message("rolesDownloadSample")}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={
-              !organizationId ||
-              !hasLoadedRoles ||
-              hasUnsavedChanges ||
-              isSaving ||
-              isImporting
-            }
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Upload className="h-4 w-4" aria-hidden="true" />
-            {isImporting
-              ? message("rolesUploading")
-              : message("rolesUploadJson")}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAddRole}
-            disabled={
-              !organizationId || !hasLoadedRoles || isSaving || isImporting
-            }
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-            {message("rolesAdd")}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={
-              !organizationId ||
-              !hasLoadedRoles ||
-              !hasUnsavedChanges ||
-              isSaving ||
-              isImporting
-            }
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Key className="h-4 w-4" aria-hidden="true" />
-            {isSaving ? message("rolesSaving") : message("rolesSave")}
-          </button>
-        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{message("rolesDescription")}</p>
       </div>
 
       {errorMessage && (

@@ -19,7 +19,7 @@ import {
   resolveOrganizationLogoUrl,
   settingsApi,
   type OrganizationBranding,
-} from '@/app/(workspace)/settings/settings-api';
+} from '@/lib/api/settings/settings-api';
 
 import {
   ArrowLeftRight,

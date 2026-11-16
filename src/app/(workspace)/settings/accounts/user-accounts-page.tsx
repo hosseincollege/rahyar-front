@@ -21,10 +21,11 @@ import { getLocaleDirection, usePreferences } from '@/components/preferences-pro
 import { uiMessage } from '@/lib/ui-messages';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi, type UserItem, type BranchItem, type DepartmentItem, type RoleItem } from '@/app/(workspace)/settings/settings-api';
+import { settingsApi, type UserItem, type BranchItem, type DepartmentItem, type RoleItem } from '@/lib/api/settings/settings-api';
 
 import { UserFormModal, type UserFormData } from './user-form-modal';
 import { parseUsersToItems, usersImportSample } from './users-json';
+import { SettingsPageToolbar } from '../components/settings-page-toolbar';
 
 const emptyFormData: UserFormData = {
   name: '',
@@ -131,7 +132,10 @@ export function UserAccountsPage() {
   }, []);
 
   useEffect(() => {
-    void loadUsers();
+    const loadTimer = window.setTimeout(() => {
+      void loadUsers();
+    }, 0);
+    return () => window.clearTimeout(loadTimer);
   }, [loadUsers]);
 
   useEffect(() => {
@@ -429,55 +433,24 @@ export function UserAccountsPage() {
         </div>
       )}
 
-      {/* هدر و دکمه‌های نوار ابزار */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Users className="size-5 text-primary" />
-            مدیریت کاربران
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            ایجاد، ویرایش، حذف و مدیریت دسته‌جمعی اطلاعات کاربران سازمان
-          </p>
-        </div>
+      <SettingsPageToolbar>
+        {canManage && <button type="button" onClick={openCreateUserModal} disabled={isSaving} aria-label="افزودن کاربر" title="افزودن کاربر" className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" aria-hidden="true" /></button>}
+        <button type="button" onClick={handleDownloadSampleDirect} disabled={isSaving} aria-label="دانلود فایل نمونه JSON" title="دانلود فایل نمونه JSON" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-4" aria-hidden="true" /></button>
+        {canManage && <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSaving} aria-label="بارگذاری فایل JSON" title="بارگذاری فایل JSON" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}</button>}
+        <label className="rahcom-search-capsule relative block w-56 max-w-[15rem] shrink-0 rounded-full">
+          <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={message('usersSearchPlaceholder')} aria-label={message('usersSearchPlaceholder')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-3 text-start text-sm outline-none focus:border-primary" />
+        </label>
+      </SettingsPageToolbar>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {canManage && (
-            <button
-              type="button"
-              onClick={openCreateUserModal}
-              disabled={isSaving}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow transition hover:bg-primary/90 disabled:opacity-50"
-            >
-              <Plus className="size-4" />
-              افزودن کاربر
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleDownloadSampleDirect}
-            disabled={isSaving}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
-            title="دانلود ساختار نمونه JSON"
-          >
-            <Download className="size-4" />
-            دانلود فایل نمونه
-          </button>
-
-          {canManage && (
-            <button
-                type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSaving}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium text-foreground transition hover:bg-muted disabled:opacity-50"
-              title="انتخاب و درون‌ریزی مستقیم فایل JSON"
-            >
-              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-              بارگذاری فایل JSON
-            </button>
-          )}
-        </div>
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Users className="size-5 text-primary" aria-hidden="true" />
+          مدیریت کاربران
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          ایجاد، ویرایش، حذف و مدیریت دسته‌جمعی اطلاعات کاربران سازمان
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -488,12 +461,6 @@ export function UserAccountsPage() {
 
       {/* جدول فهرست کاربران */}
       <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <div className="border-b border-border p-3 sm:p-4">
-          <label className="relative block max-w-md">
-            <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={message('usersSearchPlaceholder')} className="h-10 w-full rounded-xl border border-border bg-background ps-9 pe-3 text-start text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" />
-          </label>
-        </div>
         {isLoading ? (
           <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
@@ -538,14 +505,14 @@ export function UserAccountsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-muted-foreground" dir="ltr">
-                        {user.email || '—'}
+                        {user.email || 'â€”'}
                       </td>
                       <td className="px-5 py-4">
                         <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                           {user.role || user.roleKey || 'بدون نقش'}
                         </span>
                       </td>
-                      <td className="px-5 py-4"><div>{user.department || '—'}</div>{user.branchName && <div className="mt-1 text-xs text-muted-foreground">{message('accountOffice')}: {message('organizationProvince')} {user.branchName}</div>}</td>
+                      <td className="px-5 py-4"><div>{user.department || 'â€”'}</div>{user.branchName && <div className="mt-1 text-xs text-muted-foreground">{message('accountOffice')}: {message('organizationProvince')} {user.branchName}</div>}</td>
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -585,11 +552,11 @@ export function UserAccountsPage() {
                         <td colSpan={canManage ? 6 : 5} className="px-5 py-4">
                           <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
                             <p><span className="text-muted-foreground">{message('usersDetailName')}: </span>{user.name || user.username}</p>
-                            <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailEmail')}: </span>{user.email || '—'}</p>
+                            <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailEmail')}: </span>{user.email || 'â€”'}</p>
                             <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailUsername')}: </span>{user.username}</p>
                             <p><span className="text-muted-foreground">{message('usersDetailRole')}: </span>{user.role || user.roleKey || 'بدون نقش'}</p>
-                            <p><span className="text-muted-foreground">{message('accountOffice')}: </span>{user.branchName ? `${message('organizationProvince')} ${user.branchName}` : '—'}</p>
-                            <p><span className="text-muted-foreground">{message('usersDetailDepartment')}: </span>{user.department || '—'}</p>
+                            <p><span className="text-muted-foreground">{message('accountOffice')}: </span>{user.branchName ? `${message('organizationProvince')} ${user.branchName}` : 'â€”'}</p>
+                            <p><span className="text-muted-foreground">{message('usersDetailDepartment')}: </span>{user.department || 'â€”'}</p>
                             <p><span className="text-muted-foreground">{message('usersDetailStatus')}: </span>{isActive ? message('usersActive') : message('usersInactive')}</p>
                           </div>
                         </td>

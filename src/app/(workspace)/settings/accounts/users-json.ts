@@ -1,7 +1,7 @@
-// File: frontend/src/app/(workspace)/settings/users/users-json.ts
+﻿// File: frontend/src/app/(workspace)/settings/users/users-json.ts
 // Frontend - منطق JSON حساب‌های کاربری: نمونه، اعتبارسنجی و تبدیل داده‌ها
 
-import type { UserItem, UserRoleItem } from '@/app/(workspace)/settings/settings-api';
+import type { UserItem, UserRoleItem } from '@/lib/api/settings/settings-api';
 
 /**
  * ساختار هر کاربر در فایل JSON ورودی و خروجی.

@@ -12,7 +12,7 @@ import { RahcomSolarDaily } from '@/app/(workspace)/rahcom/solar-daily/rahcom-so
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
 import { RahcomCountCapsule } from '@/app/(workspace)/rahcom/_shared/rahcom-count-capsule';
 import { getCurrentOrganizationId, getCurrentUser } from '@/lib/api/shared/auth-api';
-import { settingsApi } from '@/app/(workspace)/settings/settings-api';
+import { settingsApi } from '@/lib/api/settings/settings-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
 import { RahcomTickets } from '@/app/(workspace)/rahcom/tickets/rahcom-tickets';
