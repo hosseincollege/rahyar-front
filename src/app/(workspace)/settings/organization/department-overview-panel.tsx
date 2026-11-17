@@ -56,8 +56,6 @@ export function DepartmentOverviewPanel({
   const [error, setError] = useState('');
 
   const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
     try {
       const [details, available] = await Promise.all([
         settingsApi.getDepartmentOverview(departmentId),
@@ -88,7 +86,7 @@ export function DepartmentOverviewPanel({
   }, [canEdit, departmentId]);
 
   useEffect(() => {
-    void loadData();
+    void Promise.resolve().then(loadData);
   }, [loadData]);
 
   const runAction = async (key: string, action: () => Promise<unknown>) => {
@@ -97,12 +95,14 @@ export function DepartmentOverviewPanel({
     try {
       await action();
       await loadData();
+      return true;
     } catch (actionError) {
       setError(
         actionError instanceof Error
           ? actionError.message
           : 'عملیات انجام نشد.',
       );
+      return false;
     } finally {
       setBusyAction(null);
     }
@@ -116,12 +116,13 @@ export function DepartmentOverviewPanel({
       managerEmployeeId: teamForm.managerEmployeeId || null,
       employeeIds: teamForm.employeeIds,
     };
-    await runAction('team', async () => {
+    const saved = await runAction('team', async () => {
       if (teamForm.id) {
         return settingsApi.updateDepartmentTeam(teamForm.id, payload);
       }
       return settingsApi.createDepartmentTeam(departmentId, payload);
     });
+    if (!saved) return;
     setTeamForm(EMPTY_TEAM);
     setTeamFormOpen(false);
   };
@@ -216,7 +217,7 @@ export function DepartmentOverviewPanel({
                     <option value="">تعیین نشده</option>
                     {overview.employees.map((employee) => (
                       <option key={employee.id} value={employee.id}>
-                        {employeeName(employee)} â€” {employee.jobTitle || employee.employeeCode}
+                        {employeeName(employee)} — {employee.jobTitle || employee.employeeCode}
                       </option>
                     ))}
                   </select>
@@ -250,7 +251,7 @@ export function DepartmentOverviewPanel({
                   <option value="">انتخاب کارمندِ بدون دپارتمان</option>
                   {availableEmployees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
-                      {employeeName(employee)} â€” {employee.jobTitle || employee.employeeCode}
+                      {employeeName(employee)} — {employee.jobTitle || employee.employeeCode}
                     </option>
                   ))}
                 </select>
@@ -432,7 +433,7 @@ export function DepartmentOverviewPanel({
                       <option value="">تعیین نشده</option>
                       {overview.employees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
-                          {employeeName(employee)} â€” {employee.jobTitle || employee.employeeCode}
+                          {employeeName(employee)} — {employee.jobTitle || employee.employeeCode}
                         </option>
                       ))}
                     </select>

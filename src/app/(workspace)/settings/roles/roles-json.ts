@@ -18,15 +18,10 @@ export type ImportedRoleItem = Omit<RoleItem, 'id' | 'userCount'>;
 export const rolesImportSample: RolesImportData = {
   roles: [
     {
-      key: 'ADMIN',
-      name: 'مدیر سیستم',
-      description: 'دسترسی کامل به تنظیمات و عملیات سازمان',
-      permissions: [
-        'settings.read',
-        'settings.write',
-        'users.read',
-        'users.write',
-      ],
+      key: 'FIELD_OPERATOR',
+      name: 'کارشناس عملیات',
+      description: 'نمونهٔ یک نقش عادی سازمانی',
+      permissions: ['settings.read'],
     },
   ],
 };
@@ -168,9 +163,7 @@ export function rolesImportDataToItems(
   return data.roles.map((role): ImportedRoleItem => ({
     key: role.key ?? '',
     name: role.name,
-    ...(role.description
-      ? { description: role.description }
-      : {}),
+    description: role.description ?? '',
     permissions: role.permissions,
   }));
 }

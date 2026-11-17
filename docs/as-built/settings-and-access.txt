@@ -1,5 +1,5 @@
 مستند As-Built تنظیمات و دسترسی
-بازبینی: ۳۱ اکتبر ۲۰۲۶
+بازبینی: ۱۷ نوامبر ۲۰۲۶
 
 دامنه
 تنظیمات هویت سازمان، ظاهر و ترجیحات، اعضا و حساب‌ها، نقش‌ها، ساختار سازمانی و داده‌های مورد استفاده رهکام را مدیریت می‌کند. جزئیات صفحه‌ها در src/app/(workspace)/settings/ و توابع سرویس در settings-api.ts قرار دارند.
@@ -25,3 +25,43 @@ prisma/schema/organization.prisma و فایل‌های مرتبط : سازمان
 - تغییر نقش/عضویت باید با کنترل دسترسی و روابط داده‌ای هماهنگ باشد.
 - افزودن متن رابط، هر ده زبان فعال پروژه را به‌روز می‌کند.
 - تغییر schema فقط با migration نسخه‌بندی‌شده و قابل بازبینی انجام شود.
+
+رفتار فعلی حساب و ساختار سازمانی
+- فرم حساب کاربری همه نقش‌های عضویت کاربر را با چک‌باکس نشان می‌دهد و اجازه می‌دهد چند نقش هم‌زمان انتساب یابد؛ نقش‌های غیرقابل‌مدیریت به‌صورت انتخاب‌شده و قفل‌شده حفظ می‌شوند. نام نقش‌های تخصیص‌یافته در فهرست و جزئیات حساب نمایش داده می‌شود و خطاهای اعتبارسنجی/ذخیره داخل پنجره می‌آیند.
+- ذخیرهٔ عادی حساب فقط همان حساب تغییرکرده را ارسال می‌کند؛ درون‌ریزی JSON همچنان به‌صورت گروهی انجام می‌شود. این کار از بازنویسی ناخواستهٔ تغییر حساب‌های دیگر بر پایهٔ فهرست قدیمی صفحه جلوگیری می‌کند.
+- عنوان، راهنما، برچسب‌ها، placeholderها و کنترل‌های رمز/وضعیت پنجرهٔ حساب از پیام‌های مشترک استفاده می‌کنند و برای هر ده زبان فعال ترجمه دارند.
+- فرم نقش، توضیح خالی را هم به‌عنوان تغییر صریح ذخیره می‌کند؛ مجوزهایی که در رابط فعلی قابل ویرایش نیستند در ذخیره حفظ می‌شوند.
+- خواندن پاسخ بلافاصله پس از ذخیرهٔ حساب یا نقش با مجوزی انجام می‌شود که پیش از تراکنش برای نوشتن تأیید شده است؛ اگر تغییر، دسترسی خود کاربر را حذف کند، عملیات موفق به‌اشتباه خطا گزارش نمی‌شود. درخواست‌های بعدی طبق دسترسی جدید ارزیابی می‌شوند.
+- پنجره‌های حساب و ساختار سازمانی از سطح کارت مات استفاده می‌کنند و صفحه پشت پنجره را تیره یا محو نمی‌کنند.
+- درون‌ریزی ساختار سازمانی ابتدا JSON را اعتبارسنجی و خلاصه تعداد شعب و دپارتمان‌ها را نشان می‌دهد. کدهای موجود به‌روزرسانی، کدهای جدید ایجاد و رکوردهای غایب از فایل حفظ می‌شوند؛ ثبت نیاز به تأیید صریح دارد.
+- پیش‌نمایش درون‌ریزی به شناسه سازمان انتخاب‌شده هنگام آماده‌سازی فایل متصل است. تغییر سازمان، پیش‌نمایش را نامعتبر می‌کند و نیازمند انتخاب دوباره فایل است.
+- اگر JSON قدیمی وضعیت فعال/غیرفعال نداشته باشد، در به‌روزرسانی وضعیت فعلی حفظ می‌شود؛ رکوردهای تازه طبق پیش‌فرض بک‌اند فعال می‌شوند.
+- در ویرایش دپارتمان، انتخاب «مستقل از شعبه» با `branchId: null` ارسال می‌شود تا انتساب قبلی واقعاً پاک شود.
+- هنگام مشاهده کارکنان یک شعبه، خطای دریافت به‌صورت پیام مجزا همراه با امکان تلاش دوباره نمایش داده می‌شود تا با نبود نیروی تخصیص‌یافته اشتباه نشود.
+
+Role permission delegation
+- Organization access responses include the acting member’s effective permission keys for the role editor.
+- Non-administrator role writers can only add, remove, or preserve permissions they themselves hold. The backend enforces this for direct saves and JSON imports; UI restrictions are advisory and administrator role management remains unrestricted.
+- Custom role import cannot resolve a system-role key into a system-role update. Saving roles refreshes access so changes to the operator’s own grants take effect immediately in the editor.
+
+- Account role choices include a server-derived canAssignToUsers flag. Non-administrators may change a role assignment only when every permission on that role is already in their own effective access; the backend repeats this check for any added or removed assignment.
+
+Account list localization and feedback
+- The account list uses the shared locale catalog for its page title and description, toolbar accessibility labels, table headings, empty/loading states, validation, save/import/delete feedback, and delete confirmation. Role names in detail tooltips use locale-aware list formatting.
+- Empty account lists now explain the next step according to whether the viewer can manage accounts; read-only users are directed to an organization administrator.
+
+Account edit dialog
+- The account form dialog uses an opaque theme card and foreground text instead of the elevated-surface token, which can be washed out in the selected appearance palette. Its backdrop is visibly separated from the dialog, and the dialog remains bounded by viewport height with its own content scroll when the form is taller than the screen. The page behind it is locked while open, and keyboard focus skips disabled or hidden controls.
+
+Organization branch and department assignment behavior
+- Removing an employee from a department clears the department membership and related manager/team references while retaining the employee's branch assignment.
+- Available employees for a branch department are limited to unassigned employees already in that branch or with no branch. Assigning an employee from a different branch is rejected; the conditional database update also protects against a concurrent membership/branch change. Removing a staff member uses a conditional transactional update so a concurrent department transfer is not accidentally cleared.
+
+Organization structure dialogs
+- Branch, department, and organization-import dialogs now use the opaque card/foreground theme pair and a distinct dimmed backdrop, keeping their form text separate from the page background.
+
+Account email edit persistence
+- Editing an existing account now writes the normalized email to the user record. The backend checks whether the normalized email or username is already owned by a different account and returns a conflict instead of reporting a successful save with unchanged email.
+
+Account import isolation
+- The account import endpoint receives only imported rows, not the browser's entire account-list snapshot. It returns the server's canonical full list for display. The service rejects duplicate account IDs, email addresses, or usernames in one batch and selects a unique generated username for new imports when the email local part is already taken; omitting a username does not rename an account matched by email.

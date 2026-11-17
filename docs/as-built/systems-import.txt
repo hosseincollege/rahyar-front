@@ -10,8 +10,11 @@ The Systems page reads the province-scoped systems API for every province, inclu
 
 Saving a backup uses the browser's Save File Picker where available, with an appropriate suggested filename. Choose the tracked workbook path (src/provinces/ESF-systems.xlsx) to replace that local backup; browsers and hosted deployments cannot write directly into the Git repository. The downloaded/selected file must still be added to a commit separately if it should become part of a deployment. The database remains the live source, so changes made in Excel affect the system only after the workbook is restored/imported.
 
-When the Systems page's traffic incident comparison is enabled, it also displays incident-marked traffic-list rows whose system code is absent from the Isfahan master workbook. These temporary rows use the selected date's traffic snapshot and do not write or create master system records.
+
+The Systems list reads outage labels only from each organization- and province-scoped system record. It does not merge traffic-list rows or read system labels from traffic snapshots; traffic comparison remains confined to the daily traffic page.
 
 Manual system creation: authorized users can add a system from the Systems toolbar when a specific province is selected. The compact form requires system name, system code, latitude, and longitude; it submits through the existing province-scoped systems import API, then refreshes the list. Isfahan uses the same province import path as its Excel-backed records.
 
 System details page: the system information popup links to /rahcom/systems/[systemCode]?province=... . The page reads the province scoped system record and presents system identity, axis, coordinates, bill identifier, equipment IPs, incident/outage information, and notes. Users with Rahcom management permission can edit these fields; Isfahan saves through the systems import/upsert path, and other provinces use the system update endpoint.
+
+Search keeps an immediate local input draft while deferring the table query update, so typing does not wait for the full systems table to filter. The optional electricity bill workbook is tagged with its selected province; details are shown only when the workbook belongs to the currently selected province. Long-outage labels are edited in the system detail editor; no separate unreachable label editor is rendered.

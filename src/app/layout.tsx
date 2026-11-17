@@ -5,18 +5,10 @@
 
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Vazirmatn } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PreferencesProvider } from "@/components/preferences-provider";
 import { VisitorPresenceTracker } from "@/components/home/visitor-presence-tracker";
 import "./globals.css";
-
-const vazirmatn = Vazirmatn({
-  subsets: ["arabic"],
-  variable: "--font-vazirmatn",
-  display: "swap",
-  preload: true,
-});
 
 const appearanceBootstrap = `(() => {
   try {
@@ -75,7 +67,6 @@ export default function RootLayout({
       lang="fa"
       dir="rtl"
       suppressHydrationWarning
-      className={vazirmatn.variable}
     >
       <body className="font-sans antialiased h-screen overflow-hidden bg-[color:var(--background)] text-[color:var(--foreground)]">
         <Script id="appearance-bootstrap" strategy="beforeInteractive">{appearanceBootstrap}</Script>

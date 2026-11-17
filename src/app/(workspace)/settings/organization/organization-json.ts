@@ -1,4 +1,4 @@
-﻿// Frontend â€” src/app/(workspace)/settings/general/organization-json.ts
+﻿// Frontend — src/app/(workspace)/settings/general/organization-json.ts
 // منطق JSON ساختار سازمانی: نمونه، اعتبارسنجی و تبدیل شعب و دپارتمان‌ها.
 
 import type {
@@ -21,6 +21,7 @@ export type OrganizationStructureBranchData = {
   address?: string;
   postalCode?: string;
   isMain?: boolean;
+  isActive?: boolean;
 };
 
 /**
@@ -34,6 +35,7 @@ export type OrganizationStructureDepartmentData = {
   code: string;
   description?: string;
   branchName?: string;
+  isActive?: boolean;
 };
 
 /**
@@ -58,6 +60,7 @@ export const organizationStructureImportSample: OrganizationStructureImportData 
         address: 'تهران، خیابان نمونه، پلاک ۱',
         postalCode: '1234567890',
         isMain: true,
+        isActive: true,
       },
       {
         name: 'شعبه اصفهان',
@@ -67,6 +70,7 @@ export const organizationStructureImportSample: OrganizationStructureImportData 
         address: 'اصفهان، خیابان نمونه، پلاک ۲',
         postalCode: '8134567890',
         isMain: false,
+        isActive: true,
       },
     ],
     departments: [
@@ -75,18 +79,21 @@ export const organizationStructureImportSample: OrganizationStructureImportData 
         code: 'FIN',
         description: 'مسئول امور مالی، حسابداری و پرداخت‌ها',
         branchName: 'شعبه مرکزی تهران',
+        isActive: true,
       },
       {
         name: 'منابع انسانی',
         code: 'HR',
         description: 'مسئول امور کارکنان و استخدام',
         branchName: 'شعبه مرکزی تهران',
+        isActive: true,
       },
       {
         name: 'فروش اصفهان',
         code: 'SALE-ISF',
         description: 'واحد فروش و ارتباط با مشتریان در اصفهان',
         branchName: 'شعبه اصفهان',
+        isActive: true,
       },
     ],
   };
@@ -137,6 +144,7 @@ function parseBranch(
   const branch = rawBranch as Record<string, unknown>;
   const email = getOptionalString(branch, 'email');
   const isMain = branch.isMain;
+  const isActive = branch.isActive;
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error(`ایمیل شعبه در ردیف ${index + 1} معتبر نیست.`);
@@ -151,6 +159,15 @@ function parseBranch(
       `فیلد «isMain» در شعبه ردیف ${index + 1} باید true یا false باشد.`,
     );
   }
+  if (
+    isActive !== undefined &&
+    isActive !== null &&
+    typeof isActive !== 'boolean'
+  ) {
+    throw new Error(
+      `فیلد «isActive» در شعبه ردیف ${index + 1} باید true یا false باشد.`,
+    );
+  }
 
   return {
     name: getRequiredString(branch, 'name', `نام شعبه در ردیف ${index + 1}`),
@@ -160,6 +177,7 @@ function parseBranch(
     address: getOptionalString(branch, 'address'),
     postalCode: getOptionalString(branch, 'postalCode'),
     isMain: isMain as boolean | undefined,
+    isActive: isActive as boolean | undefined,
   };
 }
 
@@ -178,6 +196,17 @@ function parseDepartment(
 
   const department = rawDepartment as Record<string, unknown>;
   const branchName = getOptionalString(department, 'branchName');
+  const isActive = department.isActive;
+
+  if (
+    isActive !== undefined &&
+    isActive !== null &&
+    typeof isActive !== 'boolean'
+  ) {
+    throw new Error(
+      `فیلد «isActive» در دپارتمان ردیف ${index + 1} باید true یا false باشد.`,
+    );
+  }
 
   if (branchName && !branchNames.has(branchName)) {
     throw new Error(
@@ -200,6 +229,7 @@ function parseDepartment(
     ),
     description: getOptionalString(department, 'description'),
     branchName,
+    isActive: isActive as boolean | undefined,
   };
 }
 
@@ -297,8 +327,14 @@ export function parseOrganizationStructureImportData(
   );
 
   const departmentKeys = new Set<string>();
+  const departmentCodes = new Set<string>();
 
   for (const department of departments) {
+    if (departmentCodes.has(department.code)) {
+      throw new Error(`کد دپارتمان «${department.code}» تکراری است.`);
+    }
+    departmentCodes.add(department.code);
+
     const uniqueKey = `${
       department.branchName || 'بدون-شعبه'
     }::${department.name}`;
@@ -334,7 +370,8 @@ export function organizationStructureToApiPayload(
       email: branch.email,
       address: branch.address,
       postalCode: branch.postalCode,
-      isActive: true,
+      // Preserve omission: the API keeps existing status unchanged and defaults new branches to active.
+      isActive: branch.isActive,
       isMain: branch.isMain,
     })),
     departments: data.departments.map((department) => ({
@@ -342,6 +379,8 @@ export function organizationStructureToApiPayload(
       code: department.code,
       description: department.description,
       branchName: department.branchName,
+      // Preserve omission: the API keeps existing status unchanged and defaults new departments to active.
+      isActive: department.isActive,
     })),
   };
 }
@@ -363,12 +402,14 @@ export function organizationStructureToExportData(
       email: branch.email || undefined,
       address: branch.address || undefined,
       postalCode: branch.postalCode || undefined,
-      isMain: branch.isHeadquarters ?? branch.isActive ?? false,
+      isMain: branch.isHeadquarters ?? branch.isMain ?? false,
+      isActive: branch.isActive,
     })),
     departments: departments.map((department) => ({
       name: department.name,
       code: department.code || '',
       branchName: department.branch?.name || undefined,
+      isActive: department.isActive,
     })),
   };
 }

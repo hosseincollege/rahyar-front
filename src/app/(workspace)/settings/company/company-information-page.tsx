@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
   FileUp,
   Globe,
+  Image as ImageIcon,
   Mail,
   MapPin,
   Phone,
@@ -25,6 +26,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
+import { SettingsPageToolbar } from '../components/settings-page-toolbar';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
@@ -103,6 +105,7 @@ export function CompanyInformationPage() {
 
   // استیت‌های فرآیند اعتبارسنجی و ثبت مرحله‌ای فایل جیسون
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [isImportPanelOpen, setIsImportPanelOpen] = useState(false);
   const [validatedData, setValidatedData] = useState<CompanyImportData | null>(null);
   const [importing, setImporting] = useState(false);
   const [jsonValidationMessage, setJsonValidationMessage] = useState<{
@@ -140,11 +143,8 @@ export function CompanyInformationPage() {
   }, []);
 
   const fetchCompanyData = async () => {
-    setLoading(true);
-
     try {
       const resolvedOrgId = getCurrentOrganizationId();
-      setOrgId(resolvedOrgId);
 
       if (!resolvedOrgId) {
         throw new Error('سازمان فعال در نشست کاربر پیدا نشد.');
@@ -154,6 +154,7 @@ export function CompanyInformationPage() {
         settingsApi.getOrganization(resolvedOrgId),
         settingsApi.getOrganizationAccess(resolvedOrgId),
       ]);
+      setOrgId(resolvedOrgId);
       setCanEdit(access.canEdit);
 
       if (serverData) {
@@ -198,7 +199,7 @@ export function CompanyInformationPage() {
   };
 
   useEffect(() => {
-    void fetchCompanyData();
+    void Promise.resolve().then(fetchCompanyData);
   }, []);
 
   const handleChange = (
@@ -224,6 +225,7 @@ export function CompanyInformationPage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    setIsImportPanelOpen(true);
 
     if (!orgId) {
       showToast('error', 'شناسه سازمان برای بارگذاری لوگو در دسترس نیست.');
@@ -389,6 +391,7 @@ export function CompanyInformationPage() {
     setSelectedFileName(null);
     setValidatedData(null);
     setJsonValidationMessage(null);
+    setIsImportPanelOpen(false);
   };
 
   // ۲. ارسال و ثبت قطعی داده‌های اعتبارسنجی‌شده (Confirm Step)
@@ -433,7 +436,7 @@ export function CompanyInformationPage() {
       case 'EUR':
         return 'یورو (EUR)';
       default:
-        return code || 'â€”';
+        return code || '—';
     }
   };
 
@@ -464,8 +467,51 @@ export function CompanyInformationPage() {
         </div>
       )}
 
+      <SettingsPageToolbar>
+        {canEdit && !isEditing && (
+          <button type="button" onClick={() => { setFormData(data); setIsEditing(true); }} disabled={importing || Boolean(validatedData)} aria-label="ویرایش اطلاعات شرکت" title="ویرایش اطلاعات شرکت" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">
+            <Edit3 className="size-4" aria-hidden="true" />
+          </button>
+        )}
+        {canEdit && (
+          <>
+            <button type="button" onClick={handleDownloadCompanySample} disabled={importing} aria-label="دانلود نمونه اطلاعات شرکت" title="دانلود نمونه اطلاعات شرکت" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+              <FileDown className="size-4" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={importing || saving || isEditing} aria-label={selectedFileName ? 'انتخاب فایل دیگر برای ورود اطلاعات شرکت' : 'بارگذاری و بررسی فایل اطلاعات شرکت'} title={selectedFileName ? 'انتخاب فایل دیگر' : 'بارگذاری و بررسی فایل اطلاعات شرکت'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+              <FileUp className="size-4" aria-hidden="true" />
+            </button>
+          </>
+        )}
+        <input ref={fileInputRef} type="file" accept="application/json,.json" onChange={handleFileSelectAndValidate} className="hidden" />
+        {canEdit && validatedData && (
+          <>
+            <button type="button" onClick={handleCancelJsonImport} disabled={importing} aria-label="لغو ورود اطلاعات شرکت" title="لغو ورود اطلاعات شرکت" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+              <RotateCcw className="size-4" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={handleConfirmImport} disabled={importing || saving} aria-label={importing ? 'در حال ثبت اطلاعات شرکت' : 'تأیید و ثبت اطلاعات شرکت'} title={importing ? 'در حال ثبت اطلاعات شرکت' : 'تأیید و ثبت اطلاعات شرکت'} className="grid size-9 shrink-0 place-items-center rounded-full border border-emerald-600 bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:opacity-50">
+              {importing ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : <FileCheck className="size-4" aria-hidden="true" />}
+            </button>
+          </>
+        )}
+        {canEdit && isEditing && (
+          <>
+            <button type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo || importing} aria-label="انتخاب فایل لوگو" title={uploadingLogo ? 'در حال بارگذاری لوگو' : 'انتخاب فایل لوگو'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+              <ImageIcon className="size-4" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={handleCancel} disabled={saving || importing} aria-label="انصراف از ویرایش" title="انصراف از ویرایش" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+              <X className="size-4" aria-hidden="true" />
+            </button>
+            <button type="submit" form="company-form" disabled={saving || importing} aria-label={saving ? 'در حال ذخیره اطلاعات' : 'ذخیره تغییرات شرکت'} title={saving ? 'در حال ذخیره اطلاعات' : 'ذخیره تغییرات شرکت'} className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+              {saving ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : <Save className="size-4" aria-hidden="true" />}
+            </button>
+          </>
+        )}
+        {!canEdit && <span className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-background px-3 text-xs text-muted-foreground">دسترسی فقط مشاهده</span>}
+      </SettingsPageToolbar>
+
       {/* بخش ۱: دریافت قالب و ورود اطلاعات؛ فقط برای کاربران دارای مجوز ویرایش */}
-      {canEdit && <details className="group rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+      {canEdit && <details open={isImportPanelOpen} onToggle={(event) => setIsImportPanelOpen(event.currentTarget.open)} className="group rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -482,37 +528,6 @@ export function CompanyInformationPage() {
           </div>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
-            <button
-              type="button"
-              onClick={handleDownloadCompanySample}
-              disabled={importing}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted active:scale-95 disabled:opacity-50"
-              title="دانلود فایل نمونه جهت تکمیل اطلاعات"
-            >
-              <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
-              دانلود نمونه JSON
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted active:scale-95 disabled:opacity-50"
-            >
-              <FileUp className="h-3.5 w-3.5 text-muted-foreground" />
-              {selectedFileName ? 'انتخاب فایل دیگر' : 'بارگذاری و بررسی JSON'}
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleFileSelectAndValidate}
-              className="hidden"
-            />
-          </div>
 
         {/* وضعیت اعتبارسنجی و اکشن ثبت قطعی فایل */}
         {jsonValidationMessage && (
@@ -532,33 +547,6 @@ export function CompanyInformationPage() {
               <span className="leading-relaxed">{jsonValidationMessage.text}</span>
             </div>
 
-            {validatedData && (
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCancelJsonImport}
-                  disabled={importing}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted active:scale-95"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  انصراف
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleConfirmImport}
-                  disabled={importing}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
-                >
-                  {importing ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <FileCheck className="h-3.5 w-3.5" />
-                  )}
-                  {importing ? 'در حال ثبت اطلاعات...' : 'ثبت و اعمال اطلاعات فایل'}
-                </button>
-              </div>
-            )}
           </div>
         )}
       </details>}
@@ -580,52 +568,7 @@ export function CompanyInformationPage() {
             </div>
           </div>
 
-          {/* دکمه‌های کنترل وضعیت ویرایش */}
-          {!isEditing ? (
-            canEdit ? (
-            <button
-              type="button"
-              onClick={() => {
-                setFormData(data);
-                setIsEditing(true);
-              }}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 active:scale-95"
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-              ویرایش اطلاعات
-            </button>
-            ) : (
-              <span className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
-                دسترسی فقط مشاهده
-              </span>
-            )
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted active:scale-95"
-              >
-                <X className="h-3.5 w-3.5" />
-                انصراف
-              </button>
-
-              <button
-                type="submit"
-                form="company-form"
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 active:scale-95 disabled:opacity-50"
-              >
-                {saving ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Save className="h-3.5 w-3.5" />
-                )}
-                {saving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
-              </button>
-            </div>
-          )}
+          <span className="text-xs text-muted-foreground">{isEditing ? 'برای ثبت تغییرات از دکمهٔ ذخیره در نوار ابزار بالا استفاده کنید.' : 'برای تغییر مشخصات، ویرایش را از نوار ابزار بالا انتخاب کنید.'}</span>
         </div>
 
         {/* حالت نمایش (View Mode) */}
@@ -639,32 +582,32 @@ export function CompanyInformationPage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">نام سازمان / برند</span>
-                  <span className="mt-1.5 block text-sm font-semibold text-foreground">{data.name || 'â€”'}</span>
+                  <span className="mt-1.5 block text-sm font-semibold text-foreground">{data.name || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">نام کامل رسمی</span>
-                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.legalName || 'â€”'}</span>
+                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.legalName || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شناسه یکتا (Slug)</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.slug || 'â€”'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.slug || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شناسه ملی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.nationalId || 'â€”'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.nationalId || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شماره ثبت</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.registrationNumber || 'â€”'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.registrationNumber || '—'}</span>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">کد اقتصادی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.economicCode || 'â€”'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.economicCode || '—'}</span>
                 </div>
               </div>
             </div>
@@ -677,7 +620,7 @@ export function CompanyInformationPage() {
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">حوزه مالیاتی</span>
-                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.taxOffice || 'â€”'}</span>
+                  <span className="mt-1.5 block text-sm font-medium text-foreground">{data.taxOffice || '—'}</span>
                 </div>
 
                 <div>
@@ -687,7 +630,7 @@ export function CompanyInformationPage() {
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">شروع سال مالی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.fiscalYearStart || 'â€”'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.fiscalYearStart || '—'}</span>
                 </div>
               </div>
             </div>
@@ -702,7 +645,7 @@ export function CompanyInformationPage() {
                   <Phone className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">شماره تماس</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.phone || 'â€”'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.phone || '—'}</span>
                   </div>
                 </div>
 
@@ -710,7 +653,7 @@ export function CompanyInformationPage() {
                   <Mail className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">پست الکترونیکی</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.email || 'â€”'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.email || '—'}</span>
                   </div>
                 </div>
 
@@ -718,13 +661,13 @@ export function CompanyInformationPage() {
                   <Globe className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">وب‌سایت</span>
-                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.website || 'â€”'}</span>
+                    <span className="mt-1 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.website || '—'}</span>
                   </div>
                 </div>
 
                 <div>
                   <span className="block text-xs font-semibold text-muted-foreground">کد پستی</span>
-                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.postalCode || 'â€”'}</span>
+                  <span className="mt-1.5 block font-mono text-sm font-medium text-foreground dir-ltr text-end">{data.postalCode || '—'}</span>
                 </div>
 
                 <div>
@@ -741,7 +684,7 @@ export function CompanyInformationPage() {
                       />
                     ) : null}
                     <span className="block truncate font-mono text-xs text-muted-foreground dir-ltr text-end">
-                      {data.logoUrl || 'â€”'}
+                      {data.logoUrl || '—'}
                     </span>
                   </span>
                 </div>
@@ -750,7 +693,7 @@ export function CompanyInformationPage() {
                   <MapPin className="mt-1 h-4 w-4 text-muted-foreground shrink-0" />
                   <div>
                     <span className="block text-xs font-semibold text-muted-foreground">نشانی دقیق شرکت</span>
-                    <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">{data.address || 'â€”'}</p>
+                    <p className="mt-1 text-sm font-medium leading-relaxed text-foreground">{data.address || '—'}</p>
                   </div>
                 </div>
               </div>
@@ -1010,14 +953,6 @@ export function CompanyInformationPage() {
                       className="hidden"
                       onChange={handleLogoUpload}
                     />
-                    <button
-                      type="button"
-                      disabled={uploadingLogo}
-                      onClick={() => logoInputRef.current?.click()}
-                      className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-muted disabled:opacity-50"
-                    >
-                      {uploadingLogo ? 'در حال بارگذاری...' : 'انتخاب فایل لوگو'}
-                    </button>
                     <span className="text-xs text-muted-foreground">
                       PNG، JPG یا WebP؛ حداکثر ۵ مگابایت. بارگذاری فایل روی بک‌اند محلی انجام می‌شود.
                     </span>

@@ -36,6 +36,7 @@ import {
   type BranchItem,
   type DepartmentEmployeeSummary,
   type DepartmentItem,
+  type OrganizationImportPayload,
 } from '@/lib/api/settings/settings-api';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { DepartmentOverviewPanel } from './department-overview-panel';
@@ -66,6 +67,11 @@ type DepartmentWithDisplayFields = DepartmentItem & {
   branchCode?: string;
 };
 
+type PendingOrganizationImport = {
+  organizationId: string;
+  payload: OrganizationImportPayload;
+};
+
 const INITIAL_BRANCH_FORM: BranchFormState = {
   name: '',
   code: '',
@@ -89,6 +95,8 @@ export function OrganizationStructurePage() {
   >([]);
   const [provinceEmployees, setProvinceEmployees] = useState<DepartmentEmployeeSummary[]>([]);
   const [isLoadingProvinceEmployees, setIsLoadingProvinceEmployees] = useState(false);
+  const [provinceEmployeesError, setProvinceEmployeesError] = useState(false);
+  const [provinceEmployeesRetry, setProvinceEmployeesRetry] = useState(0);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
@@ -117,6 +125,7 @@ export function OrganizationStructurePage() {
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importFileName, setImportFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [pendingImport, setPendingImport] = useState<PendingOrganizationImport | null>(null);
 
   const [isSavingBranch, setIsSavingBranch] = useState(false);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
@@ -226,23 +235,30 @@ export function OrganizationStructurePage() {
 
   useEffect(() => {
     if (!selectedBranchId) {
-      const resetTimer = window.setTimeout(() => setProvinceEmployees([]), 0);
+      const resetTimer = window.setTimeout(() => {
+        setProvinceEmployees([]);
+        setProvinceEmployeesError(false);
+      }, 0);
       return () => window.clearTimeout(resetTimer);
     }
     let active = true;
     const loadTimer = window.setTimeout(() => {
       if (!active) return;
       setIsLoadingProvinceEmployees(true);
+      setProvinceEmployeesError(false);
       settingsApi.getBranchEmployees(selectedBranchId).then((employees) => {
         if (active) setProvinceEmployees(employees);
       }).catch(() => {
-        if (active) setProvinceEmployees([]);
+        if (active) {
+          setProvinceEmployees([]);
+          setProvinceEmployeesError(true);
+        }
       }).finally(() => {
         if (active) setIsLoadingProvinceEmployees(false);
       });
     }, 0);
     return () => { active = false; window.clearTimeout(loadTimer); };
-  }, [selectedBranchId]);
+  }, [provinceEmployeesRetry, selectedBranchId]);
 
   const downloadJsonFile = (data: unknown, fileName: string) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -329,6 +345,7 @@ export function OrganizationStructurePage() {
   const openImportModal = () => {
     setImportErrors([]);
     setImportFileName('');
+    setPendingImport(null);
     setIsImportModalOpen(true);
   };
 
@@ -340,6 +357,7 @@ export function OrganizationStructurePage() {
     setIsImportModalOpen(false);
     setImportErrors([]);
     setImportFileName('');
+    setPendingImport(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -422,6 +440,7 @@ export function OrganizationStructurePage() {
 
       setBranches((current) => current.filter((item) => item.id !== branch.id));
       setSelectedBranchId((current) => current === branch.id ? null : current);
+      setSelectedDepartmentId(null);
 
       showToast('success', 'شعبه با موفقیت حذف شد.');
 
@@ -486,7 +505,8 @@ export function OrganizationStructurePage() {
     setIsSavingDepartment(true);
 
     try {
-      const departmentPayload = { name: departmentForm.name.trim(), code: departmentForm.code.trim(), branchId: departmentForm.branchId || undefined };
+      // Empty selection is an explicit request to clear the current branch assignment.
+      const departmentPayload = { name: departmentForm.name.trim(), code: departmentForm.code.trim(), branchId: departmentForm.branchId || null };
       if (editingDepartmentId) await settingsApi.updateDepartment(editingDepartmentId, departmentPayload);
       else await settingsApi.createDepartment({ organizationId, ...departmentPayload });
 
@@ -552,7 +572,7 @@ export function OrganizationStructurePage() {
     }
   };
 
-  const executeImport = async (file: File) => {
+  const prepareImportFile = async (file: File): Promise<PendingOrganizationImport> => {
     if (!file.name.toLowerCase().endsWith('.json')) {
       throw new Error('فقط فایل با پسوند JSON قابل انتخاب است.');
     }
@@ -577,12 +597,13 @@ export function OrganizationStructurePage() {
     const importedData = parseOrganizationStructureImportData(rawData);
     const payload = organizationStructureToApiPayload(importedData);
 
-    await settingsApi.importOrganization(organizationId, {
-      branches: payload.branches,
-      departments: payload.departments,
-    });
-
-    await loadOrganizationStructure();
+    return {
+      organizationId,
+      payload: {
+        branches: payload.branches,
+        departments: payload.departments,
+      },
+    };
   };
 
   const handleImportFileChange = async (
@@ -596,16 +617,12 @@ export function OrganizationStructurePage() {
 
     setImportErrors([]);
     setImportFileName(file.name);
+    setPendingImport(null);
     setIsImporting(true);
 
     try {
-      await executeImport(file);
-
-      setIsImportModalOpen(false);
-      setImportErrors([]);
-      setImportFileName('');
-
-      showToast('success', 'ساختار سازمانی با موفقیت درون‌ریزی شد.');
+      const prepared = await prepareImportFile(file);
+      setPendingImport(prepared);
     } catch (error) {
       console.error('Failed to import Organization structure:', error);
 
@@ -620,6 +637,37 @@ export function OrganizationStructurePage() {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingImport || isImporting) return;
+    if (getCurrentOrganizationId() !== pendingImport.organizationId) {
+      setPendingImport(null);
+      setImportFileName('');
+      setImportErrors([uiMessage(locale, 'organizationImportOrganizationChanged')]);
+      return;
+    }
+
+    setIsImporting(true);
+    setImportErrors([]);
+    try {
+      await settingsApi.importOrganization(pendingImport.organizationId, pendingImport.payload);
+      setIsImportModalOpen(false);
+      setImportErrors([]);
+      setImportFileName('');
+      setPendingImport(null);
+      showToast('success', 'ساختار سازمانی با موفقیت درون‌ریزی شد.');
+      await loadOrganizationStructure();
+    } catch (error) {
+      console.error('Failed to import Organization structure:', error);
+      setImportErrors([
+        error instanceof Error
+          ? error.message
+          : 'درون‌ریزی ساختار سازمانی با خطا مواجه شد.',
+      ]);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -724,7 +772,7 @@ export function OrganizationStructurePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {selectedBranch && <button type="button" onClick={() => setSelectedBranchId(null)} className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">نمایش همه استان‌ها</button>}
+            {selectedBranch && <button type="button" onClick={() => { setSelectedBranchId(null); setSelectedDepartmentId(null); }} className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">نمایش همه استان‌ها</button>}
             {canEditStructure && <button type="button" onClick={openBranchModal} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"><Plus size={14} />افزودن شعبه</button>}
           </div>
         </div>
@@ -749,7 +797,10 @@ export function OrganizationStructurePage() {
                   <button
                     type="button"
                     aria-expanded={isSelected}
-                    onClick={() => setSelectedBranchId((current) => current === branch.id ? null : branch.id)}
+                    onClick={() => {
+                      setSelectedBranchId((current) => current === branch.id ? null : branch.id);
+                      setSelectedDepartmentId(null);
+                    }}
                     className="inline-flex min-h-8 items-center rounded-md px-2 text-start text-sm font-semibold text-foreground transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <span className="whitespace-nowrap">{(index + 1).toLocaleString('fa-IR')} - {branch.name}</span>
@@ -767,7 +818,7 @@ export function OrganizationStructurePage() {
               </div>}
             </div>
             <div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold">{uiMessage(locale, 'organizationProvinceStaff')}</h4><span className="rounded-full bg-muted px-2 py-0.5 text-[11px] tabular-nums">{provinceEmployees.length}</span></div>
-            {isLoadingProvinceEmployees ? <p className="text-xs text-muted-foreground">{uiMessage(locale, 'organizationLoadingStaff')}</p> : provinceEmployees.length ? <ul className="flex flex-wrap gap-1.5">{provinceEmployees.map((employee) => <li key={employee.id} className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1"><span className="truncate text-xs">{employee.firstName} {employee.lastName}</span><span className="truncate text-[11px] text-muted-foreground">{employee.jobTitle || employee.employeeCode}</span></li>)}</ul> : <p className="text-xs text-muted-foreground">{uiMessage(locale, 'organizationNoProvinceStaff')}</p>}
+            {isLoadingProvinceEmployees ? <p className="text-xs text-muted-foreground">{uiMessage(locale, 'organizationLoadingStaff')}</p> : provinceEmployeesError ? <div className="flex flex-wrap items-center gap-2 text-xs text-destructive"><span role="alert">{uiMessage(locale, 'organizationLoadStaffFailed')}</span><button type="button" onClick={() => setProvinceEmployeesRetry((count) => count + 1)} className="rounded-md border border-border px-2 py-1 font-medium text-foreground hover:bg-muted">{uiMessage(locale, 'organizationRetry')}</button></div> : provinceEmployees.length ? <ul className="flex flex-wrap gap-1.5">{provinceEmployees.map((employee) => <li key={employee.id} className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border)] px-2 py-1"><span className="truncate text-xs">{employee.firstName} {employee.lastName}</span><span className="truncate text-[11px] text-muted-foreground">{employee.jobTitle || employee.employeeCode}</span></li>)}</ul> : <p className="text-xs text-muted-foreground">{uiMessage(locale, 'organizationNoProvinceStaff')}</p>}
           </div>}
           </div>
         )}
@@ -860,7 +911,7 @@ export function OrganizationStructurePage() {
 
                       <td className="whitespace-nowrap px-6 py-4">
                         <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                          {department.code || 'â€”'}
+                          {department.code || '—'}
                         </span>
                       </td>
 
@@ -919,9 +970,9 @@ export function OrganizationStructurePage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="branch-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex min-h-dvh items-start justify-center overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:items-center sm:p-5"
         >
-          <div className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl">
+          <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-[var(--card-foreground)] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-5">
             <div className="mb-5 flex items-center justify-between border-b border-[var(--border)] pb-4">
               <div>
                 <h3
@@ -1101,9 +1152,9 @@ export function OrganizationStructurePage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="department-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex min-h-dvh items-start justify-center overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:items-center sm:p-5"
         >
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl">
+          <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-[var(--card-foreground)] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-5">
             <div className="mb-5 flex items-center justify-between border-b border-[var(--border)] pb-4">
               <div>
                 <h3
@@ -1245,9 +1296,9 @@ export function OrganizationStructurePage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="Organization-import-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex min-h-dvh items-start justify-center overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:items-center sm:p-5"
         >
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl">
+          <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-[var(--card-foreground)] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-5">
             <div className="mb-5 flex items-start justify-between gap-4 border-b border-[var(--border)] pb-4">
               <div>
                 <h3
@@ -1258,8 +1309,7 @@ export function OrganizationStructurePage() {
                 </h3>
 
                 <p className="mt-1 text-xs leading-6 text-muted-foreground">
-                  فایل JSON شامل شعب و دپارتمان‌ها را انتخاب کنید. موارد تکراری
-                  براساس نام شعبه و کد دپارتمان ثبت نمی‌شوند.
+                  {uiMessage(locale, 'organizationImportDescription')}
                 </p>
               </div>
 
@@ -1302,7 +1352,7 @@ export function OrganizationStructurePage() {
 
                 <span className="text-sm font-semibold text-[var(--foreground)]">
                   {isImporting
-                    ? 'در حال پردازش و ثبت اطلاعات...'
+                    ? uiMessage(locale, 'preferencesSaving')
                     : importFileName || 'انتخاب فایل JSON'}
                 </span>
 
@@ -1325,15 +1375,37 @@ export function OrganizationStructurePage() {
                 </div>
               )}
 
-              <div className="flex justify-end border-t border-[var(--border)] pt-4">
+              {pendingImport && (
+                <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+                  <p className="font-semibold">{uiMessage(locale, 'organizationImportReview')}</p>
+                  <p className="leading-6">
+                    {uiMessage(locale, 'organizationImportBehavior')
+                      .replace('{branches}', new Intl.NumberFormat(locale).format(pendingImport.payload.branches.length))
+                      .replace('{departments}', new Intl.NumberFormat(locale).format(pendingImport.payload.departments.length))}
+                  </p>
+                  <p className="text-xs opacity-80">{importFileName}</p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] pt-4">
                 <button
                   type="button"
                   onClick={closeImportModal}
                   disabled={isImporting}
                   className="rounded-lg border border-[var(--border)] px-4 py-2 text-xs transition hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
                 >
-                  بستن
+                  {uiMessage(locale, 'accountCancel')}
                 </button>
+                {pendingImport && (
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmImport()}
+                    disabled={isImporting}
+                    className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isImporting ? uiMessage(locale, 'preferencesSaving') : uiMessage(locale, 'organizationImportApply')}
+                  </button>
+                )}
               </div>
             </div>
           </div>

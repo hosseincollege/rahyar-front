@@ -197,8 +197,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [mapFilterSource, setMapFilterSource] = useState<'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate'>('solar');
   const [showMapIncidents, setShowMapIncidents] = useState(true);
   const renderedShowMapIncidents = useDeferredValue(showMapIncidents);
-  const [showSolarIncidents, setShowSolarIncidents] = useState(true);
-  const renderedShowSolarIncidents = useDeferredValue(showSolarIncidents);
   const renderedMapFilterSource = useDeferredValue(mapFilterSource);
   const renderedMapSourceFilterActive = useDeferredValue(mapSourceFilterActive);
   const [mapIncidentCount, setMapIncidentCount] = useState(0);
@@ -211,7 +209,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [solarSnapshotDeleteError, setSolarSnapshotDeleteError] = useState('');
   const renderedSolarSnapshotId = useDeferredValue(selectedSolarSnapshotId);
   const toolbarUpdating = renderedShowMapIncidents !== showMapIncidents
-    || renderedShowSolarIncidents !== showSolarIncidents
     || renderedMapFilterSource !== mapFilterSource
     || renderedMapSourceFilterActive !== mapSourceFilterActive
     || renderedSolarSnapshotId !== selectedSolarSnapshotId;
@@ -297,7 +294,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       return;
     }
     setShowMapIncidents(window.localStorage.getItem('rahcom-show-incidents') !== 'false');
-    setShowSolarIncidents(window.localStorage.getItem('rahcom-show-incidents') !== 'false');
   }, []);
 
   useEffect(() => {
@@ -354,7 +350,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
           {section === 'solar-daily' && solarSnapshotDeleteError && <span role="alert" className="max-w-56 truncate text-xs text-destructive" title={solarSnapshotDeleteError}>{solarSnapshotDeleteError}</span>}
           {['solar-daily', 'tickets', 'aggregate'].includes(section) && <RahcomCountCapsule count={sectionSystemsCount} />}
           {section === 'solar-daily' && <button type="button" aria-pressed={solarFormOpen} onClick={() => setSolarFormOpen((open) => !open)} aria-label={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} title={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} style={solarFormOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${solarFormOpen ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}>{solarFormOpen ? <X size={17} /> : <Plus size={17} />}</button>}
-          {section === 'solar-daily' && <button type="button" aria-pressed={showSolarIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showSolarIncidents; setShowSolarIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showSolarIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showSolarIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>}
           {section === 'tickets' && canManageRahcom && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-upload-click'))} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Upload size={17} /></button>}
           {section === 'tickets' && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-download-click'))} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} /></button>}
           {section === 'aggregate' && <>
@@ -425,7 +420,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       ) : section === 'systems' ? (
           <RahcomSystemsList canManage={canManageRahcom} selectedProvince={province} />
       ) : section === 'solar-daily' ? (
-        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} showIncidents={renderedShowSolarIncidents} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} snapshotRevision={solarSnapshotRevision} />
+        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} snapshotRevision={solarSnapshotRevision} />
       ) : section === 'aggregate' ? (
         <RahcomAggregateList onSystemCountChange={handleSectionSystemsCount} selectedProvince={province} showIncidents={showMapIncidents} setOperation={aggregateSetOperation} sources={aggregateSources} />
       ) : section === 'tickets' ? (

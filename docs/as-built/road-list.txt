@@ -26,7 +26,8 @@ Source paths
 - rahyar-back/src/rahcom/rahcom.service.ts
 - rahyar-back/src/rahcom/dto/rahcom.dto.ts
 
-Incident display
-- The road list always includes a theft/damage and widening/relocation status column. It uses the per-system special category (theft, damage, both, or widening/relocation) first, then falls back to the system's incident type or matching traffic details, and displays an em dash when no incident is found.
-- The incident source and row filter controls are not shown on this page. Excel downloads include the same status column for every row.
+Incident and system labels
+- The road-list «برچسب» column displays only the matched system's saved long-outage label (`longOutageReason` and, for `OTHER`, `longOutageDetails`) from Rahcom > Systems. It displays an em dash when the system has no saved label. The same value appears in row details and Excel downloads.
+- The road-list label value and its visibility filter read only the matched system record (`longOutage`, `longOutageReason`, and `longOutageDetails`) from Rahcom > Systems. The traffic snapshot is only used to resolve station aggregation codes to system codes; it does not supply or filter this label.
+- Road station codes are joined to Rahcom systems using `aggregationCode`; the resulting system code and name populate the two enriched columns. Ambiguous aggregation-code matches require an exact station/system-name match, otherwise the row is left unmatched.
 - On upload, station-code, station-name, and axis headers are stored as the canonical Persian labels “کد ایستگاه”, “نام ایستگاه”, and “محور”. Existing road-list rows are rendered with the same labels regardless of their original workbook headers.

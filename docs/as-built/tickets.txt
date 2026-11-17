@@ -13,3 +13,6 @@
 
 
 The importer accepts both the original NOC export (TicketCode, Summary, and Project columns) and Rahcom ticket workbooks downloaded from this page (Persian headers). For Rahcom exports, it maps the ticket number, subject, system code, province, and the editable Description column. Imported descriptions replace existing notes when the workbook contains that column; sources without a Description column keep previously saved notes.
+
+
+Ticket outage labels in the table and system details come only from the matched Rahcom Systems record (longOutage, longOutageReason, and longOutageDetails). The ticket page does not fetch or use traffic snapshots to populate this label.

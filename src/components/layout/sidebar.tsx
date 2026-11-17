@@ -271,7 +271,13 @@ export function Sidebar({
     .map((item) => ({
     ...item,
     title: message(item.titleKey),
-    sub: item.sub?.filter((subItem) => moduleVisibility.navigationItems?.[subItem.href] !== false).map((subItem) => ({ ...subItem, title: subItem.titleKey ? message(subItem.titleKey) : subItem.title })),
+    sub: item.sub?.filter((subItem) => {
+      if (moduleVisibility.navigationItems?.[subItem.href] === false) return false;
+      if (!organizationAccess) return true;
+      if (subItem.href === '/settings/accounts') return Boolean(organizationAccess.canViewUsers);
+      if (subItem.href === '/settings/roles') return Boolean(organizationAccess.canViewRoles);
+      return true;
+    }).map((subItem) => ({ ...subItem, title: subItem.titleKey ? message(subItem.titleKey) : subItem.title })),
   }));
   const activeGroup = localizedNavigation.find((item) => item.id === activeTab);
   const activePath = optimisticPath ?? pathname;

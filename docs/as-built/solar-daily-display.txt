@@ -2,15 +2,14 @@ Rahyar Solar Daily Display
 
 The solar daily status table displays a real em dash (—) for empty equipment and data cells. This avoids the mojibake placeholder that previously appeared across LTE and other equipment columns in the right-to-left table. Incident separators and history arrows also use their intended Unicode characters.
 
-Solar Daily rows come from selected equipment entries in the selected snapshot's Down and Unreachable lists; LTE contributes only when both LTE-1 and LTE-2 are listed. Selected equipment columns determine which equipment entries may create rows. Registered systems with an active incident in the selected traffic-list snapshot may also create rows when incident visibility is enabled. Do not generate rows from system-table incident flags or previous snapshots. Traffic incident labels and long-outage values come from the imported traffic list.
+Solar Daily rows come from selected equipment entries in the selected snapshot's Down and Unreachable lists; LTE contributes only when both LTE-1 and LTE-2 are listed. Selected equipment columns determine which equipment entries may create rows. Traffic-list incident values do not create, remove, or label rows. The displayed long-outage label comes only from the matched Rahcom Systems record.
 
-The optional traffic long-outage column displays the original non-empty value from a generic long-outage source column when available, including zero and text values. If the source has only separate incident-category columns, their original values are shown instead of substituting the column headings.
 
 Implementation: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
 
 The shared date calendar marks only days that have solar snapshots for the selected province and visible Jalali month. Separate data sources mark their own dates on the tickets, aggregate list, and actions pages.
 
-The solar toolbar keeps the add-status action beside its map-style icon filters. The incident visibility icon toggles incident records classified from the daily traffic-list snapshot. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly. The table shows one incident column for the traffic-list source.
+The solar toolbar contains snapshot controls without a traffic-incident filter. The system label column and details popup read the long-outage label from the matched system record. Traffic data may provide non-label context such as realtime traffic status and outage duration. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly.
 
 New-status form updates
 
@@ -28,4 +27,4 @@ Solar table rows are counted from every valid equipment entry in the selected sn
 
 Snapshot selection and numbering
 
-The map uses a compact, theme-aware snapshot picker; the smaller sequence number appears inside a theme-accent circular outline beside the capture time, with no divider, and its popup matches the compact trigger width and uses the current theme surface. Active map filters and navigation submodule icons use the theme accent with a soft accent surface. The solar-daily page presents saved snapshots as selectable compact chips in a wrapping row. Each item shows the per-day sequence number and capture time (the date remains in the shared page header). The newest-created record is listed first. Sequence numbers reset for each Tehran calendar date and province. The solar-daily page displays only the selected snapshot table; edit/delete actions apply to that selected record rather than expanding a history card for every record. When incident visibility is enabled, the incident column appears directly after the row number and before the system code; the column and incident-only rows are both omitted when it is disabled.
+The map uses a compact, theme-aware snapshot picker; the smaller sequence number appears inside a theme-accent circular outline beside the capture time, with no divider, and its popup matches the compact trigger width and uses the current theme surface. Active map filters and navigation submodule icons use the theme accent with a soft accent surface. The solar-daily page presents saved snapshots as selectable compact chips in a wrapping row. Each item shows the per-day sequence number and capture time (the date remains in the shared page header). The newest-created record is listed first. Sequence numbers reset for each Tehran calendar date and province. The solar-daily page displays only the selected snapshot table; edit/delete actions apply to that selected record rather than expanding a history card for every record. The system-owned label column is always shown after the info column and before the system code.

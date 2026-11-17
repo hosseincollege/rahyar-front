@@ -1,13 +1,13 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Download, LoaderCircle, Map as MapIcon, MapPinned, Save } from 'lucide-react';
+import { ClipboardList, Download, LoaderCircle, Save } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, parseRahcomSolarList as parseList, rahcomLongOutageReasonLabel, rahcomTrafficLongOutageColumns, rahcomTrafficLongOutageValues, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, parseRahcomSolarList as parseList, rahcomLongOutageReasonLabel, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
@@ -33,15 +33,8 @@ function currentJalaliDateTime() {
   return { date: `${dateParts.year}/${pad(dateParts.month)}/${pad(dateParts.day)}`, time: `${time.hour}:${time.minute}` };
 }
 
-function jalaliDateTimeFromTimestamp(value: string) {
-  const date = jalaliParts(new Date(value));
-  const time = Object.fromEntries(new Intl.DateTimeFormat('en-u-ca-gregory-nu-latn', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(value)).map(({ type, value: part }) => [type, part]));
-  const pad = (part: string | undefined) => (part ?? '0').padStart(2, '0');
-  return { date: `${date.year}/${pad(date.month)}/${pad(date.day)}`, time: `${time.hour}:${time.minute}` };
-}
-
 function toAsciiDigits(value: string) {
-  return value.replace(/[Û°-Û¹Ù -Ù©]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) >= 0x06f0 && digit.charCodeAt(0) <= 0x06f9 ? digit.charCodeAt(0) - 0x06f0 + 48 : digit.charCodeAt(0) - 0x0660 + 48));
+  return value.replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) >= 0x06f0 && digit.charCodeAt(0) <= 0x06f9 ? digit.charCodeAt(0) - 0x06f0 + 48 : digit.charCodeAt(0) - 0x0660 + 48));
 }
 
 function jalaliToGregorian(jalaliDate: string) {
@@ -210,15 +203,15 @@ function workbookWithColoredSolarStatuses(workbook: XLSX.WorkBook, presentation:
   return XLSX.CFB.write(archive, { fileType: 'zip', type: 'array' });
 }
 
-function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boolean, displayedTable?: HTMLTableElement | null) {
+function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, displayedTable?: HTMLTableElement | null) {
   const worksheet = workbook.Sheets.Solar;
   if (!worksheet?.['!ref']) return;
   const range = XLSX.utils.decode_range(worksheet['!ref']);
   const lteColumnIndex = Array.from({ length: range.e.c - range.s.c + 1 }, (_, index) => range.s.c + index)
     .find((columnIndex) => String(worksheet[XLSX.utils.encode_cell({ r: range.s.r, c: columnIndex })]?.v ?? '').trim().toUpperCase() === 'LTE') ?? -1;
   const rowNumberIndex = 0;
-  const incidentIndex = showIncidents ? 1 : -1;
-  const systemCodeIndex = showIncidents ? 2 : 1;
+  const incidentIndex = 1;
+  const systemCodeIndex = 2;
   const systemNameIndex = systemCodeIndex + 1;
   const crmIndex = systemNameIndex + 1;
   const outageIndex = range.e.c - 4;
@@ -277,7 +270,7 @@ function sizeSolarWorksheetColumns(workbook: XLSX.WorkBook, showIncidents: boole
   });
 }
 
-function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, showIncidents = true, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; showIncidents?: boolean; onRowCountChange?: (count: number) => void }) {
+function StatusTable({ entries, columns, locale, selectedProvince, systems = [], traffic = null, snapshots = [], currentSnapshot, viewProvince, onRowCountChange }: { entries: Entry[]; columns: string[]; locale: Parameters<typeof uiMessage>[0]; selectedProvince: string; viewProvince?: string; systems?: RahcomSystem[]; traffic?: RahcomTrafficSnapshot | null; snapshots?: RahcomSolarSnapshot[]; currentSnapshot?: RahcomSolarSnapshot; onRowCountChange?: (count: number) => void }) {
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
@@ -298,9 +291,8 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const outageIndex = findHeader((header) => header.includes('\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('\u062a\u0639\u062f\u0627\u062f\u0631\u0648\u0632\u0642\u0637\u0639\u06cc') || header.includes('outagedays'));
   const trafficCrmIndex = findHeader((header) => header.includes('crm') && (header.includes(normalize('\u062a\u0631\u062f\u062f')) || header.includes('traffic')) && (header.includes(normalize('\u0644\u062d\u0638\u0647\u200c\u0627\u06cc')) || header.includes('realtime')));
   const solarIndex = findHeader((header) => header.includes('\u0633\u0648\u0644\u0627\u0631') || header.includes('solar'));
-  const trafficLongOutageColumns = rahcomTrafficLongOutageColumns(headers);
   const provinceName = iranProvinces.find(([id]) => id === provinceForTable)?.[1] ?? provinceForTable;
-  const normalizeProvince = (value: string) => normalize(value).replace(/^Ø§Ø³ØªØ§Ù†/, '');
+  const normalizeProvince = (value: string) => normalize(value).replace(/^\u0627\u0633\u062a\u0627\u0646/, '');
   const solarProvinceSites = new Set(entries.filter((entry) => provinceForTable === 'all' || entry.province === provinceForTable).map((entry) => entry.site.trim().toUpperCase()));
   const codeCounts = new Map<string, number>();
   for (const system of systems) { const code = system.systemCode.trim().toUpperCase(); codeCounts.set(code, (codeCounts.get(code) ?? 0) + 1); }
@@ -325,19 +317,10 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       .map((entry) => entry.site.trim().toUpperCase())
     : []);
   const solarSites = validEntries.map((entry) => entry.site.toUpperCase());
-  const trafficIncidentsByCode = new Map<string, string[]>();
-  for (const [code, row] of trafficRowsByCode) {
-    if (!systemsByCode.has(code)) continue;
-    const incidentValues = rahcomTrafficLongOutageValues(headers, row, trafficLongOutageColumns);
-    if (incidentValues.length) trafficIncidentsByCode.set(code, [...new Set(incidentValues)]);
-  }
-  const trafficIncidentSites = new Set(trafficIncidentsByCode.keys());
-  const systemLongOutageSites = new Set(provinceSystems.filter((system) => system.longOutage || system.longOutageReason).map((system) => system.systemCode.trim().toUpperCase()));
   // Keep the Solar report equipment-driven. Incident fields are metadata and
   // must not create a row when none of the selected Solar equipment is present.
   const sites = [...new Set(solarSites)]
     .filter((site) => systemsByCode.has(site))
-    .filter((site) => showIncidents || (!trafficIncidentSites.has(site) && !systemLongOutageSites.has(site)))
     .sort();
   useEffect(() => { onRowCountChange?.(sites.length); }, [onRowCountChange, sites.length]);
   const bySiteEquipment = new Map<string, 'down' | 'unreachable'>();
@@ -381,7 +364,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     });
     const presentation = captureSolarTablePresentation(tableRef.current);
     const workbook = XLSX.utils.table_to_book(exportTable, { sheet: 'Solar' });
-    sizeSolarWorksheetColumns(workbook, showIncidents, tableRef.current);
+    sizeSolarWorksheetColumns(workbook, tableRef.current);
     const timestamp = (currentSnapshot?.capturedAt ?? new Date().toISOString()).replace(/[-:T.Z]/g, '').slice(0, 14);
     const fileData = workbookWithColoredSolarStatuses(workbook, presentation);
     const fileBytes = new Uint8Array(fileData as ArrayBuffer);
@@ -395,16 +378,15 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<div className="inline-flex shrink-0 items-center gap-2 text-sm">
     <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button>
   </div>, toolbarTarget) : null;
-  const columnCount = 10 + equipmentGroups.length + Number(showIncidents);
+  const columnCount = 11 + equipmentGroups.length;
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
   return <div className={currentSnapshot ? 'flex min-w-0 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className="h-auto max-h-none min-w-0 max-w-full shrink-0 overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th><th className="w-9 px-1 py-3 text-center"><RahcomInfoHeader /></th>{showIncidents && <th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th>}<th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
+    <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th><th className="w-9 px-1 py-3 text-center"><RahcomInfoHeader /></th><th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className={`whitespace-nowrap p-3 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`} dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
   </tr></thead><tbody>
     {sites.length === 0 ? <tr><td colSpan={columnCount} className="p-4 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : numberedRows.map(({ site, system, trafficRow, axisCode, axisName, rowNumber }) => {
-      const trafficIncident = trafficIncidentsByCode.get(site)?.join(' · ') ?? '';
       const longOutageText = systemLongOutageText(system);
       const currentState: 'normal' | 'cut' = displayedEquipmentCodes.some((equipment) => bySiteEquipment.has(site + ':' + equipment)) ? 'cut' : 'normal';
       const previousState: 'normal' | 'cut' = previousCutSites.has(site) ? 'cut' : 'normal';
@@ -413,8 +395,8 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         : currentState === 'cut' ? { from: null, to: currentState } : null;
       return <tr key={site} className="border-t border-border">
         <td className="p-2 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
-        <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || site} systemCode={site} system={system} fields={[{ label: t('rahcomSystemCode'), value: site }, { label: t('rahcomSystemName'), value: system?.systemName ?? '' }, { label: t('rahcomIncidentFilter'), value: longOutageText }, { label: 'سرقت و تخریب تردد', value: trafficIncident }, { label: t('rahcomDailyTraffic'), value: trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() ?? '' : '' }, ...displayedEquipmentCodes.map((equipment) => ({ label: equipment, value: bySiteEquipment.has(`${site}:${equipment}`) ? statusText(bySiteEquipment.get(`${site}:${equipment}`)!) : '' })), { label: t('rahcomOutageDaysColumn'), value: outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() ?? '' : '' }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomAxisName'), value: axisName }]} /></td>
-        {showIncidents && <td title={longOutageText} className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{longOutageText || '\u2014'}</td>}
+        <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || site} systemCode={site} system={system} fields={[{ label: t('rahcomSystemCode'), value: site }, { label: t('rahcomSystemName'), value: system?.systemName ?? '' }, { label: t('rahcomIncidentFilter'), value: longOutageText }, { label: t('rahcomDailyTraffic'), value: trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() ?? '' : '' }, ...displayedEquipmentCodes.map((equipment) => ({ label: equipment, value: bySiteEquipment.has(`${site}:${equipment}`) ? statusText(bySiteEquipment.get(`${site}:${equipment}`)!) : '' })), { label: t('rahcomOutageDaysColumn'), value: outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() ?? '' : '' }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomAxisName'), value: axisName }]} /></td>
+        <td title={longOutageText} className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{longOutageText || '\u2014'}</td>
         <td className="p-2 font-mono" dir="ltr">{site}</td>
         <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
         <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
@@ -438,7 +420,7 @@ function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]
   }).format(new Date(value));
 }
 
-export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, showIncidents = true, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange, snapshotRevision = 0 }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; showIncidents?: boolean; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void; snapshotRevision?: number }) {
+export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince, canManage, selectedSnapshotId, onSnapshotSelect, onSolarSnapshotsChange, onSystemCountChange, snapshotRevision = 0 }: { formOpen: boolean; onFormOpenChange: (open: boolean) => void; selectedProvince: string; canManage: boolean; selectedSnapshotId: string; onSnapshotSelect: (id: string) => void; onSolarSnapshotsChange: (snapshots: RahcomSolarSnapshot[]) => void; onSystemCountChange: (count: number) => void; snapshotRevision?: number }) {
   const { locale } = usePreferences();
   const { dateText, date } = useRahcomDate();
   const [downText, setDownText] = useState('');
@@ -554,11 +536,11 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
       {!snapshotProvince && <p role="status" className="text-xs text-muted-foreground">{t('solarChooseProvinceFromHeader')}</p>}
     </div>
 
-    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} showIncidents={showIncidents} /></div>}
+    {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} /></div>}
     </>}
 
     <div className="flex min-w-0 flex-col gap-3">{loading ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
-      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} showIncidents={showIncidents} onRowCountChange={onSystemCountChange} />
+      <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} onRowCountChange={onSystemCountChange} />
     </>}</div>
   </section>;
 }

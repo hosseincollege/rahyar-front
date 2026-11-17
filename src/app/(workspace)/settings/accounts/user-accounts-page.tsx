@@ -35,6 +35,7 @@ const emptyFormData: UserFormData = {
   nationalId: '',
   isSystemUser: false,
   role: 'USER',
+  roleKeys: ['USER'],
   department: '',
   isActive: true,
 };
@@ -58,10 +59,36 @@ function getNameParts(fullName: string) {
   };
 }
 
+function hasAdministratorRole(user: UserItem) {
+  const assignedRoles = (user.roles ?? []).map((role) => typeof role === 'string' ? role : role.key);
+  return [user.roleKey, user.role, ...assignedRoles].some((role) => ['ADMIN', 'SUPER_ADMIN'].includes((role ?? '').trim().toUpperCase()));
+}
+
+function getAssignedRoleKeys(user: UserItem) {
+  const keys = (user.roles ?? [])
+    .map((role) => typeof role === 'string' ? role : role.key)
+    .map((role) => role?.trim() ?? '')
+    .filter(Boolean);
+  if (keys.length) return [...new Set(keys)];
+  const fallback = user.roleKey?.trim() || user.role?.trim();
+  return fallback ? [fallback] : ['USER'];
+}
+
+function getAssignedRoleLabels(user: UserItem, roleOptions: RoleItem[]) {
+  const namesByKey = new Map(roleOptions.map((role) => [role.key, role.name]));
+  return getAssignedRoleKeys(user).map((key) => {
+    const roleObject = (user.roles ?? []).find((role) => typeof role !== 'string' && role.key === key);
+    const objectName = roleObject && typeof roleObject !== 'string' ? roleObject.name : undefined;
+    return namesByKey.get(key) || objectName || (key === user.roleKey ? user.role : undefined) || key;
+  });
+}
+
 export function UserAccountsPage() {
   const { locale } = usePreferences();
   const direction = getLocaleDirection(locale);
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
+  const formatRoleLabels = (labels: string[]) =>
+    new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(labels);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [branches, setBranches] = useState<BranchItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
@@ -69,6 +96,7 @@ export function UserAccountsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canManagePrivilegedRoles, setCanManagePrivilegedRoles] = useState(false);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
@@ -85,10 +113,10 @@ export function UserAccountsPage() {
     const normalizedQuery = query.trim().toLocaleLowerCase(locale);
     if (!normalizedQuery) return users;
     return users.filter((user) =>
-      [user.name, user.username, user.email, user.role, user.roleKey, user.department]
+      [user.name, user.username, user.email, user.role, user.roleKey, user.department, ...getAssignedRoleLabels(user, roles)]
         .some((value) => value?.toLocaleLowerCase(locale).includes(normalizedQuery)),
     );
-  }, [locale, query, users]);
+  }, [locale, query, roles, users]);
   const activeUsersCount = users.filter((user) => user.isActive ?? user.status?.toUpperCase() === 'ACTIVE').length;
 
   const loadUsers = useCallback(async () => {
@@ -98,22 +126,27 @@ export function UserAccountsPage() {
 
       const organizationId = getCurrentOrganizationId();
       if (!organizationId) {
-        setErrorMessage('شناسه سازمان یافت نشد. لطفاً مجدداً وارد سیستم شوید.');
+        setErrorMessage(uiMessage(locale, 'accountOrganizationMissing'));
         setUsers([]);
         return;
       }
 
-      const [response, access, branchOptions, departmentOptions, roleOptions] = await Promise.all([
+      const [response, access] = await Promise.all([
         settingsApi.getUsers(organizationId),
         settingsApi.getOrganizationAccess(organizationId),
-        settingsApi.getBranches(organizationId),
-        settingsApi.getDepartments(organizationId),
-        settingsApi.getRoles(organizationId),
       ]);
-      if (!access.canView) {
-        throw new Error('مجوز مشاهده کاربران این سازمان را ندارید.');
+      if (!access.canViewUsers) {
+        throw new Error(uiMessage(locale, 'accountUsersViewDenied'));
       }
-      setCanManage(access.canEdit);
+      const [branchOptions, departmentOptions, roleOptions] = access.canManageUsers
+        ? await Promise.all([
+            settingsApi.getBranches(organizationId),
+            settingsApi.getDepartments(organizationId),
+            settingsApi.getRoles(organizationId),
+          ])
+        : [[], [], []];
+      setCanManage(access.canManageUsers ?? false);
+      setCanManagePrivilegedRoles(access.canManageRahcom);
       setUsers(response ?? []);
       setBranches(branchOptions ?? []);
       setDepartments(departmentOptions ?? []);
@@ -125,11 +158,11 @@ export function UserAccountsPage() {
         setExpandedUserId(requestedUserId);
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'بارگذاری فهرست کاربران با خطا مواجه شد.'));
+      setErrorMessage(getErrorMessage(error, uiMessage(locale, 'accountUsersLoadFailed')));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
@@ -178,7 +211,9 @@ export function UserAccountsPage() {
       email: user.email ?? '',
       nationalId: user.nationalId ?? '',
       isSystemUser: Boolean(user.isSystemUser),
-      role: user.role ?? user.roleKey ?? 'USER',
+      // Keep the legacy single-role fields for API compatibility while editing every membership.
+      role: user.roleKey ?? user.role ?? 'USER',
+      roleKeys: getAssignedRoleKeys(user),
       department: user.department ?? '',
       branchId: user.branchId ?? '',
       departmentId: user.departmentId ?? '',
@@ -191,9 +226,10 @@ export function UserAccountsPage() {
     const name = data.name.trim();
     const email = data.email.trim().toLowerCase();
     const username = data.username.trim() || email.split('@')[0];
-    const role = data.role.trim() || 'USER';
+    const roleKeys = [...new Set(data.roleKeys.map((key) => key.trim()).filter(Boolean))];
+    const role = roleKeys[0] || data.role.trim() || 'USER';
     const department = data.department.trim();
-    const password = data.password?.trim() ? data.password.trim() : undefined;
+    const password = data.password && data.password.length > 0 ? data.password : undefined;
     const { firstName, lastName } = getNameParts(name);
 
     if (!editingUserId && !password) {
@@ -202,7 +238,12 @@ export function UserAccountsPage() {
     }
 
     if (!name || !email) {
-      setErrorMessage('نام و ایمیل کاربر الزامی است.');
+      setErrorMessage(message('accountNameEmailRequired'));
+      return;
+    }
+
+    if (roleKeys.length === 0) {
+      setErrorMessage(message('accountRolesRequired'));
       return;
     }
 
@@ -210,7 +251,15 @@ export function UserAccountsPage() {
       (user) => user.id !== editingUserId && user.email?.trim().toLowerCase() === email,
     );
     if (emailAlreadyExists) {
-      setErrorMessage('کاربری با این ایمیل قبلاً ثبت شده است.');
+      setErrorMessage(message('accountEmailAlreadyExists'));
+      return;
+    }
+
+    const usernameAlreadyExists = users.some(
+      (user) => user.id !== editingUserId && user.username?.trim() === username,
+    );
+    if (usernameAlreadyExists) {
+      setErrorMessage(message('accountUsernameAlreadyExists'));
       return;
     }
 
@@ -220,7 +269,7 @@ export function UserAccountsPage() {
 
       const organizationId = getCurrentOrganizationId();
       if (!organizationId) {
-        setErrorMessage('شناسه سازمان یافت نشد. لطفاً مجدداً وارد شوید.');
+        setErrorMessage(uiMessage(locale, 'accountOrganizationMissing'));
         return;
       }
 
@@ -239,6 +288,7 @@ export function UserAccountsPage() {
             nationalId: data.nationalId.trim() || null,
             role,
             roleKey: role,
+            roles: roleKeys,
             department: department || undefined,
             branchId: data.branchId || null,
             departmentId: data.departmentId || null,
@@ -262,7 +312,7 @@ export function UserAccountsPage() {
           isSystemUser: false,
           role,
           roleKey: role,
-          roles: [],
+          roles: roleKeys,
           department: department || undefined,
           branchId: data.branchId || null,
           departmentId: data.departmentId || null,
@@ -271,14 +321,23 @@ export function UserAccountsPage() {
         updatedUsers = [newUser, ...users];
       }
 
-      const savedUsers = await settingsApi.saveUsers(updatedUsers, organizationId);
+      const userToSave = editingUserId
+        ? updatedUsers.find((user) => user.id === editingUserId)
+        : updatedUsers[0];
+      if (!userToSave) {
+        throw new Error(message('accountUserSaveMissing'));
+      }
+
+      // Send only the changed account. The backend returns the current full list;
+      // sending the entire page snapshot could overwrite another concurrent edit.
+      const savedUsers = await settingsApi.saveUsers([userToSave], organizationId);
       setUsers(savedUsers ?? updatedUsers);
       setSuccessMessage(
-        editingUserId ? 'اطلاعات کاربر با موفقیت به‌روزرسانی شد.' : 'کاربر جدید با موفقیت ایجاد شد.',
+        editingUserId ? message('accountUserUpdated') : message('accountUserCreated'),
       );
       setIsUserModalOpen(false);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'ذخیره اطلاعات کاربر با خطا مواجه شد.'));
+      setErrorMessage(getErrorMessage(error, message('accountUserSaveFailed')));
     } finally {
       setIsSaving(false);
     }
@@ -293,7 +352,7 @@ export function UserAccountsPage() {
     event.target.value = '';
 
     if (!file.name.toLowerCase().endsWith('.json')) {
-      setErrorMessage('لطفاً فقط یک فایل با فرمت JSON انتخاب کنید.');
+      setErrorMessage(message('accountJsonOnly'));
       return;
     }
 
@@ -303,7 +362,7 @@ export function UserAccountsPage() {
 
       const organizationId = getCurrentOrganizationId();
       if (!organizationId) {
-        throw new Error('شناسه سازمان یافت نشد. لطفاً مجدداً وارد شوید.');
+        throw new Error(uiMessage(locale, 'accountOrganizationMissing'));
       }
 
       const text = await file.text();
@@ -311,17 +370,17 @@ export function UserAccountsPage() {
       try {
         rawData = JSON.parse(text);
       } catch {
-        throw new Error('ساختار فایل JSON نامعتبر است.');
+        throw new Error(message('accountJsonInvalid'));
       }
 
       const { users: rawImportedUsers } = parseUsersToItems(rawData);
 
       if (!rawImportedUsers || rawImportedUsers.length === 0) {
-        throw new Error('هیچ کاربر معتبری در فایل انتخاب‌شده پیدا نشد.');
+        throw new Error(message('accountJsonNoUsers'));
       }
 
       const sanitizedImportedUsers: UserItem[] = rawImportedUsers.map((item) => {
-        const name = item.name?.trim() || 'کاربر جدید';
+        const name = item.name?.trim() || message('accountImportDefaultName');
         const email = item.email?.trim().toLowerCase() || '';
         const { firstName, lastName } = getNameParts(name);
         const role = item.role || item.roleKey || 'USER';
@@ -329,7 +388,7 @@ export function UserAccountsPage() {
 
         return {
           id: item.id || createUserId(),
-          username: item.username || (email ? email.split('@')[0] : `user_${Date.now()}`),
+          username: item.username?.trim() || '',
           password: item.password,
           name,
           firstName: item.firstName || firstName,
@@ -341,29 +400,26 @@ export function UserAccountsPage() {
           isSystemUser: Boolean(item.isSystemUser),
           role,
           roleKey: item.roleKey || role,
-          roles: Array.isArray(item.roles) ? item.roles : [],
-          department: item.department || 'عمومی',
+          roles: getAssignedRoleKeys(item),
+          department: item.department || message('accountImportDefaultDepartment'),
           isActive,
         };
       });
 
-      const importedIds = new Set(sanitizedImportedUsers.map((u) => u.id));
-      const importedEmails = new Set(
-        sanitizedImportedUsers.map((u) => u.email?.trim().toLowerCase()).filter(Boolean),
+      // Send only imported accounts. The server returns the canonical full list;
+      // resending the page snapshot could overwrite concurrent edits to others.
+      const savedUsers = await settingsApi.saveUsers(
+        sanitizedImportedUsers,
+        organizationId,
       );
-
-      const remainingUsers = users.filter((u) => {
-        const normalized = u.email?.trim().toLowerCase();
-        return !importedIds.has(u.id) && (!normalized || !importedEmails.has(normalized));
-      });
-
-      const updatedUsers = [...sanitizedImportedUsers, ...remainingUsers];
-      const savedUsers = await settingsApi.saveUsers(updatedUsers, organizationId);
-
-      setUsers(savedUsers ?? updatedUsers);
-      setSuccessMessage(`${sanitizedImportedUsers.length} کاربر با موفقیت درون‌ریزی و ذخیره شدند.`);
+      setUsers(
+        Array.isArray(savedUsers)
+          ? savedUsers
+          : await settingsApi.getUsers(organizationId),
+      );
+      setSuccessMessage(message('accountImportSuccess').replace('{count}', new Intl.NumberFormat(locale).format(sanitizedImportedUsers.length)));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'درون‌ریزی فایل کاربران با خطا مواجه شد.'));
+      setErrorMessage(getErrorMessage(error, message('accountImportFailed')));
     } finally {
       setIsSaving(false);
     }
@@ -371,11 +427,11 @@ export function UserAccountsPage() {
 
   const handleDeleteUser = async (user: UserItem) => {
     if (user.isSystemUser) {
-      setErrorMessage('حذف کاربر سیستمی مجاز نیست.');
+      setErrorMessage(message('accountSystemUserDeleteDenied'));
       return;
     }
 
-    if (!window.confirm(`آیا از حذف کاربر «${user.name || user.username}» مطمئن هستید؟`)) {
+    if (!window.confirm(message('accountUserDeleteConfirm').replace('{name}', user.name || user.username))) {
       return;
     }
 
@@ -385,16 +441,16 @@ export function UserAccountsPage() {
 
       const organizationId = getCurrentOrganizationId();
       if (!organizationId) {
-        setErrorMessage('شناسه سازمان یافت نشد. لطفاً مجدداً وارد شوید.');
+        setErrorMessage(uiMessage(locale, 'accountOrganizationMissing'));
         return;
       }
 
       if (!user.id) return;
       const savedUsers = await settingsApi.removeUser(organizationId, user.id);
       setUsers(savedUsers);
-      setSuccessMessage('کاربر با موفقیت حذف شد.');
+      setSuccessMessage(message('accountUserDeleted'));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'حذف کاربر با خطا مواجه شد.'));
+      setErrorMessage(getErrorMessage(error, message('accountUserDeleteFailed')));
     } finally {
       setIsSaving(false);
     }
@@ -434,9 +490,9 @@ export function UserAccountsPage() {
       )}
 
       <SettingsPageToolbar>
-        {canManage && <button type="button" onClick={openCreateUserModal} disabled={isSaving} aria-label="افزودن کاربر" title="افزودن کاربر" className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" aria-hidden="true" /></button>}
-        <button type="button" onClick={handleDownloadSampleDirect} disabled={isSaving} aria-label="دانلود فایل نمونه JSON" title="دانلود فایل نمونه JSON" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-4" aria-hidden="true" /></button>
-        {canManage && <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSaving} aria-label="بارگذاری فایل JSON" title="بارگذاری فایل JSON" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}</button>}
+        {canManage && <button type="button" onClick={openCreateUserModal} disabled={isSaving} aria-label={message('accountAddUser')} title={message('accountAddUser')} className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" aria-hidden="true" /></button>}
+        <button type="button" onClick={handleDownloadSampleDirect} disabled={isSaving} aria-label={message('accountDownloadSample')} title={message('accountDownloadSample')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-4" aria-hidden="true" /></button>
+        {canManage && <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isSaving} aria-label={message('accountUploadJson')} title={message('accountUploadJson')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}</button>}
         <label className="rahcom-search-capsule relative block w-56 max-w-[15rem] shrink-0 rounded-full">
           <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={message('usersSearchPlaceholder')} aria-label={message('usersSearchPlaceholder')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-3 text-start text-sm outline-none focus:border-primary" />
@@ -446,10 +502,10 @@ export function UserAccountsPage() {
       <div>
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Users className="size-5 text-primary" aria-hidden="true" />
-          مدیریت کاربران
+          {message('accountListTitle')}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          ایجاد، ویرایش، حذف و مدیریت دسته‌جمعی اطلاعات کاربران سازمان
+          {message('accountListDescription')}
         </p>
       </div>
 
@@ -464,31 +520,32 @@ export function UserAccountsPage() {
         {isLoading ? (
           <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
-            در حال دریافت فهرست کاربران...
+            {message('accountLoadingUsers')}
           </div>
         ) : visibleUsers.length === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center p-6 text-center">
             <Users className="mb-3 size-10 text-muted-foreground/50" />
-            <h3 className="font-medium">{users.length === 0 ? 'هنوز کاربری ثبت نشده است' : message('usersNoMatch')}</h3>
-            {users.length === 0 && <p className="mt-1 text-sm text-muted-foreground">می‌توانید کاربر جدید ایجاد کنید یا از طریق دکمه «بارگذاری فایل JSON» کاربران را وارد نمایید.</p>}
+            <h3 className="font-medium">{users.length === 0 ? message('accountNoUsers') : message('usersNoMatch')}</h3>
+            {users.length === 0 && <p className="mt-1 text-sm text-muted-foreground">{message(canManage ? 'accountNoUsersHint' : 'accountNoUsersReadOnlyHint')}</p>}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-start text-sm">
               <thead className="border-b bg-muted/50 text-muted-foreground">
                 <tr>
-                  <th className="px-5 py-4 font-medium">کاربر</th>
-                  <th className="px-5 py-4 font-medium">ایمیل</th>
-                  <th className="px-5 py-4 font-medium">نقش</th>
-                  <th className="px-5 py-4 font-medium">بخش</th>
-                  <th className="px-5 py-4 font-medium">وضعیت</th>
-                  {canManage && <th className="px-5 py-4 text-end font-medium">عملیات</th>}
+                  <th className="px-5 py-4 font-medium">{message('accountFullName')}</th>
+                  <th className="px-5 py-4 font-medium">{message('accountEmailLabel')}</th>
+                  <th className="px-5 py-4 font-medium">{message('usersDetailRole')}</th>
+                  <th className="px-5 py-4 font-medium">{message('usersDetailDepartment')}</th>
+                  <th className="px-5 py-4 font-medium">{message('usersDetailStatus')}</th>
+                  {canManage && <th className="px-5 py-4 text-end font-medium">{message('accountActionsColumn')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
                   {visibleUsers.map((user) => {
                     const isActive = user.isActive ?? user.status?.toUpperCase() === 'ACTIVE';
                     const isExpanded = expandedUserId === (user.id ?? user.username);
+                    const assignedRoleLabels = getAssignedRoleLabels(user, roles);
                     return (
                       <React.Fragment key={user.id}>
                       <tr id={`user-${user.id ?? user.username}`}>
@@ -505,14 +562,15 @@ export function UserAccountsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-muted-foreground" dir="ltr">
-                        {user.email || 'â€”'}
+                        {user.email || '—'}
                       </td>
                       <td className="px-5 py-4">
                         <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                          {user.role || user.roleKey || 'بدون نقش'}
+                          {assignedRoleLabels[0] || user.role || user.roleKey || message('accountNoRole')}
                         </span>
+                        {assignedRoleLabels.length > 1 && <span title={formatRoleLabels(assignedRoleLabels.slice(1))} className="ms-1 inline-flex rounded-full bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground">+{assignedRoleLabels.length - 1}</span>}
                       </td>
-                      <td className="px-5 py-4"><div>{user.department || 'â€”'}</div>{user.branchName && <div className="mt-1 text-xs text-muted-foreground">{message('accountOffice')}: {message('organizationProvince')} {user.branchName}</div>}</td>
+                      <td className="px-5 py-4"><div>{user.department || '—'}</div>{user.branchName && <div className="mt-1 text-xs text-muted-foreground">{message('accountOffice')}: {message('organizationProvince')} {user.branchName}</div>}</td>
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -526,21 +584,21 @@ export function UserAccountsPage() {
                       </td>
                       {canManage && <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
-                          {canManage && <button
+                          {canManage && (canManagePrivilegedRoles || !hasAdministratorRole(user)) && <button
                             type="button"
                             onClick={() => openEditUserModal(user)}
                             disabled={isSaving}
                             className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                            title="ویرایش کاربر"
+                            title={message('accountEditUser')}
                           >
                             <Pencil className="size-4" />
                           </button>}
-                          {canManage && <button
+                          {canManage && (canManagePrivilegedRoles || !hasAdministratorRole(user)) && <button
                             type="button"
                             onClick={() => void handleDeleteUser(user)}
                             disabled={isSaving || user.isSystemUser}
                             className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
-                            title={user.isSystemUser ? 'حذف کاربر سیستمی مجاز نیست' : 'حذف کاربر'}
+                            title={user.isSystemUser ? message('accountDeleteSystemUser') : message('accountDeleteUser')}
                           >
                             <Trash2 className="size-4" />
                           </button>}
@@ -552,11 +610,11 @@ export function UserAccountsPage() {
                         <td colSpan={canManage ? 6 : 5} className="px-5 py-4">
                           <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
                             <p><span className="text-muted-foreground">{message('usersDetailName')}: </span>{user.name || user.username}</p>
-                            <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailEmail')}: </span>{user.email || 'â€”'}</p>
+                            <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailEmail')}: </span>{user.email || '—'}</p>
                             <p dir="ltr" className="text-start"><span className="text-muted-foreground">{message('usersDetailUsername')}: </span>{user.username}</p>
-                            <p><span className="text-muted-foreground">{message('usersDetailRole')}: </span>{user.role || user.roleKey || 'بدون نقش'}</p>
-                            <p><span className="text-muted-foreground">{message('accountOffice')}: </span>{user.branchName ? `${message('organizationProvince')} ${user.branchName}` : 'â€”'}</p>
-                            <p><span className="text-muted-foreground">{message('usersDetailDepartment')}: </span>{user.department || 'â€”'}</p>
+                            <p><span className="text-muted-foreground">{message('usersDetailRole')}: </span>{formatRoleLabels(assignedRoleLabels) || user.role || user.roleKey || message('accountNoRole')}</p>
+                            <p><span className="text-muted-foreground">{message('accountOffice')}: </span>{user.branchName ? `${message('organizationProvince')} ${user.branchName}` : '—'}</p>
+                            <p><span className="text-muted-foreground">{message('usersDetailDepartment')}: </span>{user.department || '—'}</p>
                             <p><span className="text-muted-foreground">{message('usersDetailStatus')}: </span>{isActive ? message('usersActive') : message('usersInactive')}</p>
                           </div>
                         </td>
@@ -573,15 +631,19 @@ export function UserAccountsPage() {
 
       {/* مودال ایجاد/ویرایش تکی کاربر */}
       <UserFormModal
+        key={`${isUserModalOpen ? 'open' : 'closed'}:${editingUserId ?? 'new'}`}
         isOpen={isUserModalOpen}
         isSaving={isSaving}
         editingUserId={editingUserId}
         initialData={formData}
+        errorMessage={errorMessage}
+        onClearError={() => setErrorMessage(null)}
         onClose={() => setIsUserModalOpen(false)}
         onSave={handleSaveUser}
         branches={branches}
         departments={departments}
         roles={roles}
+        canAssignAdministratorRoles={canManagePrivilegedRoles}
       />
     </section>
   );

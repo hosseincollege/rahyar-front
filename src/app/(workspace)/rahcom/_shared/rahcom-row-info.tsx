@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { Check, ClipboardList, Copy, ExternalLink, Info, MapPin, Maximize2, Minimize2, Pencil, X, Zap } from 'lucide-react';
-import { hasRahcomCoordinates, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { Check, ClipboardList, Copy, Info, MapPin, Maximize2, Minimize2, Pencil, X, Zap } from 'lucide-react';
+import { hasRahcomCoordinates, iranProvinces, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { formatRahcomCoordinates } from '@/lib/api/rahcom/rahcom-api';
 import { rahcomLongOutageReasonLabel } from '@/lib/api/rahcom/solar-status';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
@@ -40,11 +40,11 @@ export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trig
 }
 
 export function RahcomInfoHeader() {
-  return <span role="img" aria-label="Ø§Ø·Ù„Ø§Ø¹Ø§Øª Ø±Ø¯ÛŒÙ" className="inline-grid size-5 place-items-center text-muted-foreground"><Info size={15} /></span>;
+  return <span role="img" aria-label={'\u0627\u0637\u0644\u0627\u0639\u0627\u062a \u0631\u062f\u06cc\u0641'} className="inline-grid size-5 place-items-center text-muted-foreground"><Info size={15} /></span>;
 }
 
 export function RahcomRowInfo({ title, systemCode = '', fields, system, onEdit, electricityDetails }: { title: string; systemCode?: string; fields: RahcomInfoField[]; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[] }) {
-  return <button type="button" aria-label={`Ø§Ø·Ù„Ø§Ø¹Ø§Øª ${title}`} title={`Ø§Ø·Ù„Ø§Ø¹Ø§Øª ${title}`} aria-haspopup="dialog" aria-expanded="false" onClick={(event) => {
+  return <button type="button" aria-label={`\u0627\u0637\u0644\u0627\u0639\u0627\u062a ${title}`} title={`\u0627\u0637\u0644\u0627\u0639\u0627\u062a ${title}`} aria-haspopup="dialog" aria-expanded="false" onClick={(event) => {
       event.stopPropagation();
       openRahcomRowInfo(title, fields, event.currentTarget, { x: event.clientX, y: event.clientY }, system?.systemCode || systemCode, system, onEdit, electricityDetails);
     }} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:text-primary aria-expanded:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-rahcom-info-trigger><Info size={16} /></button>;
@@ -115,28 +115,58 @@ export function RahcomRowInfoHost() {
     ? formatRahcomCoordinates(popup.system.latitude, popup.system.longitude)
     : '';
   const incidentTypeLabel = popup.system?.incidentType === 'THEFT' ? 'سرقت' : popup.system?.incidentType === 'DAMAGE' ? 'تخریب' : popup.system?.incidentType === 'THEFT_AND_DAMAGE' ? 'سرقت و تخریب' : popup.system?.incidentType === 'WIDENING_RELOCATION' ? 'تعریض و جابجایی' : '';
-  const expandedFields: RahcomInfoField[] = popup.system ? [
-    { label: 'نام محور', value: popup.system.announcedAxis || '—' },
-    { label: 'کد محور', value: popup.system.axisCode || '—' },
-    { label: 'مختصات', value: coordinates || '—' },
-    { label: 'عرض جغرافیایی', value: String(popup.system.latitude ?? '\u2014') },
-    { label: 'طول جغرافیایی', value: String(popup.system.longitude ?? '\u2014') },
-    { label: 'شناسه قبض برق', value: popup.system.electricityBillId || '—' },
-    { label: 'نوع سرقت و تخریب', value: incidentTypeLabel || 'ندارد' },
-    { label: 'جزئیات سرقت و تخریب', value: popup.system.incidentDetails || '—' },
-    { label: 'برچسب', value: popup.system.longOutage ? 'دارد' : 'ندارد' },
-    { label: 'دلیل برچسب', value: popup.system.longOutageReason ? rahcomLongOutageReasonLabel(popup.system.longOutageReason, popup.system.longOutageDetails) : '—' },
-    { label: 'توضیحات برچسب', value: popup.system.longOutageDetails || '—' },
-    { label: 'IP سیم‌کارت', value: popup.system.simIp || '—' },
-    { label: 'IP رادار', value: popup.system.radarIp || '—' },
-    { label: 'IP دوربین', value: popup.system.cameraIp || '—' },
-    { label: 'IP کامپیوتر', value: popup.system.pcIp || '—' },
-    { label: 'IP روتر', value: popup.system.routerIp || '—' },
-    { label: 'IP لپ‌تاپ', value: popup.system.laptopIp || '—' },
-    { label: 'توضیحات', value: popup.system.details || '—' },
-    { label: 'تاریخ ایجاد', value: new Date(popup.system.createdAt).toLocaleString('fa-IR') },
-    { label: 'آخرین ویرایش', value: new Date(popup.system.updatedAt).toLocaleString('fa-IR') },
-  ] : popup.fields;
+  const provinceLabel = popup.system
+    ? iranProvinces.find(([id]) => id === popup.system?.province)?.[1] ?? popup.system.province
+    : '';
+  const expandedSections: { title: string; fields: RahcomInfoField[] }[] = popup.system
+    ? [
+        {
+          title: 'سامانه و موقعیت',
+          fields: [
+            { label: 'کد سامانه', value: popup.system.systemCode },
+            { label: 'نام سامانه', value: popup.system.systemName },
+            { label: 'استان', value: provinceLabel },
+            { label: 'نام ایستگاه', value: popup.system.stationName || '—' },
+            { label: 'کد تجمیع', value: popup.system.aggregationCode || '—' },
+            { label: 'نام محور', value: popup.system.announcedAxis || '—' },
+            { label: 'کد محور', value: popup.system.axisCode || '—' },
+            { label: 'مختصات', value: coordinates || '—' },
+            { label: 'عرض جغرافیایی', value: String(popup.system.latitude ?? '—') },
+            { label: 'طول جغرافیایی', value: String(popup.system.longitude ?? '—') },
+          ],
+        },
+        {
+          title: 'برق و تجهیزات',
+          fields: [
+            { label: 'شناسه قبض برق', value: popup.system.electricityBillId || '—' },
+            { label: 'IP سیم‌کارت', value: popup.system.simIp || '—' },
+            { label: 'IP رادار', value: popup.system.radarIp || '—' },
+            { label: 'IP دوربین', value: popup.system.cameraIp || '—' },
+            { label: 'IP کامپیوتر', value: popup.system.pcIp || '—' },
+            { label: 'IP روتر', value: popup.system.routerIp || '—' },
+            { label: 'IP لپ‌تاپ', value: popup.system.laptopIp || '—' },
+          ],
+        },
+        {
+          title: 'وضعیت و توضیحات',
+          fields: [
+            { label: 'نوع سرقت و تخریب', value: incidentTypeLabel || 'ندارد' },
+            { label: 'جزئیات سرقت و تخریب', value: popup.system.incidentDetails || '—' },
+            { label: 'قطعی زمان‌بر', value: popup.system.longOutage ? 'دارد' : 'ندارد' },
+            { label: 'دلیل قطعی زمان‌بر', value: popup.system.longOutageReason ? rahcomLongOutageReasonLabel(popup.system.longOutageReason, popup.system.longOutageDetails) : '—' },
+            { label: 'توضیحات قطعی زمان‌بر', value: popup.system.longOutageDetails || '—' },
+            { label: 'توضیحات سامانه', value: popup.system.details || '—' },
+          ],
+        },
+        {
+          title: 'اطلاعات ثبت',
+          fields: [
+            { label: 'تاریخ ایجاد', value: new Date(popup.system.createdAt).toLocaleString('fa-IR') },
+            { label: 'آخرین ویرایش', value: new Date(popup.system.updatedAt).toLocaleString('fa-IR') },
+          ],
+        },
+      ]
+    : [{ title: canonicalTitle, fields: popup.fields }];
   const googleMapsUrl = () => {
     const [latitude, longitude] = coordinates.split(', ');
     return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
@@ -169,7 +199,7 @@ export function RahcomRowInfoHost() {
             </div>;
           }) : <span className="px-2 py-1 text-xs text-muted-foreground">اطلاعات برق برای این سامانه ثبت نشده است.</span>}
         </div>}
-        {expanded && <div className="rahcom-details-grid grid gap-2 p-1 sm:grid-cols-2 lg:grid-cols-3">{expandedFields.map((field) => <div key={field.label} className="min-w-0 rounded-lg border border-border/70 bg-card p-3"><div className="text-xs text-muted-foreground">{field.label}</div><div dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{field.value || '—'}</div></div>)}</div>}
+        {expanded && <div className="space-y-4 p-1">{expandedSections.map((group) => <section key={group.title} aria-label={group.title} className="space-y-2"><h3 className="border-b border-border/70 pb-1 text-sm font-semibold text-foreground">{group.title}</h3><div className="rahcom-details-grid grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{group.fields.map((field) => <div key={field.label} className="min-w-0 rounded-lg border border-border/70 bg-card p-3"><div className="text-xs text-muted-foreground">{field.label}</div><div dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{field.value || '—'}</div></div>)}</div></section>)}</div>}
         {panel === 'location' && popup.system && hasRahcomCoordinates(popup.system) && <div className="mt-1 flex min-h-9 items-center gap-1.5 text-xs">
           {coordinates && <><bdi dir="ltr" className="min-w-0 shrink-0 text-end text-foreground">{coordinates}</bdi><button type="button" onClick={() => { void navigator.clipboard.writeText(coordinates).then(() => { setCoordinatesCopied(true); window.setTimeout(() => setCoordinatesCopied(false), 900); }); }} className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground hover:border-primary hover:text-primary" aria-label="کپی مختصات" title="کپی مختصات">{coordinatesCopied ? <Check size={15} /> : <Copy size={15} />}</button><a href={googleMapsUrl()} target="_blank" rel="noreferrer" className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background font-bold text-base text-[#4285f4] hover:border-primary hover:bg-muted" aria-label="Google Maps" title="Google Maps">G</a></>}
           {!coordinates && <span className="px-2 py-1 text-muted-foreground">مختصات برای این سامانه ثبت نشده است.</span>}

@@ -138,7 +138,8 @@ export interface DepartmentItem {
   id: string;
   name: string;
   code: string;
-  branchId?: string;
+  isActive?: boolean;
+  branchId?: string | null;
   managerEmployeeId?: string | null;
   branch?: {
     id: string;
@@ -226,6 +227,7 @@ export interface RoleItem {
   userCount: number;
   permissions: string[];
   isSystemRole?: boolean;
+  canAssignToUsers?: boolean;
 }
 
 /*

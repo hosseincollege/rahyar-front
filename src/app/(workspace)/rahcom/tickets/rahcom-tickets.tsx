@@ -6,12 +6,12 @@ import { Check, Clock3, Download, LoaderCircle, Pencil, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
-import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
-import { isRahcomIncidentValue, tehranDateKey } from '@/lib/api/rahcom/solar-status';
+import { rahcomLongOutageReasonLabel, rahcomSystemHasLongOutage, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 
 type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate' | 'description'> & { description?: string };
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c_-]/g, '');
@@ -44,7 +44,6 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const [selectedProvince, setSelectedProvince] = useState('isfahan');
   const [importedTickets, setImportedTickets] = useState<RahcomImportedTicket[] | null>(null);
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
-  const [trafficSnapshot, setTrafficSnapshot] = useState<RahcomTrafficSnapshot | null>(null);
   const [importing, setImporting] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
   const [error, setError] = useState('');
@@ -98,15 +97,6 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   }, [access, loadImported, selectedProvince]);
 
   useEffect(() => {
-    let active = true;
-    setTrafficSnapshot(null);
-    void rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined)
-      .then((snapshot) => { if (active) setTrafficSnapshot(snapshot); })
-      .catch(() => { if (active) setTrafficSnapshot(null); });
-    return () => { active = false; };
-  }, [date, selectedProvince]);
-
-  useEffect(() => {
     const openUpload = () => { if (access?.canManageAssignments && !importing) uploadInputRef.current?.click(); };
     window.addEventListener('rahyar:tickets-upload-click', openUpload);
     return () => window.removeEventListener('rahyar:tickets-upload-click', openUpload);
@@ -117,34 +107,11 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   ), [importedTickets, locale, systemFilter, date]);
   const visibleSystemCount = useMemo(() => new Set(visibleTickets.map((ticket) => ticket.systemCode.trim().toLocaleUpperCase(locale)).filter(Boolean)).size, [locale, visibleTickets]);
   const systemsByCode = useMemo(() => new Map(systems.map((system) => [system.systemCode.trim().toLocaleUpperCase(locale), system])), [locale, systems]);
-  const trafficIncidentsByCode = useMemo(() => {
-    const headers = trafficSnapshot?.headers ?? [];
-    const rows = trafficSnapshot?.rows ?? [];
-    const normalizedHeaders = headers.map(normalize);
-    const codeIndex = normalizedHeaders.findIndex((header) => header.includes('کدسامانه') || header === 'systemcode' || header === 'stationcode');
-    if (codeIndex < 0) return new Map<string, string>();
-    const incidentIndexes = normalizedHeaders.flatMap((header, index) => ['سرقت', 'تخریب', 'theft', 'damage', 'تعریض', 'جابجایی', 'widening', 'relocation'].some((term) => header.includes(normalize(term))) ? [index] : []);
-    const incidentsByCode = new Map<string, string>();
-    for (const row of rows) {
-      const code = normalize(row[codeIndex] ?? '');
-      if (!code) continue;
-      const incidents = incidentIndexes.flatMap((index) => {
-        const value = String(row[index] ?? '').trim();
-        if (!isRahcomIncidentValue(value)) return [];
-        const normalizedValue = normalize(value);
-        const header = normalizedHeaders[index];
-        const hasTheft = normalizedValue.includes('سرقت') || normalizedValue.includes('theft') || header.includes('سرقت') || header.includes('theft');
-        const hasDamage = normalizedValue.includes('تخریب') || normalizedValue.includes('damage') || header.includes('تخریب') || header.includes('damage');
-        if (normalizedValue.includes('تعریض') || normalizedValue.includes('جابجایی') || normalizedValue.includes('widening') || normalizedValue.includes('relocation') || header.includes('تعریض') || header.includes('جابجایی') || header.includes('widening') || header.includes('relocation')) return [uiMessage(locale, 'solarWideningRelocation')];
-        if (hasTheft && hasDamage) return [uiMessage(locale, 'rahcomIncidentBoth')];
-        if (hasTheft) return [uiMessage(locale, 'rahcomIncidentTheft')];
-        if (hasDamage) return [uiMessage(locale, 'rahcomIncidentDamage')];
-        return [value];
-      });
-      if (incidents.length) incidentsByCode.set(code, [...new Set([...(incidentsByCode.get(code)?.split(' · ') ?? []), ...incidents])].join(' · '));
-    }
-    return incidentsByCode;
-  }, [locale, trafficSnapshot]);
+  const systemLongOutageLabel = (system: RahcomSystem | undefined) => system && rahcomSystemHasLongOutage(system)
+    ? system.longOutageReason
+      ? rahcomLongOutageReasonLabel(system.longOutageReason, system.longOutageDetails)
+      : system.longOutageDetails || '\u062f\u0644\u06cc\u0644 \u0645\u0634\u062e\u0635 \u0646\u0634\u062f\u0647'
+    : '';
   useEffect(() => { onSystemCountChange(visibleSystemCount); }, [onSystemCountChange, visibleSystemCount]);
   const downloadExcel = useCallback(() => {
     if (!tableRef.current) return;
@@ -253,7 +220,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
           const system = systemsByCode.get(ticket.systemCode.trim().toLocaleUpperCase(locale));
           return <tr key={ticket.id} className="border-t border-border">
             <td className="whitespace-nowrap p-3 text-center tabular-nums">{new Intl.NumberFormat(locale).format(index + 1)}</td>
-            <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || ticket.systemCode || ticket.summary} systemCode={ticket.systemCode} system={system} fields={[{ label: uiMessage(locale, 'rahcomSystemCode'), value: ticket.systemCode }, { label: uiMessage(locale, 'rahcomSystemName'), value: system?.systemName ?? '' }, { label: uiMessage(locale, 'rahcomAxisCode'), value: system?.axisCode ?? '' }, { label: uiMessage(locale, 'rahcomTicketTitle'), value: ticketTitle(ticket) }, { label: uiMessage(locale, 'rahcomTicketDescription'), value: ticket.description ?? '' }, { label: uiMessage(locale, 'rahcomIncidentFilter'), value: trafficIncidentsByCode.get(normalize(ticket.systemCode)) ?? '' }, { label: uiMessage(locale, 'rahcomTicketNumber'), value: ticket.ticketCode }, { label: uiMessage(locale, 'rahcomTicketCreatedOn'), value: ticket.createdOn }, { label: uiMessage(locale, 'rahcomTicketSubject'), value: ticket.summary }, { label: uiMessage(locale, 'rahcomProvince'), value: provinceName(ticket.province, locale) }, { label: uiMessage(locale, 'rahcomTicketCustomer'), value: ticket.customer ?? '' }, { label: uiMessage(locale, 'rahcomTicketEquipment'), value: ticket.equipment ?? '' }, { label: uiMessage(locale, 'rahcomTicketType'), value: ticket.type ?? '' }, { label: uiMessage(locale, 'rahcomTicketStatus'), value: ticket.status ?? '' }, { label: uiMessage(locale, 'rahcomTicketPriority'), value: ticket.priority ?? '' }, { label: uiMessage(locale, 'rahcomTicketSupportTeam'), value: ticket.supportTeam ?? '' }]} /></td>
+            <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || ticket.systemCode || ticket.summary} systemCode={ticket.systemCode} system={system} fields={[{ label: uiMessage(locale, 'rahcomSystemCode'), value: ticket.systemCode }, { label: uiMessage(locale, 'rahcomSystemName'), value: system?.systemName ?? '' }, { label: uiMessage(locale, 'rahcomAxisCode'), value: system?.axisCode ?? '' }, { label: uiMessage(locale, 'rahcomTicketTitle'), value: ticketTitle(ticket) }, { label: uiMessage(locale, 'rahcomTicketDescription'), value: ticket.description ?? '' }, { label: uiMessage(locale, 'rahcomIncidentFilter'), value: systemLongOutageLabel(system) }, { label: uiMessage(locale, 'rahcomTicketNumber'), value: ticket.ticketCode }, { label: uiMessage(locale, 'rahcomTicketCreatedOn'), value: ticket.createdOn }, { label: uiMessage(locale, 'rahcomTicketSubject'), value: ticket.summary }, { label: uiMessage(locale, 'rahcomProvince'), value: provinceName(ticket.province, locale) }, { label: uiMessage(locale, 'rahcomTicketCustomer'), value: ticket.customer ?? '' }, { label: uiMessage(locale, 'rahcomTicketEquipment'), value: ticket.equipment ?? '' }, { label: uiMessage(locale, 'rahcomTicketType'), value: ticket.type ?? '' }, { label: uiMessage(locale, 'rahcomTicketStatus'), value: ticket.status ?? '' }, { label: uiMessage(locale, 'rahcomTicketPriority'), value: ticket.priority ?? '' }, { label: uiMessage(locale, 'rahcomTicketSupportTeam'), value: ticket.supportTeam ?? '' }]} /></td>
             <td className="min-w-[220px] whitespace-nowrap p-3">{system?.systemName || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td>
             <td className="min-w-[120px] whitespace-nowrap p-3 font-mono" dir="ltr">{ticketTitle(ticket) || '—'}</td>
@@ -262,7 +229,7 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
                 <span className="line-clamp-1 min-w-0 flex-1 whitespace-nowrap">{ticket.description || '—'}</span>
               </button>
             </td>
-            <td className="whitespace-nowrap p-3">{trafficIncidentsByCode.get(normalize(ticket.systemCode)) || '—'}</td>
+            <td className="whitespace-nowrap p-3">{systemLongOutageLabel(system) || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{system?.axisCode || '—'}</td>
             <td className="min-w-[180px] whitespace-nowrap p-3">{system?.announcedAxis || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td>

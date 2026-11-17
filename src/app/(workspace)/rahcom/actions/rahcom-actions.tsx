@@ -48,7 +48,7 @@ async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm')
     <div className="space-y-4">
       {selectedProvince === 'all' && <label className="mb-4 grid max-w-sm gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => setActivityProvinceState({ selection: selectedProvince, province: e.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
       {visibleItems.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={visibleItems.length} savedAt={latestActivityAt} />}
-      {canRecord && <RahcomDailyWorkflow date={date} province={activityProvince} items={items} systems={systems.filter(system => system.province === activityProvince)} onSaved={load} />}
+      {canRecord && <RahcomDailyWorkflow key={`${date ?? ''}:${activityProvince}`} date={date} province={activityProvince} items={items} systems={systems.filter(system => system.province === activityProvince)} onSaved={load} />}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     </div>
     <div className="overflow-hidden rounded-2xl border border-border bg-card">

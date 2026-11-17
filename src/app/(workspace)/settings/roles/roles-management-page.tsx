@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   Key,
   Plus,
+  Save,
   ShieldCheck,
   Square,
   Trash2,
@@ -21,6 +22,7 @@ import { getCurrentOrganizationId } from "@/lib/api/shared/auth-api";
 import {
   getRoles,
   saveRoles,
+  settingsApi,
   type RoleItem,
 } from "@/lib/api/settings/settings-api";
 import {
@@ -65,13 +67,31 @@ function toRolePayload(role: EditableRole): RolePayload {
     ...(role.id ? { id: role.id } : {}),
     ...(role.key ? { key: role.key } : {}),
     name: role.name,
-    ...(role.description ? { description: role.description } : {}),
+    // Always send an empty value too: omission means "leave unchanged" to the API.
+    description: role.description,
     permissions: [...role.permissions],
   };
 }
 
 function serializeRoles(roles: EditableRole[]) {
   return JSON.stringify(roles.map(toRolePayload));
+}
+
+function normalizeRoleLabel(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function hasDuplicateRoleIdentity(roles: EditableRole[]) {
+  const names = new Set<string>();
+  const keys = new Set<string>();
+  for (const role of roles.filter((item) => !item.isSystemRole)) {
+    const name = normalizeRoleLabel(role.name);
+    const key = (role.key?.trim() || role.name.trim().toLowerCase().replace(/\s+/g, "_")).normalize("NFKC").toUpperCase();
+    if (names.has(name) || keys.has(key)) return true;
+    names.add(name);
+    keys.add(key);
+  }
+  return false;
 }
 
 const PERMISSION_OPTIONS: { key: string; label: UiMessage }[] = [
@@ -83,6 +103,7 @@ const PERMISSION_OPTIONS: { key: string; label: UiMessage }[] = [
   { key: "settings.write", label: "permissionManage" },
   { key: "announcements.write", label: "permissionManage" },
 ];
+const KNOWN_PERMISSION_KEYS = new Set(PERMISSION_OPTIONS.map(({ key }) => key));
 
 const PERMISSION_GROUPS: { label: UiMessage; permissionKeys: string[] }[] = [
   {
@@ -127,10 +148,16 @@ function normalizeRole(role: RoleItem): EditableRole {
     key: value.key,
     name: value.name ?? "",
     description: value.description ?? "",
-    permissions: Array.isArray(value.permissions) ? value.permissions.filter((key) => PERMISSION_OPTIONS.some((option) => option.key === key)) : [],
+    permissions: Array.isArray(value.permissions)
+      ? [...new Set(value.permissions.filter((key) => typeof key === 'string' && key.trim()))]
+      : [],
     userCount: value.userCount,
     isSystemRole: Boolean((value as { isSystemRole?: boolean }).isSystemRole),
   };
+}
+
+function isReservedAdministratorRole(role: EditableRole) {
+  return ["ADMIN", "SUPER_ADMIN"].includes((role.key ?? "").trim().toUpperCase());
 }
 
 export function RolesManagementPage() {
@@ -143,6 +170,10 @@ export function RolesManagementPage() {
   const [savedRolesSnapshot, setSavedRolesSnapshot] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [canManageRoles, setCanManageRoles] = useState(false);
+  const [canManagePrivilegedRoles, setCanManagePrivilegedRoles] = useState(false);
+  const [canViewRoles, setCanViewRoles] = useState(false);
+  const [grantablePermissionKeys, setGrantablePermissionKeys] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<UiMessage | null>(null);
   const [successMessage, setSuccessMessage] = useState<LocalizedNotice | null>(
     null,
@@ -159,11 +190,17 @@ export function RolesManagementPage() {
       (text, [key, value]) => text.replace(`{${key}}`, value),
       message(notice.key),
     );
+  const canEditPermissionKey = (permissionKey: string) =>
+    canManagePrivilegedRoles || grantablePermissionKeys.includes(permissionKey);
 
   const loadRoles = useCallback(async () => {
     if (!organizationId) {
       setRoles([]);
       setHasLoadedRoles(false);
+      setCanViewRoles(false);
+      setCanManageRoles(false);
+      setCanManagePrivilegedRoles(false);
+      setGrantablePermissionKeys([]);
       setErrorMessage("rolesMissingOrganization");
       setIsLoading(false);
       return;
@@ -174,9 +211,22 @@ export function RolesManagementPage() {
       setErrorMessage(null);
       setSuccessMessage(null);
 
+      const access = await settingsApi.getOrganizationAccess(organizationId);
+      setCanViewRoles(access.canViewRoles ?? false);
+      setCanManageRoles(access.canManageRoles ?? false);
+      setCanManagePrivilegedRoles(access.canManageRahcom);
+      setGrantablePermissionKeys(access.permissionKeys ?? []);
+      if (!access.canViewRoles) {
+        setRoles([]);
+        setHasLoadedRoles(false);
+        setErrorMessage(null);
+        return;
+      }
+
       const response = await getRoles(organizationId);
       const receivedRoles = Array.isArray(response) ? response : [];
 
+      setCanViewRoles(true);
       const normalizedRoles = receivedRoles.map(normalizeRole);
       setRoles(normalizedRoles);
       setSavedRolesSnapshot(serializeRoles(normalizedRoles));
@@ -185,6 +235,10 @@ export function RolesManagementPage() {
       console.error("Failed to load roles:", error);
       setRoles([]);
       setHasLoadedRoles(false);
+      setCanViewRoles(false);
+      setCanManageRoles(false);
+      setCanManagePrivilegedRoles(false);
+      setGrantablePermissionKeys([]);
       setErrorMessage("rolesLoadFailed");
     } finally {
       setIsLoading(false);
@@ -197,6 +251,7 @@ export function RolesManagementPage() {
   }, [loadRoles]);
 
   function handleAddRole() {
+    if (!canManageRoles) return;
     setRoles((currentRoles) => [
       ...currentRoles,
       createNewRole(message("newRoleName")),
@@ -212,7 +267,7 @@ export function RolesManagementPage() {
   ) {
     setRoles((currentRoles) =>
       currentRoles.map((role, index) => {
-        if (index !== roleIndex || role.isSystemRole) return role;
+        if (index !== roleIndex || role.isSystemRole || (isReservedAdministratorRole(role) && !canManagePrivilegedRoles)) return role;
         return {
           ...role,
           [field]: value,
@@ -225,9 +280,10 @@ export function RolesManagementPage() {
   }
 
   function handlePermissionToggle(roleIndex: number, permissionKey: string) {
+    if (!canEditPermissionKey(permissionKey)) return;
     setRoles((currentRoles) =>
       currentRoles.map((role, index) => {
-        if (index !== roleIndex || role.isSystemRole) return role;
+        if (index !== roleIndex || role.isSystemRole || (isReservedAdministratorRole(role) && !canManagePrivilegedRoles)) return role;
 
         const hasPermission = role.permissions.includes(permissionKey);
 
@@ -246,11 +302,12 @@ export function RolesManagementPage() {
 
   function handleDeleteRole(roleIndex: number) {
     const role = roles[roleIndex];
-    if (!role || role.isSystemRole) return;
+    if (!canManageRoles || isSaving || isImporting || !role || role.isSystemRole || (isReservedAdministratorRole(role) && !canManagePrivilegedRoles)) return;
     if ((role.userCount ?? 0) > 0) {
       setErrorMessage("roleHasUsers");
       return;
     }
+    if (!window.confirm(message("roleDeleteConfirm").replace("{name}", role.name))) return;
 
     setRoles((currentRoles) =>
       currentRoles.filter((_, index) => index !== roleIndex),
@@ -261,7 +318,8 @@ export function RolesManagementPage() {
   }
 
   async function handleSave() {
-    if (!organizationId) {
+    if (!canManageRoles) return;
+    if (!organizationId || !canManageRoles) {
       setErrorMessage("rolesMissingOrganization");
       return;
     }
@@ -272,6 +330,11 @@ export function RolesManagementPage() {
 
     if (hasEmptyRoleName) {
       setErrorMessage("roleNameRequired");
+      return;
+    }
+
+    if (hasDuplicateRoleIdentity(roles)) {
+      setErrorMessage("rolesDuplicateConflict");
       return;
     }
 
@@ -290,6 +353,26 @@ export function RolesManagementPage() {
       const normalizedRoles = (Array.isArray(saved) ? saved : []).map(
         normalizeRole,
       );
+
+      let refreshedAccess = null;
+      try {
+        refreshedAccess = await settingsApi.getOrganizationAccess(organizationId);
+      } catch (accessError) {
+        console.warn("Could not refresh role permissions after save:", accessError);
+      }
+      if (refreshedAccess) {
+        setCanViewRoles(refreshedAccess.canViewRoles ?? false);
+        setCanManageRoles(refreshedAccess.canManageRoles ?? false);
+        setCanManagePrivilegedRoles(refreshedAccess.canManageRahcom);
+        setGrantablePermissionKeys(refreshedAccess.permissionKeys ?? []);
+        if (!refreshedAccess.canViewRoles) {
+          setRoles([]);
+          setSavedRolesSnapshot("");
+          setHasLoadedRoles(false);
+          setErrorMessage("rolesAccessChanged");
+          return;
+        }
+      }
       setRoles(normalizedRoles);
       setSavedRolesSnapshot(serializeRoles(normalizedRoles));
       setHasLoadedRoles(true);
@@ -303,20 +386,23 @@ export function RolesManagementPage() {
   }
 
   function togglePermissionGroup(roleIndex: number, permissionKeys: string[]) {
+    const editableKeys = permissionKeys.filter(canEditPermissionKey);
+    if (editableKeys.length === 0) return;
+
     setRoles((currentRoles) =>
       currentRoles.map((role, index) => {
-        if (index !== roleIndex || role.isSystemRole) return role;
-        const allSelected = permissionKeys.every((key) =>
+        if (index !== roleIndex || role.isSystemRole || (isReservedAdministratorRole(role) && !canManagePrivilegedRoles)) return role;
+        const allSelected = editableKeys.every((key) =>
           role.permissions.includes(key),
         );
         const retained = role.permissions.filter(
-          (key) => !permissionKeys.includes(key),
+          (key) => !editableKeys.includes(key),
         );
         return {
           ...role,
           permissions: allSelected
             ? retained
-            : [...retained, ...permissionKeys],
+            : [...retained, ...editableKeys],
         };
       }),
     );
@@ -347,7 +433,7 @@ export function RolesManagementPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!organizationId) {
+    if (!organizationId || !canManageRoles) {
       setErrorMessage("rolesMissingOrganization");
       return;
     }
@@ -361,6 +447,7 @@ export function RolesManagementPage() {
       const parsedRaw = JSON.parse(fileText);
       const validatedData = parseRolesImportData(parsedRaw);
       const itemsToSave = rolesImportDataToItems(validatedData);
+      if (!window.confirm(message("rolesImportReplaceConfirm"))) return;
 
       // ذخیره مستقیم در بک‌اند
       await saveRoles(itemsToSave as unknown as RoleItem[], organizationId);
@@ -404,9 +491,9 @@ export function RolesManagementPage() {
       <SettingsPageToolbar>
         <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={(event) => void handleFileUpload(event)} />
         <button type="button" onClick={handleDownloadSample} disabled={!organizationId || isSaving || isImporting} aria-label={message("rolesDownloadSample")} title={message("rolesDownloadSample")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet className="size-4" aria-hidden="true" /></button>
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!organizationId || !hasLoadedRoles || hasUnsavedChanges || isSaving || isImporting} aria-label={isImporting ? message("rolesUploading") : message("rolesUploadJson")} title={isImporting ? message("rolesUploading") : message("rolesUploadJson")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">{isImporting ? <Upload className="size-4 animate-pulse" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}</button>
-        <button type="button" onClick={handleAddRole} disabled={!organizationId || !hasLoadedRoles || isSaving || isImporting} aria-label={message("rolesAdd")} title={message("rolesAdd")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" aria-hidden="true" /></button>
-        <button type="button" onClick={() => void handleSave()} disabled={!organizationId || !hasLoadedRoles || !hasUnsavedChanges || isSaving || isImporting} aria-label={isSaving ? message("rolesSaving") : message("rolesSave")} title={isSaving ? message("rolesSaving") : message("rolesSave")} className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? <Key className="size-4 animate-pulse" aria-hidden="true" /> : <Key className="size-4" aria-hidden="true" />}</button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={!organizationId || !canManageRoles || !hasLoadedRoles || hasUnsavedChanges || isSaving || isImporting} aria-label={isImporting ? message("rolesUploading") : message("rolesUploadJson")} title={isImporting ? message("rolesUploading") : message("rolesUploadJson")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">{isImporting ? <Upload className="size-4 animate-pulse" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}</button>
+        <button type="button" onClick={handleAddRole} disabled={!organizationId || !canManageRoles || !hasLoadedRoles || isSaving || isImporting} aria-label={message("rolesAdd")} title={message("rolesAdd")} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" aria-hidden="true" /></button>
+        <button type="button" onClick={() => void handleSave()} disabled={!organizationId || !canManageRoles || !hasLoadedRoles || !hasUnsavedChanges || isSaving || isImporting} aria-label={isSaving ? message("rolesSaving") : message("rolesSave")} title={isSaving ? message("rolesSaving") : message("rolesSave")} className="grid size-9 shrink-0 place-items-center rounded-full border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? <Save className="size-4 animate-pulse" aria-hidden="true" /> : <Save className="size-4" aria-hidden="true" />}</button>
         <span role="status" className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-background px-3 text-xs font-medium text-foreground">{message("rolesCount").replace("{count}", formatCount(roles.length))}</span>
         {hasUnsavedChanges && <span role="status" className="inline-flex h-9 shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary">{message("rolesUnsaved")}</span>}
       </SettingsPageToolbar>
@@ -424,7 +511,7 @@ export function RolesManagementPage() {
           className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           {message(errorMessage)}
-          {!hasLoadedRoles && organizationId && (
+          {!hasLoadedRoles && organizationId && errorMessage === "rolesLoadFailed" && (
             <button
               type="button"
               onClick={() => void loadRoles()}
@@ -449,6 +536,12 @@ export function RolesManagementPage() {
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           {message("rolesMissingOrganization")}
         </div>
+      ) : !canViewRoles ? (
+        errorMessage === "rolesLoadFailed" ? null : (
+          <div role="status" className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+            {message("rolesAccessChanged")}
+          </div>
+        )
       ) : roles.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
           <ShieldCheck
@@ -476,7 +569,7 @@ export function RolesManagementPage() {
             <button
               type="button"
               onClick={handleAddRole}
-              disabled={!hasLoadedRoles || isSaving || isImporting}
+              disabled={!canManageRoles || !hasLoadedRoles || isSaving || isImporting}
               className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -488,6 +581,8 @@ export function RolesManagementPage() {
         <div className="space-y-4">
           {roles.map((role, roleIndex) => {
             const roleKey = role.id ?? role.localId ?? `role-${roleIndex}`;
+            const roleReadOnly = !canManageRoles || role.isSystemRole || (isReservedAdministratorRole(role) && !canManagePrivilegedRoles);
+            const additionalPermissions = role.permissions.filter((key) => !KNOWN_PERMISSION_KEYS.has(key));
 
             return (
               <article
@@ -526,7 +621,7 @@ export function RolesManagementPage() {
                           event.target.value,
                         )
                       }
-                      disabled={isSaving || role.isSystemRole}
+                      disabled={isSaving || roleReadOnly}
                       placeholder={message("roleNamePlaceholder")}
                       className="h-10 w-full rounded-xl border border-border bg-background px-3 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                     />
@@ -548,7 +643,7 @@ export function RolesManagementPage() {
                           event.target.value,
                         )
                       }
-                      disabled={isSaving || role.isSystemRole}
+                      disabled={isSaving || roleReadOnly}
                       placeholder={message("roleDescriptionPlaceholder")}
                       className="h-10 w-full rounded-xl border border-border bg-background px-3 text-start text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                     />
@@ -560,12 +655,12 @@ export function RolesManagementPage() {
                       onClick={() => handleDeleteRole(roleIndex)}
                       disabled={
                         isSaving ||
-                        role.isSystemRole ||
+                        roleReadOnly ||
                         (role.userCount ?? 0) > 0
                       }
                       aria-label={message("roleDelete")}
                       title={
-                        role.isSystemRole
+                        roleReadOnly
                           ? message("systemRoleReadonly")
                           : (role.userCount ?? 0) > 0
                             ? message("roleHasUsers")
@@ -605,7 +700,8 @@ export function RolesManagementPage() {
                       const groupPermissions = PERMISSION_OPTIONS.filter(
                         (perm) => group.permissionKeys.includes(perm.key),
                       );
-                      const allSelected = group.permissionKeys.every((key) =>
+                      const editablePermissionKeys = group.permissionKeys.filter(canEditPermissionKey);
+                      const allSelected = editablePermissionKeys.every((key) =>
                         role.permissions.includes(key),
                       );
                       return (
@@ -643,14 +739,15 @@ export function RolesManagementPage() {
                             </span>
                           </summary>
                           <div className="border-t border-border/70 px-3 pb-3 pt-2">
+                            {!canManagePrivilegedRoles && <p className="mb-2 text-[11px] text-muted-foreground">{message("rolesGrantablePermissionHint")}</p>}
                             <div className="mb-2 flex items-center justify-end gap-2">
-                              {!role.isSystemRole && (
+                              {!roleReadOnly && editablePermissionKeys.length > 0 && (
                                 <button
                                   type="button"
                                   onClick={() =>
                                     togglePermissionGroup(
                                       roleIndex,
-                                      group.permissionKeys,
+                                      editablePermissionKeys,
                                     )
                                   }
                                   disabled={isSaving}
@@ -667,6 +764,7 @@ export function RolesManagementPage() {
                                 const isSelected = role.permissions.includes(
                                   perm.key,
                                 );
+                                const canEditPermission = canEditPermissionKey(perm.key);
                                 return (
                                   <button
                                     key={perm.key}
@@ -677,8 +775,9 @@ export function RolesManagementPage() {
                                         perm.key,
                                       )
                                     }
-                                    disabled={isSaving || role.isSystemRole}
+                                    disabled={isSaving || roleReadOnly || !canEditPermission}
                                     aria-pressed={isSelected}
+                                    title={!canEditPermission ? message("rolesPermissionLocked") : undefined}
                                     className={`flex min-h-9 w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-start text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${isSelected ? "border-primary/40 bg-primary/10 font-medium text-primary" : "border-border bg-background text-foreground hover:bg-accent"}`}
                                   >
                                     {isSelected ? (
@@ -702,6 +801,16 @@ export function RolesManagementPage() {
                       );
                     })}
                   </div>
+                  {additionalPermissions.length > 0 && (
+                    <div className="mt-3 rounded-lg border border-border/70 bg-muted/30 p-3">
+                      <p className="text-xs text-muted-foreground">{message("rolesAdditionalPermissionsRetained")}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5" dir="ltr">
+                        {additionalPermissions.map((permission) => (
+                          <code key={permission} className="rounded bg-background px-2 py-1 text-[11px] text-foreground">{permission}</code>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </article>
             );
