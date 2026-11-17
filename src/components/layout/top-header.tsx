@@ -90,12 +90,10 @@ export function TopHeader({
   const mobileToolsRef = useRef<HTMLDivElement>(null);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [headerSearchProvince, setHeaderSearchProvince] = useState('all');
-  const [headerSystems, setHeaderSystems] = useState<RahcomSystem[] | null>(null);
   const [headerSearchResults, setHeaderSearchResults] = useState<RahcomSystem[]>([]);
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false);
   const [headerSearchLoading, setHeaderSearchLoading] = useState(false);
   const [headerSearchError, setHeaderSearchError] = useState(false);
-  const headerSystemsPromiseRef = useRef<Promise<RahcomSystem[]> | null>(null);
   const headerSearchRef = useRef<HTMLFormElement>(null);
   const [shellVisibility, setShellVisibility] = useState(() => readShellVisibility(isReducedEdition));
   const router = useRouter();
@@ -106,17 +104,24 @@ export function TopHeader({
   const direction = getLocaleDirection(locale);
   const english = locale !== 'fa';
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
+  const updateHeaderSearchQuery = (query: string) => {
+    setHeaderSearchQuery(query);
+    setHeaderSearchResults([]);
+    setHeaderSearchError(false);
+    setHeaderSearchOpen(Boolean(query.trim()));
+    if (!query.trim()) setHeaderSearchLoading(false);
+  };
   const isMissionModeVisible = (_mode: MissionEntryMode) => shellVisibility.headerControls?.missionTools !== false;
 
   useEffect(() => {
     let active = true;
     const applyProvince = (province: unknown) => {
       if (typeof province !== 'string' || !province.trim()) return;
+      setHeaderSearchResults([]);
+      setHeaderSearchLoading(false);
+      setHeaderSearchError(false);
       setHeaderSearchProvince((current) => {
         if (current === province) return current;
-        setHeaderSystems(null);
-        setHeaderSearchResults([]);
-        headerSystemsPromiseRef.current = null;
         return province;
       });
     };
@@ -203,39 +208,23 @@ export function TopHeader({
 
   useEffect(() => {
     const query = headerSearchQuery.trim();
-    if (!query) {
-      setHeaderSearchResults([]);
-      setHeaderSearchLoading(false);
-      setHeaderSearchError(false);
-      setHeaderSearchOpen(false);
-      return;
-    }
-    setHeaderSearchOpen(true);
-    if (headerSystems) {
-      setHeaderSearchResults(searchRahcomSystems(headerSystems, query, locale).slice(0, 8));
-      setHeaderSearchLoading(false);
-      setHeaderSearchError(false);
-      return;
-    }
-    setHeaderSearchLoading(true);
+    if (!query) return;
     let active = true;
     const timer = window.setTimeout(() => {
-      headerSystemsPromiseRef.current ??= rahcomApi.systems(headerSearchProvince);
-      void headerSystemsPromiseRef.current
+      setHeaderSearchLoading(true);
+      void rahcomApi.searchSystems(headerSearchProvince, query)
         .then((items) => {
           if (!active) return;
-          setHeaderSystems(items);
           setHeaderSearchResults(searchRahcomSystems(items, query, locale).slice(0, 8));
           setHeaderSearchError(false);
         })
         .catch(() => {
-          headerSystemsPromiseRef.current = null;
           if (active) { setHeaderSearchResults([]); setHeaderSearchError(true); }
         })
         .finally(() => { if (active) setHeaderSearchLoading(false); });
     }, 160);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [headerSearchQuery, headerSearchProvince, headerSystems, locale]);
+  }, [headerSearchQuery, headerSearchProvince, locale]);
 
   useEffect(() => {
     const closeOutside = (event: MouseEvent) => {
@@ -308,7 +297,7 @@ export function TopHeader({
 
   const selectHeaderSystem = (system: RahcomSystem, trigger?: HTMLElement | null) => {
     saveSearchHistory(headerSearchQuery, isReducedEdition);
-    setHeaderSearchQuery('');
+    updateHeaderSearchQuery('');
     setHeaderSearchOpen(false);
     setMobileToolsOpen(false);
     setMobileSearchExpanded(false);
@@ -339,7 +328,7 @@ export function TopHeader({
    * دریافت اطلاعات کاربر و اعمال تم ذخیره‌شده
    */
   useEffect(() => {
-    setUser(getCurrentUser());
+    const userFrame = window.requestAnimationFrame(() => setUser(getCurrentUser()));
     let isCurrent = true;
 
     const refreshOrganizationBranding = () => {
@@ -387,6 +376,7 @@ export function TopHeader({
         'organization-branding-changed',
         refreshOrganizationBranding,
       );
+      window.cancelAnimationFrame(userFrame);
       isCurrent = false;
     };
   }, []);
@@ -572,8 +562,8 @@ export function TopHeader({
             <button type="button" onClick={() => { setMobileSearchExpanded((expanded) => !expanded); setMobileToolsOpen(false); setMobileTool(null); setHeaderSearchOpen(Boolean(headerSearchQuery.trim())); }} aria-label={message('headerSearch')} title={message('headerSearch')} aria-expanded={mobileSearchExpanded} style={mobileSearchExpanded ? { backgroundColor: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] max-sm:h-8 max-sm:w-8"><Search size={18}/></button>
             {mobileSearchExpanded && <div className="absolute -left-10 top-[calc(100%+0.5rem)] z-[130] w-[min(18rem,calc(100vw-2rem))]">
               <form onSubmit={(event) => { submitHeaderSearch(event); setMobileSearchExpanded(false); }} role="search" style={{ backgroundColor: 'var(--gray-header,var(--surface))', color: 'var(--foreground)' }} className="rahcom-search-capsule rahcom-search-capsule--outer-focus flex h-12 min-w-0 items-center gap-2 rounded-full border border-[var(--border)] px-3 text-foreground shadow-lg transition-colors focus-within:border-[var(--primary)]">
-                <input autoFocus type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-full min-w-0 flex-1 rounded-full bg-transparent text-sm text-inherit outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0" />
-                {headerSearchQuery && <button type="button" onClick={() => setHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="grid size-7 shrink-0 place-items-center rounded-full text-inherit hover:bg-muted focus-visible:outline-none"><X size={16}/></button>}
+                <input autoFocus type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-full min-w-0 flex-1 rounded-full bg-transparent text-sm text-inherit outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0" />
+                {headerSearchQuery && <button type="button" onClick={() => updateHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="grid size-7 shrink-0 place-items-center rounded-full text-inherit hover:bg-muted focus-visible:outline-none"><X size={16}/></button>}
                 <button type="submit" aria-label={message('headerSearch')} title={message('headerSearch')} className="grid size-8 shrink-0 place-items-center rounded-full text-inherit focus-visible:outline-none"><Search size={18}/></button>
               </form>
               {renderHeaderSystemSuggestions()}
@@ -583,7 +573,7 @@ export function TopHeader({
           {mobileToolsOpen && <div dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="fixed left-2 top-14 z-[100] w-[min(9.5rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1.5 shadow-2xl">
             {mobileTool === null ? <div>{([['accountSwitcher','settingsHeaderAccountSwitcher'],['province','settingsHeaderProvinceSelector'],['profile','viewProfile'],['mission','missionShortcutTitle']] as const).filter(([id]) => id !== 'province' || isReducedEdition).map(([id,label], index, items) => <button key={id} type="button" onClick={() => setMobileTool(id)} className={`min-h-10 w-full px-3 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] ${index < items.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>{locale === 'fa' && id === 'profile' ? 'پروفایل' : locale === 'fa' && id === 'mission' ? 'فرم و دستیار' : message(label)}</button>)}</div> : <div>
               <button type="button" onClick={() => setMobileTool(null)} aria-label="بازگشت" title="بازگشت" className="mb-1 inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"><span>بازگشت</span><ChevronLeft size={16}/></button>
-              {mobileTool === 'search' && <div className="relative"><form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><div className="relative min-w-0 flex-1"><input autoFocus type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 w-full rounded-xl border border-[var(--border)] bg-background px-3 pe-10 text-sm text-foreground"/>{headerSearchQuery && <button type="button" onClick={() => setHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={16}/></button>}</div><button type="submit" aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>{renderHeaderSystemSuggestions(true)}</div>}
+              {mobileTool === 'search' && <div className="relative"><form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><div className="relative min-w-0 flex-1"><input autoFocus type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 w-full rounded-xl border border-[var(--border)] bg-background px-3 pe-10 text-sm text-foreground"/>{headerSearchQuery && <button type="button" onClick={() => updateHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={16}/></button>}</div><button type="submit" aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>{renderHeaderSystemSuggestions(true)}</div>}
               {mobileTool === 'accountSwitcher' && shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded/>}
               {mobileTool === 'province' && shellVisibility.headerControls?.provinceSelector !== false && <div className="p-1"><HeaderProvinceSelector userId={user?.id} embedded/></div>}
               {mobileTool === 'profile' && <div className="grid gap-1">
@@ -737,8 +727,8 @@ export function TopHeader({
           </button>
         </div>}
         <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule pointer-events-auto relative flex min-w-0 rounded-full">
-          <input type="text" value={headerSearchQuery} onChange={(event) => setHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
-          {headerSearchQuery && <button type="button" onClick={() => setHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={15}/></button>}
+          <input type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
+          {headerSearchQuery && <button type="button" onClick={() => updateHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={15}/></button>}
           {renderHeaderSystemSuggestions()}
         </form>
       </div>

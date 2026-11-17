@@ -14,6 +14,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { getCurrentUser, isUserAuthenticated } from '@/lib/api/shared/auth-api'
 import { isReducedEdition } from '@/lib/product-edition'
 import { OPTIONAL_MODULE_IDS, readModuleVisibility } from '@/lib/module-visibility'
+import Image from 'next/image'
 
 type WorkspaceLayoutProps = {
   children: React.ReactNode
@@ -128,18 +129,20 @@ export default function WorkspaceLayout({
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            ERP
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl">
+            <Image
+              src="/rahyar-road.png"
+              alt="رهیار"
+              width={56}
+              height={56}
+              priority
+              className="h-14 w-14 object-contain"
+            />
           </div>
 
-          <h2 className="text-xl font-semibold">
-            در حال بررسی دسترسی
-          </h2>
+          <h2 className="text-xl font-semibold">در حال آماده‌سازی رهیار</h2>
 
-          <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            در حال اعتبارسنجی نشست کاربری و آماده‌سازی محیط کاری
-            Rahyar...
-          </p>
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">در حال بررسی نشست کاربری و آماده‌سازی محیط کاری هستیم.</p>
 
           <div className="mt-6 flex justify-center">
             <div className="h-9 w-9 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />

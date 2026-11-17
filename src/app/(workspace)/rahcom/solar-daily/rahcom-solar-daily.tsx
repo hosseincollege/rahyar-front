@@ -441,6 +441,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const entries = useMemo(() => [...parseList(downText, 'down'), ...parseList(unreachableText, 'unreachable')], [downText, unreachableText]);
   const columns = useMemo(() => [...commonEquipment, ...[...customEquipment].sort()].filter((item) => selectedEquipment.includes(item)), [customEquipment, selectedEquipment]);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
@@ -459,12 +460,47 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   }, [dateText, formOpen, selectedProvince]);
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    void Promise.all([rahcomApi.solarSnapshots(selectedProvince, date ?? undefined), rahcomApi.systems(selectedProvince), rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined)]).then(([solar, systemRows, traffic]) => { if (active) { setSnapshots([...solar].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime() || new Date(right.capturedAt).getTime() - new Date(left.capturedAt).getTime())); setSystems(systemRows); setTrafficSnapshot(traffic); } })
-      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : t('solarLoadFailed')); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [t, selectedProvince, date, snapshotRevision]);
+    const frame = window.requestAnimationFrame(() => {
+      setLoading(true);
+      setLoadError('');
+      void Promise.all([
+        rahcomApi.solarSnapshots(selectedProvince, date ?? undefined),
+        rahcomApi.systems(selectedProvince),
+        rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined),
+      ])
+        .then(([solar, systemRows, traffic]) => {
+          if (!active) return;
+          setSnapshots(
+            [...solar].sort(
+              (left, right) =>
+                new Date(right.createdAt).getTime() -
+                  new Date(left.createdAt).getTime() ||
+                new Date(right.capturedAt).getTime() -
+                  new Date(left.capturedAt).getTime(),
+            ),
+          );
+          setSystems(systemRows);
+          setTrafficSnapshot(traffic);
+        })
+        .catch((reason: unknown) => {
+          if (!active) return;
+          setSnapshots([]);
+          setSystems([]);
+          setTrafficSnapshot(null);
+          onSystemCountChange(0);
+          setLoadError(
+            reason instanceof Error ? reason.message : t('solarLoadFailed'),
+          );
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    });
+    return () => {
+      active = false;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [t, selectedProvince, date, snapshotRevision, onSystemCountChange]);
   useEffect(() => {
     if (!loading) onSolarSnapshotsChange(snapshots);
   }, [loading, onSolarSnapshotsChange, snapshots]);
@@ -539,7 +575,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     {entries.length > 0 && <div className="space-y-2"><h2 className="font-semibold">{t('solarPreview')}</h2><StatusTable entries={entries} columns={columns} locale={locale} selectedProvince={selectedProvince} viewProvince={snapshotProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshots} /></div>}
     </>}
 
-    <div className="flex min-w-0 flex-col gap-3">{loading ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : !selectedSnapshot ? <p className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
+    <div className="flex min-w-0 flex-col gap-3">{loading ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : loadError ? <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 bg-card p-4 text-sm text-destructive">{loadError}</p> : !selectedSnapshot ? <p role="status" className="shrink-0 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">{t('solarNoSnapshots')}</p> : <>
       <StatusTable entries={selectedSnapshotEntries} columns={selectedSnapshotColumns} locale={locale} selectedProvince={selectedProvince} viewProvince={selectedSnapshot.province ?? selectedProvince} systems={systems} traffic={trafficSnapshot} snapshots={snapshotsForDate} currentSnapshot={selectedSnapshot} onRowCountChange={onSystemCountChange} />
     </>}</div>
   </section>;

@@ -26,12 +26,14 @@ export function RahcomTrafficUpload() {
 
   useEffect(() => {
     let active = true;
-    const organizationId = getCurrentOrganizationId();
-    if (!organizationId) { setAccessLoading(false); return; }
-    void settingsApi.getOrganizationAccess(organizationId).then((access) => {
-      if (active) setIsAdmin(Boolean(access.canManageRahcom));
-    }).catch(() => { if (active) setIsAdmin(false); }).finally(() => { if (active) setAccessLoading(false); });
-    return () => { active = false; };
+    const frame = window.requestAnimationFrame(() => {
+      const organizationId = getCurrentOrganizationId();
+      if (!organizationId) { setAccessLoading(false); return; }
+      void settingsApi.getOrganizationAccess(organizationId).then((access) => {
+        if (active) setIsAdmin(Boolean(access.canManageRahcom));
+      }).catch(() => { if (active) setIsAdmin(false); }).finally(() => { if (active) setAccessLoading(false); });
+    });
+    return () => { active = false; window.cancelAnimationFrame(frame); };
   }, []);
 
   async function uploadFile(event: ChangeEvent<HTMLInputElement>) {
@@ -62,6 +64,12 @@ export function RahcomTrafficUpload() {
         break;
       }
       if (!upload) throw new Error(t('rahcomTrafficRequiredColumns'));
+      const parsedPayloadSize = new TextEncoder().encode(
+        JSON.stringify({ headers: upload.headers, rows: upload.rows }),
+      ).byteLength;
+      if (parsedPayloadSize > 8 * 1024 * 1024) {
+        throw new Error(t('rahcomTrafficParsedTooLarge'));
+      }
 
       if (!date) throw new Error(t('rahcomTrafficSaveFailed'));
       await rahcomApi.createTrafficSnapshot({ ...upload, snapshotDate: date });

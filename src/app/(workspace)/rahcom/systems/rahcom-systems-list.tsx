@@ -55,9 +55,15 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
 
 export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' }: { canManage?: boolean; selectedProvince?: string }) {
   const { locale } = usePreferences();
-  const [systems, setSystems] = useState<RahcomSystem[]>([]);
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const [systemsState, setSystemsState] = useState<{ province: string; rows: RahcomSystem[] } | null>(null);
+  const systems = useMemo(
+    () => systemsState?.province === selectedProvince ? systemsState.rows : [],
+    [systemsState, selectedProvince],
+  );
   const [billIdentifierWorkbookState, setBillIdentifierWorkbookState] = useState<{ province: string; workbook: BillIdentifierWorkbook | null } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [systemsRequestFinished, setSystemsRequestFinished] = useState(false);
+  const loading = !systemsRequestFinished || systemsState?.province !== selectedProvince;
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
@@ -137,11 +143,14 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   useEffect(() => {
     let active = true;
     rahcomApi.systems(selectedProvince)
-      .then((result) => { if (active) { setSystems(result); setError(''); } })
+      .then((result) => { if (active) { setSystemsState({ province: selectedProvince, rows: result }); setError(''); } })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
+        if (active) {
+          setSystemsState({ province: selectedProvince, rows: [] });
+          setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
+        }
       })
-      .finally(() => { if (active) setLoading(false); });
+      .finally(() => { if (active) setSystemsRequestFinished(true); });
     return () => { active = false; };
   }, [selectedProvince, systemsRevision, t]);
 
@@ -243,7 +252,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     setUploadBusy(true);
     setError('');
     try {
-      if (file.size > 10 * 1024 * 1024) throw new Error(t('rahcomDataUploadHint'));
+      if (file.size > 10 * 1024 * 1024) throw new Error(t('rahcomSystemsFileTooLarge'));
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = firstSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' }) : [];
@@ -263,6 +272,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         [normalize(t('rahcomIncidentType'))]: 'incidentType', [normalize(t('rahcomIncidentDetails'))]: 'incidentDetails',
       };
       const seenCodes = new Set<string>();
+      let invalidRows = 0;
       const parsed = rows.flatMap((row) => {
         const values: Record<string, unknown> = {};
         Object.entries(row).forEach(([header, value]) => { const key = aliases[normalize(header)]; if (key) values[key] = value; });
@@ -281,16 +291,20 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
         const outageDetails = String(values.longOutageDetails ?? '').trim();
         const normalizedCode = systemCode.normalize('NFKC').trim().toUpperCase();
         const rowProvince = selectedProvince === 'all' ? rahcomProvinceFromLabel(String(values.province ?? '').trim()) : selectedProvince;
-        if (!rowProvince || (selectedProvince !== 'all' && values.province && rahcomProvinceFromLabel(String(values.province)) !== selectedProvince)) return [];
-        if (!systemName || !normalizedCode || seenCodes.has(normalizedCode) || hasLatitude !== hasLongitude || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) return [];
+        if (!rowProvince) { invalidRows += 1; return []; }
+        if (selectedProvince !== 'all' && values.province && rahcomProvinceFromLabel(String(values.province)) !== selectedProvince) return [];
+        if (!systemName || !normalizedCode || seenCodes.has(normalizedCode) || hasLatitude !== hasLongitude || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) { invalidRows += 1; return []; }
         seenCodes.add(normalizedCode);
         const incidentType = String(values.incidentType ?? '').trim();
         return [{ province: rowProvince, system: { systemName, systemCode, stationName: String(values.stationName ?? '').trim(), aggregationCode: String(values.aggregationCode ?? '').trim(), latitude, longitude, longOutage: longOutage || Boolean(outageReason), longOutageReason: outageReason, longOutageDetails: outageDetails, incidentType: ['THEFT', 'DAMAGE', 'THEFT_AND_DAMAGE', 'WIDENING_RELOCATION'].includes(incidentType) ? incidentType : null, incidentDetails: String(values.incidentDetails ?? '').trim(), announcedAxis: String(values.announcedAxis ?? '').trim(), axisCode: String(values.axisCode ?? '').trim(), details: String(values.details ?? '').trim(), electricityBillId: String(values.electricityBillId ?? '').trim(), simIp: String(values.simIp ?? '').trim(), radarIp: String(values.radarIp ?? '').trim(), cameraIp: String(values.cameraIp ?? '').trim(), pcIp: String(values.pcIp ?? '').trim(), routerIp: String(values.routerIp ?? '').trim(), laptopIp: String(values.laptopIp ?? '').trim() } }];
       });
+      if (invalidRows) throw new Error(t('rahcomSystemsImportInvalidRows'));
       if (!parsed.length) throw new Error(t('rahcomDataUploadHint'));
-      const systemsByProvince = new Map<string, Array<Record<string, unknown>>>();
-      parsed.forEach(({ province, system }) => systemsByProvince.set(province, [...(systemsByProvince.get(province) ?? []), system]));
-      for (const [province, provinceSystems] of systemsByProvince) await rahcomApi.importSystems(province, provinceSystems);
+      const importRows = parsed.map(({ province, system }) => ({ ...system, province }));
+      const payload = JSON.stringify({ systems: importRows });
+      if (new TextEncoder().encode(payload).byteLength > 8 * 1024 * 1024)
+        throw new Error(t('rahcomSystemsPayloadTooLarge'));
+      await rahcomApi.importSystemsBatch(importRows);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('rahcomSystemsLoadError'));
     } finally { if (!keepBusy) setUploadBusy(false); }
@@ -394,7 +408,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     setError('');
     try {
       const latestSystems = await rahcomApi.systems('isfahan');
-      setSystems(latestSystems);
+      setSystemsState({ province: 'isfahan', rows: latestSystems });
       await writeSystemsBackup(latestSystems);
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === 'AbortError') return;
@@ -502,7 +516,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 max-w-full flex-col gap-3 overflow-hidden">
       <div className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
         <RahcomHeaderDate compact loadMarkedDates={loadTrafficDatesForCalendar} />
-        <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(systems.length)} ${t('rahcomSystemsList')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground"><MapPinned size={16} className="text-primary" />{new Intl.NumberFormat(locale).format(systems.length)}</span>
+        <span role="status" aria-label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground"><MapPinned size={16} className="text-primary" />{numberFormatter.format(systems.length)}</span>
         <SystemsSearchInput value={searchDraft} onChange={(value) => { setSearchDraft(value); startTransition(() => setQuery(value)); }} placeholder={t('rahcomSearchSystems')} clearLabel={t('searchClear')} />
         {canManage && selectedProvince !== 'all' && <button type="button" onClick={openAddSystem} aria-label={t('rahcomAddSystem')} title={t('rahcomAddSystem')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
         {canEditSystems && <button type="button" aria-pressed={editMode} onClick={() => setEditMode((enabled) => !enabled)} aria-label={t('rahcomEditSystem')} title={t('rahcomEditSystem')} style={editMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${editMode ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Pencil size={16} /></button>}
@@ -564,7 +578,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                   aria-selected={selectedSystemId === system.id}
                   className="odd:bg-background even:bg-muted/30"
                 >
-                  <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{new Intl.NumberFormat(locale).format(rowIndex + 1)}</td>
+                  <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{numberFormatter.format(rowIndex + 1)}</td>
                   <td className="border-b border-border/70 px-1 py-2 text-center align-middle"><RahcomRowInfo title={system.systemName} systemCode={system.systemCode} system={{ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }} fields={[{ label: t('rahcomSystemCode'), value: system.systemCode }, { label: t('rahcomSystemName'), value: system.systemName }, { label: t('rahcomAxisName'), value: axisName }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomProvince'), value: provinceName(system.province) }]} electricityDetails={electricityDetailsBySystem.get(normalizeRahcomSystemCode(system.systemCode)) ?? []} onEdit={canEditSystems ? () => startEdit({ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }) : undefined} /></td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono font-bold tracking-wide text-foreground">
                   {selectedSystemId === system.id && systemPopupPosition && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[100] bg-transparent" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSystemId(null); }}>

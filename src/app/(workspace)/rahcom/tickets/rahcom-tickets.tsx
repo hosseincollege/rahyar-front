@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Check, Clock3, Download, LoaderCircle, Pencil, X } from 'lucide-react';
+import { Check, Clock3, LoaderCircle, Pencil, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
@@ -36,6 +36,7 @@ const ticketTitle = (ticket: RahcomImportedTicket) => {
 
 export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (count: number) => void }) {
   const { locale } = usePreferences();
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { date } = useRahcomDate();
   const searchParams = useSearchParams();
   const systemFilter = searchParams.get('system')?.toLocaleLowerCase(locale) ?? '';
@@ -43,7 +44,6 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const storageKey = `rahyar-selected-province:${userId || 'current'}`;
   const [selectedProvince, setSelectedProvince] = useState('isfahan');
   const [importedTickets, setImportedTickets] = useState<RahcomImportedTicket[] | null>(null);
-  const [systems, setSystems] = useState<RahcomSystem[]>([]);
   const [importing, setImporting] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('');
   const [error, setError] = useState('');
@@ -52,30 +52,47 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
   const [savingDescriptionId, setSavingDescriptionId] = useState<string | null>(null);
+  const selectedProvinceRef = useRef(selectedProvince);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const importedRequestId = useRef(0);
 
+  useEffect(() => {
+    selectedProvinceRef.current = selectedProvince;
+  }, [selectedProvince]);
+  const invalidateImportedRequests = useCallback(() => {
+    importedRequestId.current += 1;
+  }, []);
+
   const loadImported = useCallback(async (province: string) => {
     const requestId = ++importedRequestId.current;
     setImportedTickets(null);
-    const [rows, systemRows] = await Promise.all([rahcomApi.importedTickets(province), rahcomApi.systems(province).catch(() => [])]);
+    const rows = date ? await rahcomApi.importedTickets(province, date) : [];
     if (requestId !== importedRequestId.current) return;
     setImportedTickets(rows);
-    setSystems(systemRows);
     setSelectedFileName(rows[0]?.sourceFileName ?? '');
-  }, []);
+  }, [date]);
 
   useEffect(() => {
-    setSelectedProvince(window.localStorage.getItem(storageKey) || 'isfahan');
+    let receivedProvinceChange = false;
     const onProvinceChange = (event: Event) => {
       const value = (event as CustomEvent<{ province?: string }>).detail?.province;
-      if (value) setSelectedProvince(value);
+      if (value) {
+        receivedProvinceChange = true;
+        setSelectedProvince(value);
+      }
     };
     const onStorage = (event: StorageEvent) => { if (event.key === storageKey) setSelectedProvince(event.newValue || 'isfahan'); };
     window.addEventListener('rahyar:province-change', onProvinceChange);
     window.addEventListener('storage', onStorage);
-    return () => { window.removeEventListener('rahyar:province-change', onProvinceChange); window.removeEventListener('storage', onStorage); };
+    const frame = window.requestAnimationFrame(() => {
+      if (!receivedProvinceChange) setSelectedProvince(window.localStorage.getItem(storageKey) || 'isfahan');
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('rahyar:province-change', onProvinceChange);
+      window.removeEventListener('storage', onStorage);
+    };
   }, [storageKey]);
 
   useEffect(() => {
@@ -91,10 +108,12 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
   useEffect(() => {
     let active = true;
     if (!access) return;
-    setError('');
-    void loadImported(selectedProvince).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : ''); });
-    return () => { active = false; importedRequestId.current++; };
-  }, [access, loadImported, selectedProvince]);
+    const frame = window.requestAnimationFrame(() => {
+      setError('');
+      void loadImported(selectedProvince).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : ''); });
+    });
+    return () => { active = false; window.cancelAnimationFrame(frame); invalidateImportedRequests(); };
+  }, [access, invalidateImportedRequests, loadImported, selectedProvince]);
 
   useEffect(() => {
     const openUpload = () => { if (access?.canManageAssignments && !importing) uploadInputRef.current?.click(); };
@@ -106,7 +125,6 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     ticket.listDate.slice(0, 10) === date && (!systemFilter || ticket.systemCode.trim().toLocaleLowerCase(locale) === systemFilter.trim())
   ), [importedTickets, locale, systemFilter, date]);
   const visibleSystemCount = useMemo(() => new Set(visibleTickets.map((ticket) => ticket.systemCode.trim().toLocaleUpperCase(locale)).filter(Boolean)).size, [locale, visibleTickets]);
-  const systemsByCode = useMemo(() => new Map(systems.map((system) => [system.systemCode.trim().toLocaleUpperCase(locale), system])), [locale, systems]);
   const systemLongOutageLabel = (system: RahcomSystem | undefined) => system && rahcomSystemHasLongOutage(system)
     ? system.longOutageReason
       ? rahcomLongOutageReasonLabel(system.longOutageReason, system.longOutageDetails)
@@ -134,6 +152,10 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
 
   const handleExcelUpload = async (file?: File) => {
     if (!file || importing) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setError(uiMessage(locale, 'rahcomTicketFileTooLarge'));
+      return;
+    }
     setImporting(true);
     setError('');
     try {
@@ -174,11 +196,19 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
         }];
       });
       if (!matched.length || matched.length > 10000) throw new Error('invalid');
+      if (selectedProvinceRef.current !== selectedProvince) return;
+      const payload = JSON.stringify({ sourceFileName: file.name, province: selectedProvince, listDate: date ?? tehranDateKey(), tickets: matched });
+      if (new TextEncoder().encode(payload).byteLength > 8 * 1024 * 1024) throw new Error('payload-too-large');
       await rahcomApi.importTickets(file.name, selectedProvince, date ?? tehranDateKey(), matched);
+      if (selectedProvinceRef.current !== selectedProvince) return;
       await loadImported(selectedProvince);
       setSelectedFileName(file.name);
     } catch (reason) {
-      setError(reason instanceof Error && !['invalid', 'invalid-province'].includes(reason.message) ? reason.message : uiMessage(locale, 'rahcomTicketExcelInvalid'));
+      if (selectedProvinceRef.current === selectedProvince) {
+        setError(reason instanceof Error && reason.message === 'payload-too-large'
+          ? uiMessage(locale, 'rahcomTicketPayloadTooLarge')
+          : reason instanceof Error && !['invalid', 'invalid-province'].includes(reason.message) ? reason.message : uiMessage(locale, 'rahcomTicketExcelInvalid'));
+      }
     } finally {
       setImporting(false);
     }
@@ -217,9 +247,9 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
       <div className="max-h-[calc(68vh-5rem)] overflow-auto"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-[2500px] text-sm">
         <thead className="bg-muted/50"><tr><th className="w-12 min-w-12 max-w-12 p-1 text-center">{uiMessage(locale, 'rahcomRowNumber')}</th><th className="w-9 min-w-9 max-w-9 p-1 text-center"><RahcomInfoHeader /></th>{[['rahcomSystemName','Name'],['rahcomSystemCode','System'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomIncidentFilter','Incident'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
-          const system = systemsByCode.get(ticket.systemCode.trim().toLocaleUpperCase(locale));
+          const system = ticket.system ?? undefined;
           return <tr key={ticket.id} className="border-t border-border">
-            <td className="whitespace-nowrap p-3 text-center tabular-nums">{new Intl.NumberFormat(locale).format(index + 1)}</td>
+            <td className="whitespace-nowrap p-3 text-center tabular-nums">{numberFormatter.format(index + 1)}</td>
             <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || ticket.systemCode || ticket.summary} systemCode={ticket.systemCode} system={system} fields={[{ label: uiMessage(locale, 'rahcomSystemCode'), value: ticket.systemCode }, { label: uiMessage(locale, 'rahcomSystemName'), value: system?.systemName ?? '' }, { label: uiMessage(locale, 'rahcomAxisCode'), value: system?.axisCode ?? '' }, { label: uiMessage(locale, 'rahcomTicketTitle'), value: ticketTitle(ticket) }, { label: uiMessage(locale, 'rahcomTicketDescription'), value: ticket.description ?? '' }, { label: uiMessage(locale, 'rahcomIncidentFilter'), value: systemLongOutageLabel(system) }, { label: uiMessage(locale, 'rahcomTicketNumber'), value: ticket.ticketCode }, { label: uiMessage(locale, 'rahcomTicketCreatedOn'), value: ticket.createdOn }, { label: uiMessage(locale, 'rahcomTicketSubject'), value: ticket.summary }, { label: uiMessage(locale, 'rahcomProvince'), value: provinceName(ticket.province, locale) }, { label: uiMessage(locale, 'rahcomTicketCustomer'), value: ticket.customer ?? '' }, { label: uiMessage(locale, 'rahcomTicketEquipment'), value: ticket.equipment ?? '' }, { label: uiMessage(locale, 'rahcomTicketType'), value: ticket.type ?? '' }, { label: uiMessage(locale, 'rahcomTicketStatus'), value: ticket.status ?? '' }, { label: uiMessage(locale, 'rahcomTicketPriority'), value: ticket.priority ?? '' }, { label: uiMessage(locale, 'rahcomTicketSupportTeam'), value: ticket.supportTeam ?? '' }]} /></td>
             <td className="min-w-[220px] whitespace-nowrap p-3">{system?.systemName || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td>

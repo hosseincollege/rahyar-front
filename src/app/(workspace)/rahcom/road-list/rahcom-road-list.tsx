@@ -83,9 +83,6 @@ const resolveRoadListMatch = (row: string[], lookup: RoadListMatchLookup): RoadL
         ? systemCandidates[0]
         : null;
     if (!matchedSystem) return null;
-    const systemCode = normalizeIdentifier(matchedSystem.systemCode);
-    const trafficMatch = candidates.find((candidate) => normalizeIdentifier(candidate.systemCode) === systemCode)
-      ?? (candidates.length === 1 ? candidates[0] : undefined);
     return {
       systemCode: matchedSystem.systemCode,
       systemName: matchedSystem.systemName,
@@ -138,63 +135,83 @@ export function RahcomRoadList() {
   const [roadListPromptSaved, setRoadListPromptSaved] = useState(false);
 
   useEffect(() => {
-    const initialized = window.localStorage.getItem('rahcom-show-incidents-default-v2') === 'true';
-    if (!initialized) {
-      window.localStorage.setItem('rahcom-show-incidents', 'true');
-      window.localStorage.setItem('rahcom-show-incidents-default-v2', 'true');
-      setShowIncidents(true);
-      return;
-    }
-    setShowIncidents(window.localStorage.getItem('rahcom-show-incidents') !== 'false');
+    const frame = window.requestAnimationFrame(() => {
+      const initialized = window.localStorage.getItem('rahcom-show-incidents-default-v2') === 'true';
+      if (!initialized) {
+        window.localStorage.setItem('rahcom-show-incidents', 'true');
+        window.localStorage.setItem('rahcom-show-incidents-default-v2', 'true');
+        setShowIncidents(true);
+        return;
+      }
+      setShowIncidents(window.localStorage.getItem('rahcom-show-incidents') !== 'false');
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
     let active = true;
-    const organizationId = getCurrentOrganizationId();
-    if (!organizationId) { setCanView(false); setLoading(false); return; }
-    void Promise.all([settingsApi.getOrganizationAccess(organizationId), rahcomApi.access()])
-      .then(([organizationAccess, rahcomAccess]) => {
-        if (!active) return;
-        setCanView(Boolean(organizationAccess.canViewRahcom));
-        setCanManage(Boolean(organizationAccess.canManageRahcom));
-        if (rahcomAccess.selectedProvince && rahcomAccess.selectedProvince !== 'all') setProvince(rahcomAccess.selectedProvince);
-        else if (!rahcomAccess.isAdmin && rahcomAccess.province) setProvince(rahcomAccess.province);
-      })
-      .catch(() => { if (active) setCanView(false); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const frame = window.requestAnimationFrame(() => {
+      const organizationId = getCurrentOrganizationId();
+      if (!organizationId) {
+        setCanView(false);
+        setLoading(false);
+        return;
+      }
+      void Promise.all([settingsApi.getOrganizationAccess(organizationId), rahcomApi.access()])
+        .then(([organizationAccess, rahcomAccess]) => {
+          if (!active) return;
+          setCanView(Boolean(organizationAccess.canViewRahcom));
+          setCanManage(Boolean(organizationAccess.canManageRahcom));
+          if (rahcomAccess.selectedProvince && rahcomAccess.selectedProvince !== 'all') setProvince(rahcomAccess.selectedProvince);
+          else if (!rahcomAccess.isAdmin && rahcomAccess.province) setProvince(rahcomAccess.province);
+        })
+        .catch(() => { if (active) setCanView(false); })
+        .finally(() => { if (active) setLoading(false); });
+    });
+    return () => { active = false; window.cancelAnimationFrame(frame); };
   }, []);
 
   useEffect(() => {
-    if (!province || canView !== true) { setSnapshot(null); setTraffic(null); setSystems([]); setSolarSnapshots([]); return; }
     let active = true;
-    setSnapshot(null);
-    setTraffic(null);
-    setLoading(true);
-    setError('');
-    void Promise.all([rahcomApi.roadList(province, selectedDate), rahcomApi.trafficSnapshot(province, selectedDate), rahcomApi.systems(province), rahcomApi.solarSnapshots(province, selectedDate)])
-      .then(([result, trafficResult, systemRows, solarRows]) => {
-        if (!active) return;
-        if (result && !hasTableData(result)) {
-          setSnapshot(null);
-          setError(t('rahcomRoadListInvalidFile'));
-          return;
-        }
-        setSnapshot(result);
-        setSystems(systemRows);
-        setSolarSnapshots(solarRows.filter((item) => tehranDateKey(item.capturedAt) === selectedDate));
-        setTraffic(trafficResult && Array.isArray(trafficResult.headers) && Array.isArray(trafficResult.rows)
-          ? { ...trafficResult, headers: trafficResult.headers.map((header) => String(header ?? '')), rows: trafficResult.rows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? ''))) }
-          : null);
-        setPage(0);
-      })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : t('rahcomRoadListInvalidFile')); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const frame = window.requestAnimationFrame(() => {
+      if (!province || canView !== true) {
+        setSnapshot(null);
+        setTraffic(null);
+        setSystems([]);
+        setSolarSnapshots([]);
+        if (canView === false || (canView === true && !province))
+          setLoading(false);
+        return;
+      }
+      setSnapshot(null);
+      setTraffic(null);
+      setSystems([]);
+      setSolarSnapshots([]);
+      setLoading(true);
+      setError('');
+      void Promise.all([rahcomApi.roadList(province, selectedDate), rahcomApi.trafficSnapshot(province, selectedDate), rahcomApi.systems(province), rahcomApi.solarSnapshots(province, selectedDate)])
+        .then(([result, trafficResult, systemRows, solarRows]) => {
+          if (!active) return;
+          if (result && !hasTableData(result)) {
+            setSnapshot(null);
+            setError(t('rahcomRoadListInvalidFile'));
+            return;
+          }
+          setSnapshot(result);
+          setSystems(systemRows);
+          setSolarSnapshots(solarRows.filter((item) => tehranDateKey(item.capturedAt) === selectedDate));
+          setTraffic(trafficResult && Array.isArray(trafficResult.headers) && Array.isArray(trafficResult.rows)
+            ? { ...trafficResult, headers: trafficResult.headers.map((header) => String(header ?? '')), rows: trafficResult.rows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? ''))) }
+            : null);
+          setPage(0);
+        })
+        .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : t('rahcomRoadListInvalidFile')); })
+        .finally(() => { if (active) setLoading(false); });
+    });
+    return () => { active = false; window.cancelAnimationFrame(frame); };
   }, [province, canView, t, selectedDate]);
 
   const loadRoadListDates = useCallback((from: string, to: string) => province ? rahcomApi.roadListDates(province, from, to) : Promise.resolve([]), [province]);
-  useEffect(() => { setSelectedSolarSnapshotId((current) => solarSnapshots.some((snapshot) => snapshot.id === current) ? current : solarSnapshots[0]?.id ?? ''); }, [solarSnapshots]);
   useEffect(() => {
     if (loading) return;
     const frame = window.requestAnimationFrame(() => {
@@ -496,7 +513,7 @@ export function RahcomRoadList() {
   return <main dir={getLocaleDirection(locale)} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 w-full max-w-full flex-col gap-3 overflow-hidden">
     <header className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
       <RahcomHeaderDate compact loadMarkedDates={loadRoadListDates} />
-      {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshotId} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManage} deletingId={deletingSolarSnapshotId} onDelete={(item) => void deleteSolarSnapshot(item)} />}
+      {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManage} deletingId={deletingSolarSnapshotId} onDelete={(item) => void deleteSolarSnapshot(item)} />}
       <RahcomCountCapsule count={filteredRows.length} />
       <div className="flex flex-nowrap items-center gap-2">
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>

@@ -355,6 +355,10 @@ export function UserAccountsPage() {
       setErrorMessage(message('accountJsonOnly'));
       return;
     }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage(message('accountJsonTooLarge'));
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -377,6 +381,9 @@ export function UserAccountsPage() {
 
       if (!rawImportedUsers || rawImportedUsers.length === 0) {
         throw new Error(message('accountJsonNoUsers'));
+      }
+      if (rawImportedUsers.length > 500) {
+        throw new Error(message('accountImportRowsLimit'));
       }
 
       const sanitizedImportedUsers: UserItem[] = rawImportedUsers.map((item) => {
@@ -405,6 +412,23 @@ export function UserAccountsPage() {
           isActive,
         };
       });
+
+      const knownIds = new Set(users.map((user) => user.id).filter(Boolean));
+      const knownEmails = new Set(
+        users.map((user) => user.email?.trim().toLowerCase()).filter(Boolean),
+      );
+      const knownUsernames = new Set(
+        users.map((user) => user.username?.trim()).filter(Boolean),
+      );
+      const newAccountCount = sanitizedImportedUsers.filter(
+        (user) =>
+          !knownIds.has(user.id) &&
+          !(user.email && knownEmails.has(user.email.trim().toLowerCase())) &&
+          !(user.username && knownUsernames.has(user.username.trim())),
+      ).length;
+      if (newAccountCount > 50) {
+        throw new Error(message('accountImportNewUsersLimit'));
+      }
 
       // Send only imported accounts. The server returns the canonical full list;
       // resending the page snapshot could overwrite concurrent edits to others.

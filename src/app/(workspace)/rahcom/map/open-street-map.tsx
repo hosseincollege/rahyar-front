@@ -9,7 +9,7 @@ import { useTheme } from '@/components/theme-provider';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import 'leaflet/dist/leaflet.css';
-import { formatRahcomCoordinates, hasRahcomCoordinates, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { formatRahcomCoordinates, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { rahcomAxisColor } from '@/lib/api/rahcom/rahcom-axes';
@@ -100,7 +100,7 @@ function normalizeMapSearchText(value: string) {
     .replace(/[\s\u200c\p{P}\p{S}]/gu, '');
 }
 
-export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery = '', mapSourceFilterActive = false, mapFilterSource = 'none', selectedSolarSnapshotId = '', showMapIncidents = true, onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentCountChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
+export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery = '', mapSourceFilterActive = false, mapFilterSource = 'none', selectedSolarSnapshotId = '', showMapIncidents = true, onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
   focusProvince: boolean;
   canManage?: boolean;
   mapSearchQuery?: string;
@@ -113,7 +113,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
   onSystemsCountChange?: (count: number) => void;
   onUnmappedSolarCountChange?: (count: number) => void;
   onUnmappedSolarDetailsChange?: (details: UnmappedSolarDetail[]) => void;
-  onIncidentCountChange?: (count: number) => void;
   onIncidentMapSummaryChange?: (summary: IncidentMapSummary) => void;
   onSystemsErrorChange?: (error: string) => void;
   onLocationStatusChange?: (status: { locating: boolean; error: boolean }) => void;
@@ -321,16 +320,16 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
     : solarStatusCodes,
   [solarStatusCodes, incidentCodes, showMapIncidents]);
   const aggregateMapCodes = useMemo(() => new Set([...trafficNoTrafficCodes, ...roadListCodes, ...solarStatusCodes, ...ticketSystemCodes]), [roadListCodes, solarStatusCodes, ticketSystemCodes, trafficNoTrafficCodes]);
-  const selectedMapSourceCodes = mapFilterSource === 'none' ? new Set<string>()
+  const selectedMapSourceCodes = useMemo(() => mapFilterSource === 'none' ? new Set<string>()
     : mapFilterSource === 'traffic' ? trafficNoTrafficCodes
     : mapFilterSource === 'road-list' ? roadListCodes
       : mapFilterSource === 'solar' ? solarMapCodes
         : mapFilterSource === 'tickets' ? ticketSystemCodes
-          : aggregateMapCodes;
+          : aggregateMapCodes,
+  [aggregateMapCodes, mapFilterSource, roadListCodes, solarMapCodes, ticketSystemCodes, trafficNoTrafficCodes]);
   const visibleSystems = useMemo(() => systems.filter((system) =>
     !mapSourceFilterActive || selectedMapSourceCodes.has(rahcomSystemKey(system.province, system.systemCode)),
   ), [mapSourceFilterActive, selectedMapSourceCodes, systems]);
-  const incidentSystemsCount = useMemo(() => visibleSystems.filter((system) => incidentCodes.has(rahcomSystemKey(system.province, system.systemCode))).length, [visibleSystems, incidentCodes]);
   const locatedVisibleSystems = useMemo(() => visibleSystems.filter(hasRegisteredMapLocation), [visibleSystems]);
   const displayedSystems = useMemo(() => locatedVisibleSystems.filter((system) =>
     showMapIncidents || !incidentCodes.has(rahcomSystemKey(system.province, system.systemCode)),
@@ -551,7 +550,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
   useEffect(() => { onSystemsCountChange?.(mapSystems.length); }, [onSystemsCountChange, mapSystems.length]);
   useEffect(() => { onUnmappedSolarCountChange?.(unmappedSolarCount); }, [onUnmappedSolarCountChange, unmappedSolarCount]);
   useEffect(() => { onUnmappedSolarDetailsChange?.(unmappedSolarDetails); }, [onUnmappedSolarDetailsChange, unmappedSolarDetails]);
-  useEffect(() => { onIncidentCountChange?.(incidentSystemsCount); }, [onIncidentCountChange, incidentSystemsCount]);
   useEffect(() => { onIncidentMapSummaryChange?.(incidentMapSummary); }, [incidentMapSummary, onIncidentMapSummaryChange]);
   useEffect(() => { onSystemsErrorChange?.(systemsError); }, [onSystemsErrorChange, systemsError]);
 
