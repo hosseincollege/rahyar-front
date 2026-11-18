@@ -66,7 +66,7 @@ async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm')
     }).formatToParts(new Date(`${date}T12:00:00Z`));
     const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
     const provinceName = iranProvinces.find(([id]) => id === activityProvince)?.[1] ?? activityProvince;
-    const heading = `${part('weekday')} ${part('day')} ${part('month')} ماه ${part('year')}، ${t('rahcomProvince')} ${provinceName}`;
+    const heading = `گزارش اکسل روزانه\n${part('weekday')} ${part('day')} ${part('month')} ماه ${part('year')}، ${t('rahcomProvince')} ${provinceName}`;
     try {
       await navigator.clipboard.writeText(heading);
       setDateHeadingCopied(true);

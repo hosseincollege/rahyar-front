@@ -23,7 +23,12 @@ const systemCodeAliases = ['\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647', '
 const rowNumberAlias = normalizeHeader('\u0631\u062f\u06cc\u0641');
 const registeredDateAlias = normalizeHeader('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a');
 const statusAlias = normalizeHeader('\u0648\u0636\u0639\u06cc\u062a \u0628\u0631\u0631\u0633\u06cc');
-
+const assignmentFamily = (value: string) => {
+  const externalType = value.match(/^EXTERNAL:(USO|RAHCOM|BST|VSAT):/i)?.[1]?.toUpperCase();
+  return externalType && externalType !== 'RAHCOM' ? externalType : 'RAHCOM';
+};
+const hasMixedAssignmentFamilies = (codes: string[]) => new Set(codes.map(assignmentFamily)).size > 1;
+const splitSystemAssignments = (value: string) => value.split(/[;,|]/).map((code) => code.trim()).filter(Boolean);
 function jsonError(status: number, error: string) { return NextResponse.json({ error }, { status }); }
 function authHeader(request: NextRequest) { return request.headers.get('authorization') ?? ''; }
 async function readList(authorization: string): Promise<{ response: Response; data: BillList }> {
@@ -108,6 +113,8 @@ export async function PUT(request: NextRequest) {
     const headers = body.headers;
     const rows = body.rows;
     if (headers.length < 2 || headers.length > 100 || headers.some((v) => typeof v !== 'string') || rows.length > 20000 || rows.some((r) => !Array.isArray(r) || r.some((v) => typeof v !== 'string'))) return jsonError(400, 'invalid_workbook');
+    const codeColumn = findColumn(headers as string[], systemCodeAliases);
+    if (codeColumn >= 0 && (rows as string[][]).some((row) => hasMixedAssignmentFamilies(splitSystemAssignments(row[codeColumn] ?? '')))) return jsonError(400, 'single_assignment_family_required');
     const response = await saveList(authHeader(request), { headers: headers as string[], rows: rows as string[][] });
     return NextResponse.json(await response.json().catch(() => ({})), { status: response.status });
   }
@@ -119,6 +126,7 @@ export async function PUT(request: NextRequest) {
   if (!data.rows[rowIndex]) return jsonError(404, 'record_not_found');
   if (codeColumn < 0) return jsonError(400, 'system_code_column_missing');
   const systemCodes = [...new Set((body.systemCodes as string[]).map((code) => code.trim()).filter(Boolean))];
+  if (hasMixedAssignmentFamilies(systemCodes)) return jsonError(400, 'single_assignment_family_required');
   const rows = data.rows.map((row, index) => index === rowIndex ? row.map((value, column) => column === codeColumn ? systemCodes.join(';') : value) : row);
   const saved = await saveList(authHeader(request), { ...data, rows });
   return NextResponse.json(saved.ok ? { saved: true, rowIndex, systemCodes } : await saved.json().catch(() => ({})), { status: saved.status });
@@ -145,6 +153,7 @@ export async function POST(request: NextRequest) {
   const nextRow = Array(data.headers.length).fill('') as string[];
   nextRow[billColumn] = billId;
   const systemCodes = [...new Set(((body.systemCodes ?? []) as string[]).map((code) => code.trim()).filter(Boolean))];
+  if (hasMixedAssignmentFamilies(systemCodes)) return jsonError(400, 'single_assignment_family_required');
   if (codeColumn >= 0) nextRow[codeColumn] = systemCodes.join(';');
   else if (systemCodes.length) return jsonError(400, 'system_code_column_missing');
   for (const [header, value] of Object.entries(fields)) {
@@ -182,6 +191,7 @@ export async function PATCH(request: NextRequest) {
   const nextId = updates.get(billColumn);
   if (nextId !== undefined && data.rows.some((row, index) => index !== rowIndex && normalizeDigits(row[billColumn] ?? '').replace(/\s/g, '') === normalizeDigits(nextId).replace(/\s/g, ''))) return jsonError(409, 'duplicate_bill_identifier');
   const systemCodes = body.systemCodes === undefined ? null : [...new Set((body.systemCodes as string[]).map((code) => code.trim()).filter(Boolean))];
+  if (systemCodes && hasMixedAssignmentFamilies(systemCodes)) return jsonError(400, 'single_assignment_family_required');
   if (systemCodes?.length && codeColumn < 0) return jsonError(400, 'system_code_column_missing');
   const updatedRow = target.map((value, column) => updates.get(column) ?? (column === codeColumn && systemCodes ? systemCodes.join(';') : value));
   const rows = data.rows.map((row, index) => index === rowIndex ? updatedRow : row);

@@ -873,6 +873,7 @@ export type UiMessage =
   | "rahcomTickets"
   | "rahcomBillIdentifiers"
   | "rahcomBillIdentifiersSearch"
+  | "rahcomBillAssignmentSingleGroup"
   | "rahcomBillIdentifiersLoadFailed"
   | "rahcomBillIdentifiersEmpty"
   | "rahcomTicketsUploadLater"

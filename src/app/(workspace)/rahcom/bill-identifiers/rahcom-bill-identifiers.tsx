@@ -23,6 +23,18 @@ const parseExternalSystem = (value: string): ExternalSystemAssignment | null => 
 };
 const serializeExternalSystem = (system: ExternalSystemAssignment) => `EXTERNAL:${system.type}:${encodeURIComponent(system.code.trim())}:${encodeURIComponent(system.name.trim())}`;
 const externalSystemsFromCell = (value: string | undefined) => splitSystemCodes(value).map(parseExternalSystem).filter((system): system is ExternalSystemAssignment => Boolean(system));
+const assignmentFamily = (value: string | ExternalSystemAssignment) => {
+  const external = typeof value === 'string' ? parseExternalSystem(value) : value;
+  return external?.type ?? 'RAHCOM';
+};
+const assignmentFamilies = (rahcomSystemCount: number, externalSystems: ExternalSystemAssignment[]) => new Set([
+  ...(rahcomSystemCount ? ['RAHCOM'] : []),
+  ...externalSystems.map((system) => assignmentFamily(system)),
+]);
+const canUseAssignmentFamily = (families: Set<string>, family: string) => families.size === 0 || (families.size === 1 && families.has(family));
+const assertSingleAssignmentFamily = (codes: string[]) => {
+  if (new Set(codes.map(assignmentFamily)).size > 1) throw new Error('mixed_assignment_families');
+};
 const collectExternalAssignments = (saved: ExternalSystemAssignment[], draft: ExternalSystemAssignment) => {
   const code = draft.code.trim();
   const name = draft.name.trim();
@@ -162,6 +174,15 @@ export function RahcomBillIdentifiers() {
     const normalized = newBillSystemQuery.trim().toLocaleLowerCase(locale);
     return systems.filter((system) => !normalized || `${system.systemCode} ${system.systemName}`.toLocaleLowerCase(locale).includes(normalized)).slice(0, 30);
   }, [locale, newBillSystemQuery, systems]);
+  const newBillAssignmentFamilies = useMemo(() => assignmentFamilies(newBillSystemIds.length, newExternalSystems), [newBillSystemIds.length, newExternalSystems]);
+  const editingBillAssignmentFamilies = useMemo(() => assignmentFamilies(editingBillSystemIds.length, editingExternalSystems), [editingBillSystemIds.length, editingExternalSystems]);
+  const canChangeEditingExternalType = (index: number, nextType: ExternalSystemType) => {
+    const remainingFamilies = new Set([
+      ...(editingBillSystemIds.length ? ['RAHCOM'] : []),
+      ...editingExternalSystems.filter((_, itemIndex) => itemIndex !== index).map(assignmentFamily),
+    ]);
+    return canUseAssignmentFamily(remainingFamilies, assignmentFamily({ type: nextType, code: '', name: '' }));
+  };
   const getCellValue = useCallback((row: string[], columnIndex: number) => {
     if (columnIndex === -1) {
       return splitSystemCodes(systemCodeIndex >= 0 ? row[systemCodeIndex] : undefined)
@@ -239,6 +260,7 @@ export function RahcomBillIdentifiers() {
         .map((id) => systems.find((system) => system.id === id)?.systemCode)
         .filter((code): code is string => Boolean(code))
         .concat(externalAssignments.map(serializeExternalSystem));
+      assertSingleAssignmentFamily(systemCodes);
       const fields = Object.fromEntries(editableAddColumns.map(({ header }) => [header, newBillFields[header] ?? '']));
       const response = await fetch('/api/rahcom/bill-identifiers', {
         method: 'POST',
@@ -262,7 +284,9 @@ export function RahcomBillIdentifiers() {
     } catch (error) {
       setAddBillError(error instanceof Error && error.message === 'duplicate'
         ? '\u0627\u06cc\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636 \u0642\u0628\u0644\u0627\u064b \u062b\u0628\u062a \u0634\u062f\u0647 \u0627\u0633\u062a.'
-        : '\u0630\u062e\u06cc\u0631\u0647\u200c\u0633\u0627\u0632\u06cc \u0631\u06a9\u0648\u0631\u062f \u062f\u0631 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.');
+        : error instanceof Error && error.message === 'mixed_assignment_families'
+          ? uiMessage(locale, 'rahcomBillAssignmentSingleGroup')
+          : '\u0630\u062e\u06cc\u0631\u0647\u200c\u0633\u0627\u0632\u06cc \u0631\u06a9\u0648\u0631\u062f \u062f\u0631 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.');
     } finally {
       setSavingNewBill(false);
     }
@@ -280,6 +304,7 @@ export function RahcomBillIdentifiers() {
         .map((id) => systems.find((system) => system.id === id)?.systemCode)
         .filter((code): code is string => Boolean(code))
         .concat(externalAssignments.map(serializeExternalSystem));
+      assertSingleAssignmentFamily(systemCodes);
       const response = await fetch('/api/rahcom/bill-identifiers', {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -297,8 +322,10 @@ export function RahcomBillIdentifiers() {
       setDeletingRowIndex(null);
       setConfirmEditDelete(false);
       setEditingBillFields({});
-    } catch {
-      setRecordEditError('\u0630\u062e\u06cc\u0631\u0647\u200c\u0633\u0627\u0632\u06cc \u062a\u063a\u06cc\u06cc\u0631\u0627\u062a \u062f\u0631 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.');
+    } catch (error) {
+      setRecordEditError(error instanceof Error && error.message === 'mixed_assignment_families'
+        ? uiMessage(locale, 'rahcomBillAssignmentSingleGroup')
+        : '\u0630\u062e\u06cc\u0631\u0647\u200c\u0633\u0627\u0632\u06cc \u062a\u063a\u06cc\u06cc\u0631\u0627\u062a \u062f\u0631 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u0627\u0646\u062c\u0627\u0645 \u0646\u0634\u062f.');
     } finally {
       setSavingRecordEdit(false);
     }
@@ -316,8 +343,9 @@ export function RahcomBillIdentifiers() {
     setEditingBillSystemIds(systems.filter((system) => storedAssignments.some((code) =>
       !parseExternalSystem(code) && code.toUpperCase() === system.systemCode.normalize('NFKC').trim().toUpperCase(),
     )).map((system) => system.id));
-    setEditingExternalSystems(externalSystemsFromCell(systemCodeIndex >= 0 ? row[systemCodeIndex] : undefined));
-    setEditingExternalDraft({ type: 'USO', code: '', name: '' });
+    const externalAssignments = externalSystemsFromCell(systemCodeIndex >= 0 ? row[systemCodeIndex] : undefined);
+    setEditingExternalSystems(externalAssignments);
+    setEditingExternalDraft({ type: externalAssignments[0]?.type ?? 'USO', code: '', name: '' });
     setEditingBillSystemQuery('');
     setRecordEditError('');
   };
@@ -521,18 +549,23 @@ export function RahcomBillIdentifiers() {
           <input value={newBillSystemQuery} onChange={(event) => setNewBillSystemQuery(event.target.value)} placeholder={'\u062c\u0633\u062a\u200c\u0648\u062c\u0648\u06cc \u06a9\u062f \u06cc\u0627 \u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-10 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm outline-none focus:border-primary" />
         </label>
         <div className="mt-2 max-h-52 overflow-auto rounded-xl border border-border" style={{ backgroundColor: 'var(--background)' }}>
-          {newBillSystemOptions.length ? newBillSystemOptions.map((system) => <label key={system.id} className={`flex w-full cursor-pointer items-center justify-between gap-3 border-b border-border p-3 text-start last:border-b-0 hover:bg-muted ${newBillSystemIds.includes(system.id) ? 'bg-primary/10 text-primary' : ''}`}>
-            <span className="flex min-w-0 items-center gap-3"><input type="checkbox" checked={newBillSystemIds.includes(system.id)} onChange={() => setNewBillSystemIds((current) => current.includes(system.id) ? current.filter((id) => id !== system.id) : [...current, system.id])} disabled={savingNewBill} className="size-4 shrink-0 accent-primary" /><span className="truncate">{system.systemName}</span></span><code dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</code>
-          </label>) : <p className="p-4 text-center text-sm text-muted-foreground">{'\u0633\u0627\u0645\u0627\u0646\u0647\u200c\u0627\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.'}</p>}
+          {newBillSystemOptions.length ? newBillSystemOptions.map((system) => {
+            const checked = newBillSystemIds.includes(system.id);
+            const disabled = savingNewBill || (!checked && !canUseAssignmentFamily(newBillAssignmentFamilies, 'RAHCOM'));
+            return <label key={system.id} className={`flex w-full cursor-pointer items-center justify-between gap-3 border-b border-border p-3 text-start last:border-b-0 hover:bg-muted ${checked ? 'bg-primary/10 text-primary' : ''} ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
+            <span className="flex min-w-0 items-center gap-3"><input type="checkbox" checked={checked} onChange={() => { if (!checked && !newExternalSystems.length) setNewExternalDraft((draft) => ({ ...draft, type: 'RAHCOM' })); setNewBillSystemIds((current) => current.includes(system.id) ? current.filter((id) => id !== system.id) : [...current, system.id]); }} disabled={disabled} className="size-4 shrink-0 accent-primary" /><span className="truncate">{system.systemName}</span></span><code dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</code>
+          </label>;
+          }) : <p className="p-4 text-center text-sm text-muted-foreground">{'\u0633\u0627\u0645\u0627\u0646\u0647\u200c\u0627\u06cc \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f.'}</p>}
         </div>
         {newBillSystemIds.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{newBillSystemIds.length} {'\u0633\u0627\u0645\u0627\u0646\u0647 \u0627\u0646\u062a\u062e\u0627\u0628 \u0634\u062f'}</p>}
         <fieldset className="mt-4 rounded-xl border border-border p-3">
           <legend className="px-1 text-sm font-medium">{'\u0633\u0627\u0645\u0627\u0646\u0647 \u062e\u0627\u0631\u062c \u0627\u0632 \u0631\u0647\u06a9\u0627\u0645'}</legend>
+          <p className="mb-2 text-xs text-muted-foreground">{uiMessage(locale, 'rahcomBillAssignmentSingleGroup')}</p>
           <div className="grid gap-2 sm:grid-cols-[5rem_1fr_1fr_auto]">
-            <select value={newExternalDraft.type} onChange={(event) => setNewExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO">USO</option><option value="RAHCOM">Rahcom</option><option value="BST">BST</option><option value="VSAT">VSAT</option></select>
+            <select value={newExternalDraft.type} onChange={(event) => setNewExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'USO')}>USO</option><option value="RAHCOM" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'RAHCOM')}>Rahcom</option><option value="BST" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'BST')}>BST</option><option value="VSAT" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'VSAT')}>VSAT</option></select>
             <input value={newExternalDraft.code} onChange={(event) => setNewExternalDraft((current) => ({ ...current, code: event.target.value }))} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
             <input value={newExternalDraft.name} onChange={(event) => setNewExternalDraft((current) => ({ ...current, name: event.target.value }))} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
-            <button type="button" disabled={!newExternalDraft.code.trim() || !newExternalDraft.name.trim() || savingNewBill} onClick={() => { setNewExternalSystems((current) => [...current, { ...newExternalDraft, code: newExternalDraft.code.trim(), name: newExternalDraft.name.trim() }]); setNewExternalDraft((current) => ({ ...current, code: '', name: '' })); }} className="h-10 rounded-xl border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"><Plus size={16} /></button>
+            <button type="button" disabled={!newExternalDraft.code.trim() || !newExternalDraft.name.trim() || savingNewBill || !canUseAssignmentFamily(newBillAssignmentFamilies, assignmentFamily(newExternalDraft))} onClick={() => { setNewExternalSystems((current) => collectExternalAssignments(current, newExternalDraft)); setNewExternalDraft((current) => ({ ...current, code: '', name: '' })); }} className="h-10 rounded-xl border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"><Plus size={16} /></button>
           </div>
           {newExternalSystems.length > 0 && <ul className="mt-2 divide-y divide-border rounded-lg border border-border">{newExternalSystems.map((external, index) => <li key={`${external.type}-${external.code}-${index}`} className="flex items-center justify-between gap-2 p-2 text-xs"><span className="min-w-0 truncate"><bdi dir="ltr">{external.type} - {external.code}</bdi>{' \u00b7 '}{external.name}</span><button type="button" onClick={() => setNewExternalSystems((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={'\u062d\u0630\u0641'} className="grid size-7 shrink-0 place-items-center rounded-full hover:bg-muted"><X size={14} /></button></li>)}</ul>}
         </fieldset>
@@ -545,7 +578,7 @@ export function RahcomBillIdentifiers() {
         {addBillError && <p role="alert" className="mt-3 text-sm text-destructive">{addBillError}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={() => setAddingBill(false)} disabled={savingNewBill} className="h-9 rounded-lg border border-border px-3 text-sm hover:bg-muted disabled:opacity-50">{'\u0627\u0646\u0635\u0631\u0627\u0641'}</button>
-          <button type="button" onClick={() => void addBillIdentifier()} disabled={savingNewBill || !newBillIdentifier.trim() || Boolean(newExternalDraft.code.trim()) !== Boolean(newExternalDraft.name.trim())} className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">{savingNewBill ? uiMessage(locale, 'reportsLoading') : '\u0630\u062e\u06cc\u0631\u0647'}</button>
+          <button type="button" onClick={() => void addBillIdentifier()} disabled={savingNewBill || !newBillIdentifier.trim() || newBillAssignmentFamilies.size > 1 || Boolean(newExternalDraft.code.trim()) !== Boolean(newExternalDraft.name.trim()) || (Boolean(newExternalDraft.code.trim()) && !canUseAssignmentFamily(newBillAssignmentFamilies, assignmentFamily(newExternalDraft)))} className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">{savingNewBill ? uiMessage(locale, 'reportsLoading') : '\u0630\u062e\u06cc\u0631\u0647'}</button>
         </div>
       </section>
     </div>}
@@ -563,24 +596,29 @@ export function RahcomBillIdentifiers() {
         </div>
         <fieldset className="mt-4 rounded-xl border border-border p-3">
           <legend className="px-1 text-sm font-medium">{'\u0627\u0646\u062a\u0633\u0627\u0628 \u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'}</legend>
+          <p className="mb-2 text-xs text-muted-foreground">{uiMessage(locale, 'rahcomBillAssignmentSingleGroup')}</p>
           <label className="rahcom-search-capsule relative block rounded-full">
             <Search aria-hidden="true" size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input value={editingBillSystemQuery} onChange={(event) => setEditingBillSystemQuery(event.target.value)} placeholder={'\u062c\u0633\u062a\u200c\u0648\u062c\u0648\u06cc \u06a9\u062f \u06cc\u0627 \u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-10 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm outline-none focus:border-primary" />
           </label>
           <div className="mt-2 max-h-48 overflow-auto rounded-xl border border-border" style={{ backgroundColor: 'var(--background)' }}>
-            {systems.filter((system) => !editingBillSystemQuery.trim() || `${system.systemCode} ${system.systemName}`.toLocaleLowerCase(locale).includes(editingBillSystemQuery.trim().toLocaleLowerCase(locale))).slice(0, 30).map((system) => <label key={system.id} className={`flex w-full cursor-pointer items-center justify-between gap-3 border-b border-border p-3 text-start last:border-b-0 hover:bg-muted ${editingBillSystemIds.includes(system.id) ? 'bg-primary/10 text-primary' : ''}`}>
-              <span className="flex min-w-0 items-center gap-3"><input type="checkbox" checked={editingBillSystemIds.includes(system.id)} onChange={() => setEditingBillSystemIds((current) => current.includes(system.id) ? current.filter((id) => id !== system.id) : [...current, system.id])} disabled={savingRecordEdit} className="size-4 shrink-0 accent-primary" /><span className="truncate">{system.systemName}</span></span><code dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</code>
-            </label>)}
+            {systems.filter((system) => !editingBillSystemQuery.trim() || `${system.systemCode} ${system.systemName}`.toLocaleLowerCase(locale).includes(editingBillSystemQuery.trim().toLocaleLowerCase(locale))).slice(0, 30).map((system) => {
+              const checked = editingBillSystemIds.includes(system.id);
+              const disabled = savingRecordEdit || (!checked && !canUseAssignmentFamily(editingBillAssignmentFamilies, 'RAHCOM'));
+              return <label key={system.id} className={`flex w-full cursor-pointer items-center justify-between gap-3 border-b border-border p-3 text-start last:border-b-0 hover:bg-muted ${checked ? 'bg-primary/10 text-primary' : ''} ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
+              <span className="flex min-w-0 items-center gap-3"><input type="checkbox" checked={checked} onChange={() => { if (!checked && !editingExternalSystems.length) setEditingExternalDraft((draft) => ({ ...draft, type: 'RAHCOM' })); setEditingBillSystemIds((current) => current.includes(system.id) ? current.filter((id) => id !== system.id) : [...current, system.id]); }} disabled={disabled} className="size-4 shrink-0 accent-primary" /><span className="truncate">{system.systemName}</span></span><code dir="ltr" className="shrink-0 font-mono text-xs text-muted-foreground">{system.systemCode}</code>
+            </label>;
+            })}
           </div>
         </fieldset>
         <fieldset className="mt-4 rounded-xl border border-border p-3">
           <legend className="px-1 text-sm font-medium">{'\u0633\u0627\u0645\u0627\u0646\u0647 \u062e\u0627\u0631\u062c \u0627\u0632 \u0631\u0647\u06a9\u0627\u0645'}</legend>
-          {editingExternalSystems.length > 0 && <ul className="mb-3 divide-y divide-border rounded-lg border border-border">{editingExternalSystems.map((external, index) => <li key={`${external.type}-${external.code}-${index}`} className="p-2"><div className="grid grid-cols-[5rem_1fr_auto] gap-2"><select value={external.type} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value as ExternalSystemType } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0648\u0639 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"><option value="USO">USO</option><option value="RAHCOM">Rahcom</option><option value="BST">BST</option><option value="VSAT">VSAT</option></select><input value={external.code} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, code: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground" /><button type="button" onClick={() => setEditingExternalSystems((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={savingRecordEdit} aria-label={'\u062d\u0630\u0641'} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><X size={16} /></button></div><input value={external.name} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="mt-2 h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground" /></li>)}</ul>}
+          {editingExternalSystems.length > 0 && <ul className="mb-3 divide-y divide-border rounded-lg border border-border">{editingExternalSystems.map((external, index) => <li key={`${external.type}-${external.code}-${index}`} className="p-2"><div className="grid grid-cols-[5rem_1fr_auto] gap-2"><select value={external.type} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value as ExternalSystemType } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0648\u0639 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"><option value="USO" disabled={!canChangeEditingExternalType(index, 'USO')}>USO</option><option value="RAHCOM" disabled={!canChangeEditingExternalType(index, 'RAHCOM')}>Rahcom</option><option value="BST" disabled={!canChangeEditingExternalType(index, 'BST')}>BST</option><option value="VSAT" disabled={!canChangeEditingExternalType(index, 'VSAT')}>VSAT</option></select><input value={external.code} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, code: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground" /><button type="button" onClick={() => setEditingExternalSystems((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={savingRecordEdit} aria-label={'\u062d\u0630\u0641'} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><X size={16} /></button></div><input value={external.name} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="mt-2 h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground" /></li>)}</ul>}
           <div className="grid gap-2 sm:grid-cols-[5rem_1fr_1fr_auto]">
-            <select value={editingExternalDraft.type} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} disabled={savingRecordEdit} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO">USO</option><option value="RAHCOM">Rahcom</option><option value="BST">BST</option><option value="VSAT">VSAT</option></select>
+            <select value={editingExternalDraft.type} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} disabled={savingRecordEdit} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'USO')}>USO</option><option value="RAHCOM" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'RAHCOM')}>Rahcom</option><option value="BST" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'BST')}>BST</option><option value="VSAT" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'VSAT')}>VSAT</option></select>
             <input value={editingExternalDraft.code} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, code: event.target.value }))} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} disabled={savingRecordEdit} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
             <input value={editingExternalDraft.name} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, name: event.target.value }))} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} disabled={savingRecordEdit} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
-            <button type="button" disabled={!editingExternalDraft.code.trim() || !editingExternalDraft.name.trim() || savingRecordEdit} onClick={() => { setEditingExternalSystems((current) => [...current, { ...editingExternalDraft, code: editingExternalDraft.code.trim(), name: editingExternalDraft.name.trim() }]); setEditingExternalDraft((current) => ({ ...current, code: '', name: '' })); }} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><Plus size={16} /></button>
+            <button type="button" disabled={!editingExternalDraft.code.trim() || !editingExternalDraft.name.trim() || savingRecordEdit || !canUseAssignmentFamily(editingBillAssignmentFamilies, assignmentFamily(editingExternalDraft))} onClick={() => { setEditingExternalSystems((current) => collectExternalAssignments(current, editingExternalDraft)); setEditingExternalDraft((current) => ({ ...current, code: '', name: '' })); }} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><Plus size={16} /></button>
           </div>
         </fieldset>
         {recordEditError && <p role="alert" className="mt-3 text-sm text-destructive">{recordEditError}</p>}
@@ -597,7 +635,7 @@ export function RahcomBillIdentifiers() {
           <button type="button" onClick={() => { setDeleteError(''); setConfirmEditDelete(true); }} disabled={savingRecordEdit || deletingRecord || confirmEditDelete} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-destructive/40 px-3 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-50"><Trash2 size={14} />{'\u062d\u0630\u0641'}</button>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => { setEditingRecordIndex(null); setConfirmEditDelete(false); }} disabled={savingRecordEdit || deletingRecord} className="h-9 rounded-lg border border-border px-3 text-sm hover:bg-muted disabled:opacity-50">{'\u0627\u0646\u0635\u0631\u0627\u0641'}</button>
-            <button type="button" onClick={() => void saveRecordEdit()} disabled={savingRecordEdit || deletingRecord || confirmEditDelete || editingExternalSystems.some((external) => !external.code.trim() || !external.name.trim()) || Boolean(editingExternalDraft.code.trim()) !== Boolean(editingExternalDraft.name.trim())} className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50">{savingRecordEdit ? uiMessage(locale, 'reportsLoading') : '\u0630\u062e\u06cc\u0631\u0647'}</button>
+            <button type="button" onClick={() => void saveRecordEdit()} disabled={savingRecordEdit || deletingRecord || confirmEditDelete || editingBillAssignmentFamilies.size > 1 || editingExternalSystems.some((external) => !external.code.trim() || !external.name.trim()) || Boolean(editingExternalDraft.code.trim()) !== Boolean(editingExternalDraft.name.trim()) || (Boolean(editingExternalDraft.code.trim()) && !canUseAssignmentFamily(editingBillAssignmentFamilies, assignmentFamily(editingExternalDraft)))} className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50">{savingRecordEdit ? uiMessage(locale, 'reportsLoading') : '\u0630\u062e\u06cc\u0631\u0647'}</button>
           </div>
         </div>
       </section>
