@@ -30,13 +30,13 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isRahcomMap = pathname === '/rahcom/map';
   const isRahcomPage = pathname.startsWith('/rahcom/');
-  const isRahcomMobileOverflowPage = pathname === '/rahcom/daily-traffic' || pathname === '/rahcom/road-list' || pathname === '/rahcom/systems';
+  const isRahcomMobileOverflowPage = pathname === '/rahcom/daily-traffic' || pathname === '/rahcom/road-list' || pathname === '/rahcom/systems' || pathname === '/rahcom/sites';
   const isRahcomSystems = pathname === '/rahcom/systems';
   const isRahcomSolarDaily = pathname === '/rahcom/solar-daily';
   const isRahcomTickets = pathname === '/rahcom/tickets';
   const isRahcomAggregate = pathname === '/rahcom/aggregate';
   const isRahcomBillIdentifiers = pathname === '/rahcom/bill-identifiers';
-  const isRahcomFixedHeightPage = isRahcomMap || isRahcomSystems || isRahcomTickets || isRahcomAggregate || isRahcomBillIdentifiers;
+  const isRahcomFixedHeightPage = isRahcomMap || isRahcomSystems || pathname === '/rahcom/sites' || isRahcomTickets || isRahcomAggregate || isRahcomBillIdentifiers;
   const {
     locale,
     workspaceMode,

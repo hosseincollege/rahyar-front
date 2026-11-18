@@ -43,6 +43,7 @@ rahyar-back/src/rahcom/dto/rahcom.dto.ts شکل و اعتبار ورودی‌ه�
 
 گردش کار روزانه در صفحه اقدامات
 صفحه src/app/(workspace)/rahcom/actions/rahcom-actions.tsx سه مرحله برنامه مراجعه، گزارش تکمیلی پایان کار و به‌روزرسانی فایل اکسل را به تفکیک تاریخ و استان نمایش می‌دهد. بخش‌های VISIT_PLAN، COMPLETION_REPORT و EXCEL_UPDATE از API فعالیت‌های Rahcom خوانده می‌شوند و با PUT /rahcom/activities/daily-workflow ذخیره می‌شوند؛ سرویس استان را با دسترسی کاربر محدود می‌کند و برای هر مرحله امکان حذف مقدار خالی را دارد. مهلت اکسل روز بعد از تاریخ انتخاب‌شده است و نام فایل اختیاری ثبت می‌شود. پیاده‌سازی رابط در rahcom-daily-workflow.tsx و DTO و کنترل دسترسی در rahyar-back/src/rahcom/ قرار دارد.
+در فرم روزانهٔ اقدامات، «یادداشت روز» و «اکسل گزارش روزانه» جدا هستند. وضعیت تکمیل اکسل و نام فایل در رکورد EXCEL_UPDATE ذخیره و هنگام انتخاب دوبارهٔ همان روز بازیابی می‌شوند.
 
 در صفحه اقدامات، آیکون کپی کنار انتخاب‌گر تاریخ، عنوان تاریخ شمسی انتخاب‌شده و استان فعال را به صورت «روز هفته، روز و ماه سال، استان نام استان» در کلیپ‌بورد کپی می‌کند. وقتی دسترسی همه استان‌ها انتخاب شده باشد، استان از انتخاب‌گر همان صفحه خوانده می‌شود.
 
@@ -53,3 +54,9 @@ rahyar-back/src/rahcom/dto/rahcom.dto.ts شکل و اعتبار ورودی‌ه�
 در صفحه سولار، انتخاب snapshot فعال شماره و زمان را با رنگ تم نشان می‌دهد. کنترل جست‌وجوی جدول و دانلود اکسل در نوار بالایی قرار دارند؛ جست‌وجو عرض فشرده دارد، هنگام فوکوس قاب تم می‌گیرد و با دکمه پاک‌کردن به نمایش پیش‌فرض برمی‌گردد.
 
 فیلتر منبع لایه‌های نقشه در نوار نقشه، بین موقعیت‌یابی و دکمهٔ لایه قرار دارد. انتخاب‌گر پنج منبع تردد، راهداری، سولار، تیکت و تجمیعی دارد؛ آیکون دکمه با منبع انتخابی تغییر می‌کند و فعال‌سازی آن سامانه‌های همان منبع را روی نقشه نگه می‌دارد. فیلتر تردد از وضعیت Down، سولار از snapshot قطعی، راهداری از کد سامانه‌های موجود در فایل و تیکت از کد سامانه‌های دارای تیکت استفاده می‌کند؛ منبع تجمیعی اجتماع این مجموعه‌هاست. پیاده‌سازی در rahcom-section.tsx و map/open-street-map.tsx قرار دارد.
+
+
+Daily actions workflow: selected systems are one record per system. The date toolbar contains the system search and selected-system count. Per-system visit type, issue/visit reason, visiting staff, and handover recipient are stored with the action references; the generated visit plan and supplementary report editors sit side by side. Legacy system-code records remain readable with empty defaults for the new fields.
+
+
+Rahcom Sites page: `/rahcom/sites` presents all seven sheets from the supplied USO sites workbook with local search, province filtering, paginated rows, and Excel export. Its workbook data is served through the authenticated `/rahcom/sites?province=...` API; the backend enforces Rahcom access and filters province rows before returning any data. The source workbook values are bundled privately in `rahyar-back/src/rahcom/data/uso-sites.json`; the page does not expose a public all-province workbook.

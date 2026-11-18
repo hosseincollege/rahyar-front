@@ -1,16 +1,19 @@
 'use client';
 
-import { Check, CircleHelp, ClipboardList, Copy, Download, Layers, LocateFixed, MapPin, Plus, Route, Scan, Search, Sun, Ticket, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
+import { CircleHelp, ClipboardList, Copy, Download, Layers, LocateFixed, MapPin, Plus, Route, Scan, Search, Sun, Ticket, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { OpenStreetMap, type IncidentMapSummary, type UnmappedSolarDetail } from '@/app/(workspace)/rahcom/map/open-street-map';
 import { RahcomActions } from '@/app/(workspace)/rahcom/actions/rahcom-actions';
 import { RahcomSystemsList } from '@/app/(workspace)/rahcom/systems/rahcom-systems-list';
+import { RahcomSitesList } from '@/app/(workspace)/rahcom/sites/rahcom-sites-list';
 import { RahcomDailyTraffic } from '@/app/(workspace)/rahcom/daily-traffic/rahcom-daily-traffic';
 import { RahcomSolarDaily } from '@/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
 import { RahcomCountCapsule } from '@/app/(workspace)/rahcom/_shared/rahcom-count-capsule';
+import { RahcomCopyPreview } from '@/app/(workspace)/rahcom/_shared/rahcom-copy-preview';
+import { iranProvinces } from '@/lib/api/rahcom/rahcom-api';
 import { getCurrentOrganizationId, getCurrentUser } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/lib/api/settings/settings-api';
 import { uiMessage } from '@/lib/ui-messages';
@@ -24,7 +27,7 @@ import { tehranDateKey } from '@/lib/api/rahcom/solar-status';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { useRahcomDate } from './rahcom-date';
 
-export type RahcomSection = 'map' | 'actions' | 'systems' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
+export type RahcomSection = 'map' | 'actions' | 'systems' | 'sites' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
 
 const MapSearchCapsule = memo(function MapSearchCapsule({ locale, initialQuery, onQueryChange }: { locale: Parameters<typeof uiMessage>[0]; initialQuery: string; onQueryChange: (query: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -205,8 +208,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const [solarSnapshotAvailable, setSolarSnapshotAvailable] = useState<boolean | null>(null);
   const [solarSnapshots, setSolarSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [selectedSolarSnapshotId, setSelectedSolarSnapshotId] = useState('');
-  const [solarHeadingCopied, setSolarHeadingCopied] = useState(false);
-  const [solarHeadingCopyFailed, setSolarHeadingCopyFailed] = useState(false);
+  const [copyPreview, setCopyPreview] = useState<{ title: string; text: string } | null>(null);
   const [deletingSolarSnapshotId, setDeletingSolarSnapshotId] = useState<string | null>(null);
   const [solarSnapshotRevision, setSolarSnapshotRevision] = useState(0);
   const [solarSnapshotDeleteError, setSolarSnapshotDeleteError] = useState('');
@@ -267,21 +269,17 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   }, [date, handleSolarSnapshots, province, section]);
   const snapshotsForDate = solarSnapshots.filter((snapshot) => tehranDateKey(snapshot.capturedAt) === (date ?? tehranDateKey()));
   const selectedSolarSnapshot = snapshotsForDate.find((snapshot) => snapshot.id === selectedSolarSnapshotId) ?? snapshotsForDate[0] ?? null;
-  const copySolarHeading = async () => {
+  const openSolarHeadingPreview = () => {
     if (!selectedSolarSnapshot) return;
     const captureTime = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(new Date(selectedSolarSnapshot.capturedAt));
     const text = `solar\n${formatJalaliDate(date ?? tehranDateKey())}\n${captureTime}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      setSolarHeadingCopied(true);
-      setSolarHeadingCopyFailed(false);
-      window.setTimeout(() => setSolarHeadingCopied(false), 1800);
-    } catch {
-      setSolarHeadingCopied(false);
-      setSolarHeadingCopyFailed(true);
-    }
+    setCopyPreview({ title: uiMessage(locale, 'solarCopySelection'), text });
+  };
+  const openTicketsHeadingPreview = () => {
+    const provinceName = iranProvinces.find(([id]) => id === province)?.[1] ?? province;
+    setCopyPreview({ title: uiMessage(locale, 'rahcomTickets'), text: `${uiMessage(locale, 'rahcomTickets')}\n${formatJalaliDate(date ?? tehranDateKey())}\n${uiMessage(locale, 'rahcomProvince')}: ${provinceName}` });
   };
   async function deleteSolarSnapshot(snapshot: RahcomSolarSnapshot) {
     if (!canManageRahcom || deletingSolarSnapshotId) return;
@@ -367,20 +365,20 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   }, []);
 
   return (
-    <main dir={getLocaleDirection(locale)} className={section === 'map' ? 'mx-auto flex h-full min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden' : section === 'solar-daily' ? 'flex min-h-full w-full min-w-0 max-w-full flex-col' : section === 'systems' || section === 'tickets' || section === 'aggregate' || section === 'daily-traffic' ? `flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden ${section === 'daily-traffic' ? 'rahcom-horizontal-overflow-page' : ''}` : section === 'actions' ? 'w-full max-w-none space-y-3' : 'mx-auto max-w-5xl space-y-5'}>
-      {section !== 'systems' && section !== 'daily-traffic' && section !== 'actions' && <header className={`rahcom-mobile-toolbar rahcom-page-toolbar ${section === 'map' ? 'mb-[4px] max-sm:-mb-[4px] flex shrink-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap sm:overflow-x-auto' : section === 'solar-daily' || section === 'aggregate' ? 'mb-[8px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto py-1' : section === 'tickets' ? 'mb-[12px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center justify-start gap-2' : 'space-y-2 rounded-2xl border border-border bg-card p-3 sm:p-4'} max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2`}>
+    <main dir={getLocaleDirection(locale)} className={section === 'map' ? 'mx-auto flex h-full min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden' : section === 'solar-daily' ? 'flex min-h-full w-full min-w-0 max-w-full flex-col' : section === 'systems' || section === 'sites' || section === 'tickets' || section === 'aggregate' || section === 'daily-traffic' ? `flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden ${section === 'daily-traffic' ? 'rahcom-horizontal-overflow-page' : ''}` : section === 'actions' ? 'w-full max-w-none space-y-3' : 'mx-auto max-w-5xl space-y-5'}>
+      {section !== 'systems' && section !== 'sites' && section !== 'daily-traffic' && section !== 'actions' && <header className={`rahcom-mobile-toolbar rahcom-page-toolbar ${section === 'map' ? 'mb-[4px] max-sm:-mb-[4px] flex shrink-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap sm:overflow-x-auto' : section === 'solar-daily' || section === 'aggregate' ? 'mb-[8px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto py-1' : section === 'tickets' ? 'mb-[12px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center justify-start gap-2' : 'space-y-2 rounded-2xl border border-border bg-card p-3 sm:p-4'} max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2`}>
         <div className={section === 'map' || section === 'solar-daily' || section === 'aggregate' ? 'contents' : 'flex flex-wrap items-center gap-2'}>
           {section === 'map' && <><RahcomHeaderDate compact /><SolarSnapshotPicker snapshots={snapshotsForDate} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManageRahcom} deletingId={deletingSolarSnapshotId} onDelete={(snapshot) => void deleteSolarSnapshot(snapshot)} /></>}
           {section === 'map' && <MapSystemsCapsule systemsCount={mapSystemsCount} details={mapDiscrepancyDetails} locale={locale} />}
           {section === 'map' && <MapSearchCapsule locale={locale} initialQuery={mapSearchQuery} onQueryChange={setMapSearchQuery} />}
           {section !== 'map' && <><RahcomHeaderDate compact loadMarkedDates={['solar-daily', 'tickets', 'aggregate', 'actions'].includes(section) ? loadSectionMarkedDates : undefined} />{['solar-daily', 'aggregate'].includes(section) && solarSnapshotPicker}</>}
-          {section === 'solar-daily' && <button type="button" onClick={() => void copySolarHeading()} disabled={!selectedSolarSnapshot} aria-label={uiMessage(locale, 'solarCopySelection')} title={solarHeadingCopyFailed ? uiMessage(locale, 'rahcomCopyFailed') : solarHeadingCopied ? uiMessage(locale, 'rahcomCopied') : uiMessage(locale, 'solarCopySelection')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{solarHeadingCopied ? <Check size={16} /> : <Copy size={16} />}</button>}
-          {section === 'solar-daily' && solarHeadingCopyFailed && <span role="status" className="text-xs text-destructive">{uiMessage(locale, 'rahcomCopyFailed')}</span>}
+          {section === 'solar-daily' && <button type="button" onClick={openSolarHeadingPreview} disabled={!selectedSolarSnapshot} aria-label={uiMessage(locale, 'solarCopySelection')} title={uiMessage(locale, 'solarCopySelection')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><Copy size={16} /></button>}
           {section === 'solar-daily' && solarSnapshotDeleteError && <span role="alert" className="max-w-56 truncate text-xs text-destructive" title={solarSnapshotDeleteError}>{solarSnapshotDeleteError}</span>}
           {['solar-daily', 'tickets', 'aggregate'].includes(section) && <RahcomCountCapsule count={sectionSystemsCount} />}
           {section === 'solar-daily' && <button type="button" aria-pressed={solarFormOpen} onClick={() => setSolarFormOpen((open) => !open)} aria-label={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} title={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} style={solarFormOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${solarFormOpen ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}>{solarFormOpen ? <X size={17} /> : <Plus size={17} />}</button>}
           {section === 'tickets' && canManageRahcom && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-upload-click'))} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Upload size={17} /></button>}
           {section === 'tickets' && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-download-click'))} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} /></button>}
+          {section === 'tickets' && <button type="button" onClick={openTicketsHeadingPreview} aria-label={uiMessage(locale, 'rahcomCopyDateProvince')} title={uiMessage(locale, 'rahcomCopyDateProvince')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Copy size={16} /></button>}
           {section === 'aggregate' && <>
             <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
             <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateOperation')}>
@@ -443,6 +441,8 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         </>
       ) : section === 'systems' ? (
           <RahcomSystemsList canManage={canManageRahcom} selectedProvince={province} />
+      ) : section === 'sites' ? (
+          <RahcomSitesList selectedProvince={province} />
       ) : section === 'solar-daily' ? (
         <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} snapshotRevision={solarSnapshotRevision} />
       ) : section === 'aggregate' ? (
@@ -452,6 +452,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       ) : (
         <RahcomDailyTraffic provinceFilter={province} solarSnapshotPicker={solarSnapshotPicker} />
       )}
+      <RahcomCopyPreview open={Boolean(copyPreview)} title={copyPreview?.title ?? ''} text={copyPreview?.text ?? ''} locale={locale} onClose={() => setCopyPreview(null)} />
     </main>
   );
 }

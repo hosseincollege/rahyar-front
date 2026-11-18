@@ -7,11 +7,14 @@ import { hasRahcomCoordinates, iranProvinces, type RahcomSystem } from '@/lib/ap
 import { formatRahcomCoordinates } from '@/lib/api/rahcom/rahcom-api';
 import { rahcomLongOutageReasonLabel } from '@/lib/api/rahcom/solar-status';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
+import { RahcomCopyPreview } from '@/app/(workspace)/rahcom/_shared/rahcom-copy-preview';
+import { usePreferences } from '@/components/preferences-provider';
+import { uiMessage } from '@/lib/ui-messages';
 
 export type RahcomInfoField = { label: string; value: string };
 export type RahcomElectricityDetail = { label: string; value: string };
 type PopupPosition = { top: number; left: number; maxWidth: number; maxHeight: number };
-type RowInfoPopup = { title: string; systemCode: string; fields: RahcomInfoField[]; position: PopupPosition; trigger: HTMLButtonElement; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[] };
+type RowInfoPopup = { title: string; systemCode: string; fields: RahcomInfoField[]; position: PopupPosition; trigger: HTMLButtonElement; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[]; previewBeforeCopy?: boolean };
 
 function getWorkspaceMainBounds() {
   const workspaceMain = document.querySelector<HTMLElement>('[data-workspace-main]');
@@ -20,7 +23,7 @@ function getWorkspaceMainBounds() {
   return pageMain?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
 }
 
-export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trigger?: HTMLElement | null, point?: { x: number; y: number }, systemCode = '', system?: RahcomSystem | null, onEdit?: () => void, electricityDetails?: RahcomElectricityDetail[]) {
+export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trigger?: HTMLElement | null, point?: { x: number; y: number }, systemCode = '', system?: RahcomSystem | null, onEdit?: () => void, electricityDetails?: RahcomElectricityDetail[], previewBeforeCopy = false) {
   const resolvedCode = systemCode || fields.find((field) => /system\s*code|کد\s*(?:سامانه|ایستگاه)/i.test(field.label))?.value || '';
   const resolvedTitle = fields.find((field) => /system\s*name|systemname|نام\s*(?:سامانه|ایستگاه)|nome.*sistema|nom.*système|nombre.*sistema|назван.*систем|系统名称|システム名|اسم النظام/i.test(field.label) && field.value.trim())?.value || title;
   const systemFields = fields.filter((field) => field.value.trim() !== '' && field.value !== resolvedCode && field.value !== resolvedTitle && /axis|محور|استان|province|província|provincia|провинц|محافظة|المحافظ|ولاية|จังหวัด|省/i.test(field.label));
@@ -36,22 +39,24 @@ export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trig
   document.querySelector<HTMLButtonElement>('[data-rahcom-info-trigger][aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
   popupTrigger.setAttribute('data-rahcom-info-trigger', '');
   popupTrigger.setAttribute('aria-expanded', 'true');
-  window.dispatchEvent(new CustomEvent<RowInfoPopup>('rahyar:row-info-open', { detail: { title: resolvedTitle, systemCode: resolvedCode, fields: system ? systemFields : fields, system, onEdit, electricityDetails, position: { top, left, maxWidth, maxHeight }, trigger: popupTrigger } }));
+  window.dispatchEvent(new CustomEvent<RowInfoPopup>('rahyar:row-info-open', { detail: { title: resolvedTitle, systemCode: resolvedCode, fields: system ? systemFields : fields, system, onEdit, electricityDetails, previewBeforeCopy, position: { top, left, maxWidth, maxHeight }, trigger: popupTrigger } }));
 }
 
 export function RahcomInfoHeader() {
   return <span role="img" aria-label={'\u0627\u0637\u0644\u0627\u0639\u0627\u062a \u0631\u062f\u06cc\u0641'} className="inline-grid size-5 place-items-center text-muted-foreground"><Info size={15} /></span>;
 }
 
-export function RahcomRowInfo({ title, systemCode = '', fields, system, onEdit, electricityDetails }: { title: string; systemCode?: string; fields: RahcomInfoField[]; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[] }) {
+export function RahcomRowInfo({ title, systemCode = '', fields, system, onEdit, electricityDetails, previewBeforeCopy = false }: { title: string; systemCode?: string; fields: RahcomInfoField[]; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[]; previewBeforeCopy?: boolean }) {
   return <button type="button" aria-label={`\u0627\u0637\u0644\u0627\u0639\u0627\u062a ${title}`} title={`\u0627\u0637\u0644\u0627\u0639\u0627\u062a ${title}`} aria-haspopup="dialog" aria-expanded="false" onClick={(event) => {
       event.stopPropagation();
-      openRahcomRowInfo(title, fields, event.currentTarget, { x: event.clientX, y: event.clientY }, system?.systemCode || systemCode, system, onEdit, electricityDetails);
+      openRahcomRowInfo(title, fields, event.currentTarget, { x: event.clientX, y: event.clientY }, system?.systemCode || systemCode, system, onEdit, electricityDetails, previewBeforeCopy);
     }} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:text-primary aria-expanded:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-rahcom-info-trigger><Info size={16} /></button>;
 }
 
 export function RahcomRowInfoHost() {
+  const { locale } = usePreferences();
   const [popup, setPopup] = useState<RowInfoPopup | null>(null);
+  const [copyPreview, setCopyPreview] = useState('');
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [coordinatesCopied, setCoordinatesCopied] = useState(false);
@@ -102,6 +107,7 @@ export function RahcomRowInfoHost() {
     const copyText = popup.system
       ? `سامانه ${canonicalCode} موقعیت ${canonicalTitle}\nمحور ${popup.system.announcedAxis || '—'}${popup.system.axisCode ? ` (${popup.system.axisCode})` : ''}`
       : `${canonicalCode ? `${canonicalCode}\n` : ''}${canonicalTitle}\n${visibleFields.map((field) => `${field.label}: ${field.value}`).join('\n')}`;
+    if (popup.previewBeforeCopy) { setCopyPreview(copyText); return; }
     await navigator.clipboard.writeText(copyText);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1000);
@@ -175,7 +181,8 @@ export function RahcomRowInfoHost() {
   // Keep the compact popup on its original document-level theme. Expanded
   // details live inside the app shell so they inherit the active workspace theme.
   const portalRoot = expanded ? appShell ?? document.body : document.body;
-  return createPortal(<div className="fixed inset-0 z-[1000] bg-transparent" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+  return createPortal(<>
+  <div className="fixed inset-0 z-[1000] bg-transparent" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
     <section role="dialog" aria-modal="true" aria-label={canonicalTitle} style={expanded ? { position: 'fixed', top: contentBounds.top, left: contentBounds.left, width: contentBounds.width, maxWidth: contentBounds.width, height: contentBounds.height, maxHeight: contentBounds.height, overflowY: 'auto', backgroundColor: 'var(--background)', opacity: 1 } : { position: 'fixed', top: popup.position.top, left: popup.position.left, width: popup.position.maxWidth, maxWidth: popup.position.maxWidth, maxHeight: popup.position.maxHeight, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 }} className={expanded ? 'border-0 p-4 text-foreground shadow-none' : 'rounded-xl border border-border p-2 text-card-foreground shadow-2xl'}>
       <div className={`rahcom-system-popup${expanded ? ' rahcom-system-popup-expanded' : ''}`}>
         <header className="rahcom-popup-header"><div className="rahcom-popup-heading"><span className="rahcom-popup-code"><strong className="rahcom-popup-subtitle" dir="ltr">{canonicalCode}</strong><button type="button" className="rahcom-popup-code-copy" onClick={() => void copyCode()} aria-label="کپی کد سامانه" title="کپی کد سامانه">{codeCopied ? <Check size={15} /> : <Copy size={15} />}</button></span><strong className="rahcom-popup-title">{canonicalTitle}</strong></div></header>
@@ -207,5 +214,7 @@ export function RahcomRowInfoHost() {
         {panel === 'history' && <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-background p-2">{popup.system ? <RahcomSystemHistory system={popup.system} /> : <span className="text-xs text-muted-foreground">سامانهٔ متناظر پیدا نشد.</span>}</div>}
       </div>
     </section>
-  </div>, portalRoot);
+  </div>
+  <RahcomCopyPreview open={Boolean(copyPreview)} title={uiMessage(locale, 'rahcomCopy')} text={copyPreview} locale={locale} onClose={() => setCopyPreview('')} />
+  </>, portalRoot);
 }

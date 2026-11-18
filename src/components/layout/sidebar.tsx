@@ -51,6 +51,7 @@ const navigation: NavigationItem[] = [
     sub: [
       { titleKey: 'rahcomMap', href: '/rahcom/map' },
       { titleKey: 'rahcomSystemsList', href: '/rahcom/systems' },
+      { titleKey: 'rahcomSites', href: '/rahcom/sites' },
       { titleKey: 'rahcomDailyTraffic', href: '/rahcom/daily-traffic' },
       { titleKey: 'rahcomRoadList', href: '/rahcom/road-list' },
       { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
