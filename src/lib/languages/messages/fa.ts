@@ -2,6 +2,9 @@ import type { UiMessage } from "../types";
 
 const messages = {
   solarDownloadExcel: "\u062f\u0627\u0646\u0644\u0648\u062f \u0627\u06a9\u0633\u0644",
+  solarCopySelection: "کپی عنوان وضعیت سولار",
+  rahcomWrapLongTableText: "پیچیدن متن‌های بلند جدول",
+  rahcomKeepTableTextSingleLine: "نمایش متن‌ها در یک ردیف",
   usersTotal: "تعداد کل کاربران",
   usersSearchPlaceholder: "جست‌وجو بر اساس نام، ایمیل یا نقش",
   usersNoMatch: "حسابی با این جست‌وجو پیدا نشد.",
@@ -997,6 +1000,7 @@ settingsOptionTabs: "تب‌های این گزینه",
   rahcomCopyCoordinates: "کپی مختصات",
   rahcomCopied: "کپی شد",
   rahcomCopyFailed: "کپی در کلیپ‌بورد انجام نشد.",
+  rahcomCopyDateProvince: "کپی عنوان تاریخ و استان",
   rahcomChooseRouteApp: "مسیریابی با کدام برنامه؟",
   rahcomRouteGoogleMaps: "نقشهٔ گوگل",
   rahcomRouteNeshan: "نشان",

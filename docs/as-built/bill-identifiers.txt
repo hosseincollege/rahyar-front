@@ -6,4 +6,8 @@ The Isfahan reference/backup workbook is src/provinces/ESF-electricity.xlsx. It 
 
 The frontend same-origin route at src/app/api/rahcom/bill-identifiers/route.ts preserves existing row add, edit, system assignment, and delete operations while persisting the snapshot through the authenticated Rahcom API. Backend schema, authorization, and persistence are defined in rahyar-back/prisma/schema/rahcom.prisma and rahyar-back/src/rahcom/rahcom.service.ts.
 
+The electricity table toolbar includes a wrap-text toggle. When active, long non-code cell values can wrap to additional lines; when inactive, they stay on one line. The toggle leaves system codes and system assignments unchanged.
+
 Schema update required before use: apply the new Prisma model in the Rahyar backend database, then restore src/provinces/ESF-electricity.xlsx from the page toolbar. No migration or database push is run by the source edit.
+
+Manual system assignments can store USO, Rahcom, BST, and legacy VSAT type, code, and name together. The add and edit forms include a complete code/name draft in the save request even when the plus button was not pressed.

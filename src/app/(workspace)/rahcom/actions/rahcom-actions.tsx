@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Clock3, LoaderCircle, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Clock3, Copy, LoaderCircle, Trash2 } from 'lucide-react';
 import { usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
@@ -11,7 +11,8 @@ import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { RahcomDailyWorkflow } from './rahcom-daily-workflow';
-export function RahcomActions({ canManage = false, canRecord = false, selectedProvince = 'all' }: { canManage?: boolean; canRecord?: boolean; selectedProvince?: string }) {
+import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
+export function RahcomActions({ canManage = false, canRecord = false, selectedProvince = 'all', loadMarkedDates }: { canManage?: boolean; canRecord?: boolean; selectedProvince?: string; loadMarkedDates?: (from: string, to: string) => Promise<string[]> }) {
   const { locale } = usePreferences();
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const { date } = useRahcomDate();
@@ -24,6 +25,8 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
     ? activityProvinceState.province
     : selectedProvince === 'all' ? 'isfahan' : selectedProvince;
   const [historySystemId, setHistorySystemId] = useState('');
+  const [dateHeadingCopied, setDateHeadingCopied] = useState(false);
+  const [dateHeadingCopyFailed, setDateHeadingCopyFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const requestKey = `${date ?? ''}:${selectedProvince}`;
@@ -56,8 +59,33 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
 async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm'))) return; try { await rahcomApi.deleteActivity(id); await load(); } catch (e) { setError(e instanceof Error ? e.message : t('rahcomSystemDeleteFailed')); } }
   const visibleItems = items.filter(item => item.activityType === 'SYSTEM_VISIT');
   const latestActivityAt = visibleItems.reduce<string | null>((latest, item) => !latest || new Date(item.createdAt) > new Date(latest) ? item.createdAt : latest, null);
+  const copyDateHeading = async () => {
+    if (!date) return;
+    const parts = new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-arabext', {
+      timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }).formatToParts(new Date(`${date}T12:00:00Z`));
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+    const provinceName = iranProvinces.find(([id]) => id === activityProvince)?.[1] ?? activityProvince;
+    const heading = `${part('weekday')} ${part('day')} ${part('month')} ماه ${part('year')}، ${t('rahcomProvince')} ${provinceName}`;
+    try {
+      await navigator.clipboard.writeText(heading);
+      setDateHeadingCopied(true);
+      setDateHeadingCopyFailed(false);
+      window.setTimeout(() => setDateHeadingCopied(false), 1800);
+    } catch {
+      setDateHeadingCopyFailed(true);
+      setDateHeadingCopied(false);
+    }
+  };
   return <section className="space-y-4" dir={locale === 'fa' || locale === 'ar' ? 'rtl' : 'ltr'}>
     <div className="space-y-4">
+      <header className="rahcom-mobile-toolbar rahcom-page-toolbar flex h-9 min-h-9 shrink-0 items-center gap-2 max-sm:overflow-x-auto max-sm:overflow-y-hidden">
+        <RahcomHeaderDate compact loadMarkedDates={loadMarkedDates} />
+        <button type="button" onClick={() => void copyDateHeading()} disabled={!date} aria-label={t('rahcomCopyDateProvince')} title={dateHeadingCopyFailed ? t('rahcomCopyFailed') : dateHeadingCopied ? t('rahcomCopied') : t('rahcomCopyDateProvince')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+          {dateHeadingCopied ? <Check size={16} /> : <Copy size={16} />}
+        </button>
+        {dateHeadingCopyFailed && <span role="status" className="text-xs text-destructive">{t('rahcomCopyFailed')}</span>}
+      </header>
       {selectedProvince === 'all' && <label className="mb-4 grid max-w-sm gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => setActivityProvinceState({ selection: selectedProvince, province: e.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
       {visibleItems.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={visibleItems.length} savedAt={latestActivityAt} />}
       {canRecord && <RahcomDailyWorkflow key={`${date ?? ''}:${activityProvince}`} date={date} province={activityProvince} items={items} onSaved={load} />}

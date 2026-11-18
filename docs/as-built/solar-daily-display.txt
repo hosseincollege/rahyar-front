@@ -9,6 +9,8 @@ Implementation: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
 
 The shared date calendar marks only days that have solar snapshots for the selected province and visible Jalali month. Separate data sources mark their own dates on the tickets, aggregate list, and actions pages.
 
+The solar daily toolbar includes a copy icon after the snapshot selector. It copies three lines: `solar`, the selected Jalali date as `YYYY/MM/DD`, and the selected snapshot capture time in Tehran as `HH:mm`. The time follows the selected snapshot, so changing the selected status also changes the copied heading.
+
 The solar toolbar contains snapshot controls without a traffic-incident filter. The system label column and details popup read the long-outage label from the matched system record. Traffic data may provide non-label context such as realtime traffic status and outage duration. The axis-source switch selects traffic-file axes or Rahyar's operational axes and updates the solar table accordingly.
 
 New-status form updates
