@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { login } from '@/lib/api/shared/auth-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';

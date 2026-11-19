@@ -19,7 +19,7 @@ import {
   resolveOrganizationLogoUrl,
   settingsApi,
   type OrganizationBranding,
-} from '@/lib/api/settings/settings-api';
+} from '@/lib/api/settings-api';
 
 import {
   ArrowLeftRight,
@@ -27,6 +27,7 @@ import {
   FilePlus2,
   SquareTerminal,
   ChevronLeft,
+  CircleHelp,
   LogOut,
   Lock,
   Menu,
@@ -39,8 +40,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { useTheme } from '@/components/theme-provider';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { useTheme } from '@/components/providers/theme';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { readShellVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
@@ -81,6 +82,7 @@ export function TopHeader({
 }: TopHeaderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [toolbarLabelsEnabled, setToolbarLabelsEnabled] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const headerDragRef = useRef<{ pointerId: number; startX: number; startY: number; shell: HTMLElement; previousTransform: string; previousTransition: string; previousWillChange: string; moved: boolean } | null>(null);
   const suppressClickAfterHeaderDragRef = useRef(false);
@@ -112,6 +114,22 @@ export function TopHeader({
     if (!query.trim()) setHeaderSearchLoading(false);
   };
   const isMissionModeVisible = () => shellVisibility.headerControls?.missionTools !== false;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const enabled = window.localStorage.getItem('rahyar-toolbar-labels') === 'true';
+      setToolbarLabelsEnabled(enabled);
+      document.documentElement.dataset.toolbarLabels = String(enabled);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const toggleToolbarLabels = () => {
+    const enabled = !toolbarLabelsEnabled;
+    setToolbarLabelsEnabled(enabled);
+    window.localStorage.setItem('rahyar-toolbar-labels', String(enabled));
+    document.documentElement.dataset.toolbarLabels = String(enabled);
+  };
 
   useEffect(() => {
     let active = true;
@@ -215,7 +233,7 @@ export function TopHeader({
       void rahcomApi.searchSystems(headerSearchProvince, query)
         .then((items) => {
           if (!active) return;
-          setHeaderSearchResults(searchRahcomSystems(items, query, locale).slice(0, 8));
+          setHeaderSearchResults(searchRahcomSystems(items, query, locale));
           setHeaderSearchError(false);
         })
         .catch(() => {
@@ -592,6 +610,16 @@ export function TopHeader({
           <HeaderAccountSwitcher userId={user?.id} />
         </div>}
         {shellVisibility.headerControls?.provinceSelector !== false && <HeaderProvinceSelector userId={user?.id} />}
+        <button
+          type="button"
+          onClick={toggleToolbarLabels}
+          aria-label={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
+          title={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
+          aria-pressed={toolbarLabelsEnabled}
+          className={`pointer-events-auto flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
+        >
+          <CircleHelp size={18} aria-hidden="true" />
+        </button>
         <div ref={accountMenuRef} dir={direction} className="pointer-events-none relative shrink-0">
           <button
             id="user-profile-header-btn"

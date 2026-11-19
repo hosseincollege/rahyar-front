@@ -18,8 +18,8 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import { useTheme } from '@/components/theme-provider';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { useTheme } from '@/components/providers/theme';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { API_BASE_URL } from '@/lib/api-environment';
 import { applyPublicAppearance, fetchPublicBranding, resolvePublicLogoUrl, type PublicBranding } from '@/lib/public-branding';
 import { uiMessage } from '@/lib/ui-messages';

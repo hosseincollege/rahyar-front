@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/components/layout/sidebar.tsx
  * @project Rahyar - Front-end
  * @description Rahyar application frontend
@@ -10,17 +10,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { getCurrentOrganizationId, getCurrentUser, logout, AuthUser } from '@/lib/api/shared/auth-api';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import type { UiMessage } from '@/lib/languages/types';
-import { settingsApi, type OrganizationAccess } from '@/lib/api/settings/settings-api';
+import { settingsApi, type OrganizationAccess } from '@/lib/api/settings-api';
 import { isReducedEdition } from '@/lib/product-edition';
 import { readShellVisibility } from '@/lib/module-visibility';
 
 import {
+  Cctv,
   Code2,
   ExternalLink,
-  MapPinned,
   LogOut,
   Settings,
   User,
@@ -41,24 +41,24 @@ type NavigationItem = {
   sub?: NavigationSubItem[];
 };
 
-// فهرست ماژول‌های اصلی سیستم
+// ????? ????????? ???? ?????
 const navigation: NavigationItem[] = [
   {
     id: 'rahcom',
     titleKey: 'sidebarRahkam',
-    icon: MapPinned,
+    icon: Cctv,
     href: '/rahcom',
     sub: [
       { titleKey: 'rahcomMap', href: '/rahcom/map' },
       { titleKey: 'rahcomSystemsList', href: '/rahcom/systems' },
-      { titleKey: 'rahcomSites', href: '/rahcom/sites' },
       { titleKey: 'rahcomDailyTraffic', href: '/rahcom/daily-traffic' },
       { titleKey: 'rahcomRoadList', href: '/rahcom/road-list' },
-      { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
       { titleKey: 'rahcomTickets', href: '/rahcom/tickets' },
+      { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
       { titleKey: 'rahcomAggregateList', href: '/rahcom/aggregate' },
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
       { titleKey: 'rahcomBillIdentifiers', href: '/rahcom/bill-identifiers' },
+      { titleKey: 'rahcomSites', href: '/rahcom/sites' },
     ],
   },
   {
@@ -153,7 +153,7 @@ export function Sidebar({
     };
   }, []);
 
-  // یافتن ماژول مطابق با مسیر فعلی
+  // ????? ????? ????? ?? ???? ????
   const getMatchedModuleId = useCallback(() => {
     if (pathname === '/') return 'rahcom';
     const matched = navigation.find(
@@ -184,7 +184,7 @@ export function Sidebar({
     };
   }, []);
 
-  // همگام‌سازی تب فعال هنگام تغییر مسیر (Navigation)
+  // ?????????? ?? ???? ????? ????? ???? (Navigation)
   useEffect(() => {
     if (isHomeRoute) {
       onSetProfileActive?.(false);
@@ -195,7 +195,7 @@ export function Sidebar({
     }
   }, [pathname, isHomeRoute, isProfileRoute, onSetProfileActive]);
 
-  // رویداد Click-Outside جهت بستن و ریست سایدبار به پنل پیش‌فرض صفحه
+  // ?????? Click-Outside ??? ???? ? ???? ??????? ?? ??? ??????? ????
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -216,7 +216,7 @@ export function Sidebar({
         return;
       }
 
-      // ریست وضعیت موقت تب به حالت متناظر با صفحه جاری
+      // ???? ????? ???? ?? ?? ???? ?????? ?? ???? ????
       if (isHomeRoute) {
         setActiveTab(getMatchedModuleId());
         onSetProfileActive?.(false);
@@ -230,7 +230,7 @@ export function Sidebar({
         }
       }
 
-      // بستن ستون‌ها در صورت عدم قفل بودن
+      // ???? ??????? ?? ???? ??? ??? ????
       if (!isMainCollapsed && !isLocked) {
         onCloseSidebar?.();
       }
@@ -253,7 +253,7 @@ export function Sidebar({
     onSetProfileActive,
   ]);
 
-  // انتخاب ماژول: تغییر ستون دوم و هدایت اختیاری در صورت روشن بودن Navigation Mode
+  // ?????? ?????: ????? ???? ??? ? ????? ??????? ?? ???? ???? ???? Navigation Mode
   const handleSelectModule = (item: NavigationItem) => {
     onSetProfileActive?.(false);
     setActiveTab(item.id);
@@ -303,7 +303,7 @@ export function Sidebar({
         transition-all duration-300
       "
     >
-      {/* ستون اول: لیست آیکون‌های ماژول‌ها */}
+      {/* ???? ???: ???? ????????? ???????? */}
       <div
         className={`
           flex min-h-0 flex-col
@@ -337,7 +337,7 @@ export function Sidebar({
                     ${isMainCollapsed ? 'justify-center' : 'justify-start gap-2'}
                 `}
               >
-                <Icon size={20} className="shrink-0" />
+                <Icon size={20} className="shrink-0" style={item.id === 'rahcom' ? { transform: 'scaleX(-1)' } : undefined} />
                 {!isMainCollapsed && (
                   <>
                     <span className="hidden shrink-0 text-xs font-medium tabular-nums text-current md:inline" dir="ltr">{index + 1}</span>
@@ -356,7 +356,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {/* ستون دوم: اولویت رندر: پنل پروفایل | زیرمنوی ماژول فعال | پیشخوان خانه */}
+      {/* ???? ???: ?????? ????: ??? ??????? | ??????? ????? ???? | ??????? ???? */}
       <div
         style={{ paddingInlineStart: '0.5rem' }}
         className="
@@ -367,7 +367,7 @@ export function Sidebar({
         "
       >
         {isProfileActive || (isProfileRoute && !activeTab) ? (
-          /* حالت اول: پنل پروفایل کاربر */
+          /* ???? ???: ??? ??????? ????? */
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
             <Link
               href="/settings/general"
@@ -420,7 +420,7 @@ export function Sidebar({
             </div>
           </div>
         ) : activeGroup ? (
-          /* حالت دوم: زیرمنوهای ماژول انتخاب شده */
+          /* ???? ???: ????????? ????? ?????? ??? */
           <div className="flex min-h-0 flex-1 flex-col">
             <h2 className={`shrink-0 overflow-hidden border-b text-sm font-bold transition-[max-height,opacity,transform,margin,padding,color,border-color] duration-200 ease-out motion-reduce:transition-none ${isMainCollapsed ? 'mb-2 border-[var(--border)] pb-3 md:max-h-12 md:translate-y-0 md:opacity-100' : 'mb-2 border-[var(--border)] pb-3 md:mb-0 md:max-h-0 md:translate-y-1 md:border-transparent md:pb-0 md:opacity-0'} ${isModuleLandingActive ? 'text-[var(--primary)]' : 'text-[var(--foreground)]'}`}>
               <Link

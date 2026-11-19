@@ -18,7 +18,7 @@ src/app/(workspace)/rahcom/_shared/rahcom-axes-manager.tsx : مدیریت محو
 API و مدل‌ها
 src/lib/api/rahcom/rahcom-api.ts توابع کلاینت و نوع‌های مشترک را نگه می‌دارد.
 rahyar-back/src/rahcom/rahcom.controller.ts نقاط پایانی HTTP را تعریف می‌کند و RahcomService منطق دامنه را اجرا می‌کند.
-rahyar-back/src/rahcom/dto/rahcom.dto.ts شکل و اعتبار ورودی‌ها را تعریف می‌کند.
+rahyar-back/src/rahcom/rahcom.dto.ts شکل و اعتبار ورودی‌ها را تعریف می‌کند.
 مدل‌های RahcomSystem، RahcomAxis، RahcomActivity، RahcomSolarSnapshot، RahcomSolarSpecialSystem، RahcomTrafficSnapshot و RahcomImportedTicket در rahyar-back/prisma/schema/rahcom.prisma هستند.
 
 نمونه جریان گزارش سولار
@@ -32,7 +32,7 @@ rahyar-back/src/rahcom/dto/rahcom.dto.ts شکل و اعتبار ورودی‌ه�
 جست‌وجوی تاپ‌هدر رکورد را پیدا می‌کند، استان همان سامانه را انتخاب می‌کند و مسیر فهرست سامانه‌ها را باز می‌کند؛ شناسه رکورد به‌صورت گذرا در sessionStorage نگهداری می‌شود تا همان پنجره جزئیات فهرست باز شود. انتخاب نتیجه از هر صفحه و از داخل خود فهرست، هر دو از پنجرهٔ جزئیات یکسان استفاده می‌کنند. این داده موقت است و منبع اصلی اطلاعات همچنان API است.
 
 محورهای عملیاتی
-محورهای ثابت/عملیاتی استان در src/provinces/ نگهداری می‌شوند تا از داده‌های پایگاه داده مستقل و قابل بازیابی باشند. محورهای فهرست تردد، در صورت انتخاب آن منبع، از snapshot و ستون‌های فایل استخراج می‌شوند. منبع محور باید در UI مشخص و قابل تغییر باشد.
+محورهای ثابت/عملیاتی استان در src/province-backup/ نگهداری می‌شوند تا از داده‌های پایگاه داده مستقل و قابل بازیابی باشند. محورهای فهرست تردد، در صورت انتخاب آن منبع، از snapshot و ستون‌های فایل استخراج می‌شوند. منبع محور باید در UI مشخص و قابل تغییر باشد.
 
 نکات توسعه
 - هر endpoint جدید را در controller، service، DTO و کلاینت API هماهنگ اضافه کنید.
@@ -53,7 +53,7 @@ rahyar-back/src/rahcom/dto/rahcom.dto.ts شکل و اعتبار ورودی‌ه�
 
 در صفحه سولار، انتخاب snapshot فعال شماره و زمان را با رنگ تم نشان می‌دهد. کنترل جست‌وجوی جدول و دانلود اکسل در نوار بالایی قرار دارند؛ جست‌وجو عرض فشرده دارد، هنگام فوکوس قاب تم می‌گیرد و با دکمه پاک‌کردن به نمایش پیش‌فرض برمی‌گردد.
 
-فیلتر منبع لایه‌های نقشه در نوار نقشه، بین موقعیت‌یابی و دکمهٔ لایه قرار دارد. انتخاب‌گر پنج منبع تردد، راهداری، سولار، تیکت و تجمیعی دارد؛ آیکون دکمه با منبع انتخابی تغییر می‌کند و فعال‌سازی آن سامانه‌های همان منبع را روی نقشه نگه می‌دارد. فیلتر تردد از وضعیت Down، سولار از snapshot قطعی، راهداری از کد سامانه‌های موجود در فایل و تیکت از کد سامانه‌های دارای تیکت استفاده می‌کند؛ منبع تجمیعی اجتماع این مجموعه‌هاست. پیاده‌سازی در rahcom-section.tsx و map/open-street-map.tsx قرار دارد.
+فیلتر منبع لایه‌های نقشه در نوار نقشه، بین موقعیت‌یابی و دکمهٔ لایه قرار دارد. انتخاب‌گر پنج منبع تردد، راهداری، سولار، تیکت و تجمیعی دارد؛ آیکون دکمه با منبع انتخابی تغییر می‌کند و فعال‌سازی آن سامانه‌های همان منبع را روی نقشه نگه می‌دارد. فیلتر تردد از وضعیت بدون تردد، سولار از snapshot قطعی، راهداری از کد سامانه‌های موجود در فایل و تیکت از کد سامانه‌های دارای تیکت استفاده می‌کند. منبع تجمیعی از گزینه‌های فعال تردد، راهداری، سولار و تیکت با عملگر اجتماع یا اشتراک ترکیب می‌شود؛ رخدادهای تردد هم با وضعیت نمایش رخدادها هماهنگ‌اند. انتخاب‌گر عملگر روی نقشه و صفحه تجمیع مشترک است و در `rahcom-aggregate-operation` ذخیره می‌شود. پیاده‌سازی در rahcom-section.tsx و map/open-street-map.tsx قرار دارد.
 
 
 Daily actions workflow: selected systems are one record per system. The date toolbar contains the system search and selected-system count. Per-system visit type, issue/visit reason, visiting staff, and handover recipient are stored with the action references; the generated visit plan and supplementary report editors sit side by side. Legacy system-code records remain readable with empty defaults for the new fields.

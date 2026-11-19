@@ -10,11 +10,12 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { TopHeader } from './top-header';
 import { ImpersonationBanner } from './impersonation-banner';
-import { getLocaleDirection, getOrganizationAccentStyle, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, getOrganizationAccentStyle, usePreferences } from '@/components/providers/preferences-provider';
 import { MissionQuickActions, type MissionEntryMode } from './mission-quick-actions';
 import { loadOrganizationModuleVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
 import { uiMessage } from '@/lib/ui-messages';
+import { getCharcoalShellStyle } from '@/components/rahcom/charcoal-shell';
 
 const SIDEBAR_COLLAPSED_KEY = 'rahyar-sidebar-collapsed';
 const SIDEBAR_LOCKED_KEY = 'rahyar-sidebar-locked';
@@ -175,7 +176,7 @@ export function AppShell({ children }: AppShellProps) {
       data-dark-contrast={activeContrast.dark}
       data-light-brightness={activeBrightness.light}
       data-dark-brightness={activeBrightness.dark}
-      style={getOrganizationAccentStyle(activeAppearance)}
+      style={{ ...getOrganizationAccentStyle(activeAppearance), ...getCharcoalShellStyle() }}
       className="erp-app-shell flex h-screen min-h-0 flex-col overflow-hidden bg-[color:var(--background)] text-[color:var(--foreground)] transition-colors duration-200"
     >
       <TopHeader

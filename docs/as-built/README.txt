@@ -23,7 +23,7 @@ src/components/preferences-provider.tsx : دسترسی رابط به ترجیح�
 src/lib/api/rahcom/rahcom-api.ts : نوع‌ها و توابع ارتباطی API رهکام.
 src/lib/rahcom-system-search.ts : منطق جست‌وجوی سامانه‌ها در تاپ‌هدر.
 src/lib/languages/ و src/lib/ui-messages.ts : زبان‌ها و متن‌های رابط؛ تغییر متن نمایشی باید در همه زبان‌های پشتیبانی‌شده منعکس شود.
-src/provinces/ : داده‌های ثابت و قابل نگهداری محورها/استان‌ها، از جمله تعریف اصفهان.
+src/province-backup/ : داده‌های ثابت و قابل نگهداری محورها/استان‌ها، از جمله تعریف اصفهان.
 
 ۴) ساختار مهم بک‌اند
 rahyar-back/src/core/ : زیرساخت مشترک مانند احراز هویت، گاردها و Prisma.

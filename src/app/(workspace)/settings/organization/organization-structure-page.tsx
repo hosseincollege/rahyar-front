@@ -4,6 +4,8 @@
 
 'use client';
 
+import { DataTable } from '@/components/ui/data-table';
+
 import {
   useCallback,
   useEffect,
@@ -13,7 +15,7 @@ import {
   type FormEvent,
 } from 'react';
 import Link from 'next/link';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import {
   Building,
@@ -37,7 +39,7 @@ import {
   type DepartmentEmployeeSummary,
   type DepartmentItem,
   type OrganizationImportPayload,
-} from '@/lib/api/settings/settings-api';
+} from '@/lib/api/settings-api';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { DepartmentOverviewPanel } from './department-overview-panel';
 import { SettingsPageToolbar } from '../components/settings-page-toolbar';
@@ -877,7 +879,7 @@ export function OrganizationStructurePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-start text-sm">
+              <DataTable className="w-full text-start text-sm">
                 <thead className="border-b border-gray-200 bg-gray-50/50 text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
                   <tr>
                     <th className="px-6 py-4">نام دپارتمان</th>
@@ -949,7 +951,7 @@ export function OrganizationStructurePage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </DataTable>
             </div>
           )}
         </div>

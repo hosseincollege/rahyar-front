@@ -132,23 +132,24 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
   line-height: 20px !important;
 }
 
+.rahcom-systems-table tbody > tr > td:nth-child(4),
+.rahcom-systems-table tbody > tr > td:nth-child(6),
+.rahcom-systems-table tbody > tr > td:nth-child(9),
+.rahcom-systems-table tbody > tr > td:nth-child(10) {
+  height: auto !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  line-height: 1.4 !important;
+}
+
 /* Bill identifiers may belong to multiple systems; stack them and let only those rows grow. */
 .rahcom-sticky-table.rahcom-bill-identifiers-table tbody > tr > td.bill-assignment-cell:not([colspan]) {
   height: auto !important;
   overflow: visible !important;
   text-overflow: clip !important;
   white-space: pre-line !important;
-}
-
-.rahcom-page-toolbar {
-  align-items: center;
-}
-
-.rahcom-page-toolbar > button,
-.rahcom-page-toolbar > label,
-.rahcom-page-toolbar > [role="group"] {
-  box-sizing: border-box;
-  height: 36px;
 }
 
 .rahcom-traffic-table-frame {
@@ -176,12 +177,6 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
 .rahcom-capsule-select:focus {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--ring);
-}
-
-.rahcom-page-toolbar [role="group"] > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* Keep horizontal table gestures inside the two wide imported-data pages. */
@@ -510,23 +505,71 @@ html.dark .erp-app-shell[data-background-style="NAVY"] {
 .erp-app-shell[data-background-style="NAVY"][data-light-brightness="soft"] { --background: #e9edf1; }
 .erp-app-shell[data-background-style="NAVY"][data-light-brightness="balanced"] { --background: #f1f3f5; }
 .erp-app-shell[data-background-style="NAVY"][data-light-brightness="strong"] { --background: #f7f8fa; }
-.erp-app-shell[data-background-style="GRAY"][data-light-brightness="soft"] { --background: #e9e9e9; }
-.erp-app-shell[data-background-style="GRAY"][data-light-brightness="balanced"] { --background: #f1f1f1; }
-.erp-app-shell[data-background-style="GRAY"][data-light-brightness="strong"] { --background: #f7f7f7; }
+.erp-app-shell[data-background-style="GRAY"][data-light-brightness="soft"] { --background: var(--charcoal-light-soft-background); }
+.erp-app-shell[data-background-style="GRAY"][data-light-brightness="balanced"] { --background: var(--charcoal-light-balanced-background); }
+.erp-app-shell[data-background-style="GRAY"][data-light-brightness="strong"] { --background: var(--charcoal-light-strong-background); }
 .erp-app-shell[data-background-style="GRAY"][data-light-brightness="soft"] {
-  --gray-header: #f3f3f3;
-  --gray-sidebar-primary: #e3e3e3;
-  --gray-sidebar-secondary: #ededed;
+  --gray-header: var(--charcoal-light-soft-header);
+  --gray-sidebar-primary: var(--charcoal-light-soft-sidebar-primary);
+  --gray-sidebar-secondary: var(--charcoal-light-soft-sidebar-secondary);
+  --surface: var(--charcoal-light-soft-surface);
+  --surface-elevated: var(--charcoal-light-soft-surface-elevated);
+  --surface-muted: var(--charcoal-light-soft-surface-muted);
+  --surface-hover: var(--charcoal-light-soft-surface-hover);
+  --card: var(--charcoal-light-soft-surface);
+  --foreground: var(--charcoal-light-soft-foreground);
+  --card-foreground: var(--charcoal-light-soft-foreground);
+  --muted-foreground: var(--charcoal-light-soft-muted-foreground);
+  --border: var(--charcoal-light-soft-border);
+  --border-strong: var(--charcoal-light-soft-border-strong);
+  --input: var(--charcoal-light-soft-input);
+  --sidebar: var(--charcoal-light-soft-surface);
+  --sidebar-elevated: var(--charcoal-light-soft-surface-elevated);
+  --sidebar-foreground: var(--charcoal-light-soft-foreground);
+  --sidebar-muted: var(--charcoal-light-soft-muted-foreground);
+  --sidebar-border: var(--charcoal-light-soft-border);
 }
 .erp-app-shell[data-background-style="GRAY"][data-light-brightness="balanced"] {
-  --gray-header: #fafafa;
-  --gray-sidebar-primary: #e9e9e9;
-  --gray-sidebar-secondary: #f5f5f5;
+  --gray-header: var(--charcoal-light-balanced-header);
+  --gray-sidebar-primary: var(--charcoal-light-balanced-sidebar-primary);
+  --gray-sidebar-secondary: var(--charcoal-light-balanced-sidebar-secondary);
+  --surface: var(--charcoal-light-balanced-surface);
+  --surface-elevated: var(--charcoal-light-balanced-surface-elevated);
+  --surface-muted: var(--charcoal-light-balanced-surface-muted);
+  --surface-hover: var(--charcoal-light-balanced-surface-hover);
+  --card: var(--charcoal-light-balanced-surface);
+  --foreground: var(--charcoal-light-balanced-foreground);
+  --card-foreground: var(--charcoal-light-balanced-foreground);
+  --muted-foreground: var(--charcoal-light-balanced-muted-foreground);
+  --border: var(--charcoal-light-balanced-border);
+  --border-strong: var(--charcoal-light-balanced-border-strong);
+  --input: var(--charcoal-light-balanced-input);
+  --sidebar: var(--charcoal-light-balanced-surface);
+  --sidebar-elevated: var(--charcoal-light-balanced-surface-elevated);
+  --sidebar-foreground: var(--charcoal-light-balanced-foreground);
+  --sidebar-muted: var(--charcoal-light-balanced-muted-foreground);
+  --sidebar-border: var(--charcoal-light-balanced-border);
 }
 .erp-app-shell[data-background-style="GRAY"][data-light-brightness="strong"] {
-  --gray-header: #ffffff;
-  --gray-sidebar-primary: #efefef;
-  --gray-sidebar-secondary: #fafafa;
+  --gray-header: var(--charcoal-light-strong-header);
+  --gray-sidebar-primary: var(--charcoal-light-strong-sidebar-primary);
+  --gray-sidebar-secondary: var(--charcoal-light-strong-sidebar-secondary);
+  --surface: var(--charcoal-light-strong-surface);
+  --surface-elevated: var(--charcoal-light-strong-surface-elevated);
+  --surface-muted: var(--charcoal-light-strong-surface-muted);
+  --surface-hover: var(--charcoal-light-strong-surface-hover);
+  --card: var(--charcoal-light-strong-surface);
+  --foreground: var(--charcoal-light-strong-foreground);
+  --card-foreground: var(--charcoal-light-strong-foreground);
+  --muted-foreground: var(--charcoal-light-strong-muted-foreground);
+  --border: var(--charcoal-light-strong-border);
+  --border-strong: var(--charcoal-light-strong-border-strong);
+  --input: var(--charcoal-light-strong-input);
+  --sidebar: var(--charcoal-light-strong-surface);
+  --sidebar-elevated: var(--charcoal-light-strong-surface-elevated);
+  --sidebar-foreground: var(--charcoal-light-strong-foreground);
+  --sidebar-muted: var(--charcoal-light-strong-muted-foreground);
+  --sidebar-border: var(--charcoal-light-strong-border);
 }
 .erp-app-shell[data-background-style="THEME"][data-light-brightness="soft"] { --background: color-mix(in srgb, var(--primary) 2%, #e9edf1); }
 .erp-app-shell[data-background-style="THEME"][data-light-brightness="balanced"] { --background: color-mix(in srgb, var(--primary) 2%, #f1f3f5); }
@@ -539,24 +582,72 @@ html.dark .erp-app-shell[data-background-style="NAVY"][data-dark-brightness="bal
 html.dark .erp-app-shell[data-background-style="NAVY"][data-dark-brightness="strong"] { --background: #101419; }
 .dark .erp-app-shell[data-background-style="GRAY"][data-dark-brightness="soft"],
 html.dark .erp-app-shell[data-background-style="GRAY"][data-dark-brightness="soft"] {
-  --background: #222426;
-  --gray-header: #2b2d2f;
-  --gray-sidebar-primary: #27292b;
-  --gray-sidebar-secondary: #242628;
+  --background: var(--charcoal-dark-soft-background);
+  --gray-header: var(--charcoal-dark-soft-header);
+  --gray-sidebar-primary: var(--charcoal-dark-soft-sidebar-primary);
+  --gray-sidebar-secondary: var(--charcoal-dark-soft-sidebar-secondary);
+  --surface: var(--charcoal-dark-soft-surface);
+  --surface-elevated: var(--charcoal-dark-soft-surface-elevated);
+  --surface-muted: var(--charcoal-dark-soft-surface-muted);
+  --surface-hover: var(--charcoal-dark-soft-surface-hover);
+  --card: var(--charcoal-dark-soft-surface);
+  --foreground: var(--charcoal-dark-soft-foreground);
+  --card-foreground: var(--charcoal-dark-soft-foreground);
+  --muted-foreground: var(--charcoal-dark-soft-muted-foreground);
+  --border: var(--charcoal-dark-soft-border);
+  --border-strong: var(--charcoal-dark-soft-border-strong);
+  --input: var(--charcoal-dark-soft-input);
+  --sidebar: var(--charcoal-dark-soft-surface);
+  --sidebar-elevated: var(--charcoal-dark-soft-surface-elevated);
+  --sidebar-foreground: var(--charcoal-dark-soft-foreground);
+  --sidebar-muted: var(--charcoal-dark-soft-muted-foreground);
+  --sidebar-border: var(--charcoal-dark-soft-border);
 }
 .dark .erp-app-shell[data-background-style="GRAY"][data-dark-brightness="balanced"],
 html.dark .erp-app-shell[data-background-style="GRAY"][data-dark-brightness="balanced"] {
-  --background: #171819;
-  --gray-header: #222426;
-  --gray-sidebar-primary: #1d1f21;
-  --gray-sidebar-secondary: #191b1d;
+  --background: var(--charcoal-dark-balanced-background);
+  --gray-header: var(--charcoal-dark-balanced-header);
+  --gray-sidebar-primary: var(--charcoal-dark-balanced-sidebar-primary);
+  --gray-sidebar-secondary: var(--charcoal-dark-balanced-sidebar-secondary);
+  --surface: var(--charcoal-dark-balanced-surface);
+  --surface-elevated: var(--charcoal-dark-balanced-surface-elevated);
+  --surface-muted: var(--charcoal-dark-balanced-surface-muted);
+  --surface-hover: var(--charcoal-dark-balanced-surface-hover);
+  --card: var(--charcoal-dark-balanced-surface);
+  --foreground: var(--charcoal-dark-balanced-foreground);
+  --card-foreground: var(--charcoal-dark-balanced-foreground);
+  --muted-foreground: var(--charcoal-dark-balanced-muted-foreground);
+  --border: var(--charcoal-dark-balanced-border);
+  --border-strong: var(--charcoal-dark-balanced-border-strong);
+  --input: var(--charcoal-dark-balanced-input);
+  --sidebar: var(--charcoal-dark-balanced-surface);
+  --sidebar-elevated: var(--charcoal-dark-balanced-surface-elevated);
+  --sidebar-foreground: var(--charcoal-dark-balanced-foreground);
+  --sidebar-muted: var(--charcoal-dark-balanced-muted-foreground);
+  --sidebar-border: var(--charcoal-dark-balanced-border);
 }
 .dark .erp-app-shell[data-background-style="GRAY"][data-dark-brightness="strong"],
 html.dark .erp-app-shell[data-background-style="GRAY"][data-dark-brightness="strong"] {
-  --background: #111213;
-  --gray-header: #1d1f21;
-  --gray-sidebar-primary: #181a1c;
-  --gray-sidebar-secondary: #141516;
+  --background: var(--charcoal-dark-strong-background);
+  --gray-header: var(--charcoal-dark-strong-header);
+  --gray-sidebar-primary: var(--charcoal-dark-strong-sidebar-primary);
+  --gray-sidebar-secondary: var(--charcoal-dark-strong-sidebar-secondary);
+  --surface: var(--charcoal-dark-strong-surface);
+  --surface-elevated: var(--charcoal-dark-strong-surface-elevated);
+  --surface-muted: var(--charcoal-dark-strong-surface-muted);
+  --surface-hover: var(--charcoal-dark-strong-surface-hover);
+  --card: var(--charcoal-dark-strong-surface);
+  --foreground: var(--charcoal-dark-strong-foreground);
+  --card-foreground: var(--charcoal-dark-strong-foreground);
+  --muted-foreground: var(--charcoal-dark-strong-muted-foreground);
+  --border: var(--charcoal-dark-strong-border);
+  --border-strong: var(--charcoal-dark-strong-border-strong);
+  --input: var(--charcoal-dark-strong-input);
+  --sidebar: var(--charcoal-dark-strong-surface);
+  --sidebar-elevated: var(--charcoal-dark-strong-surface-elevated);
+  --sidebar-foreground: var(--charcoal-dark-strong-foreground);
+  --sidebar-muted: var(--charcoal-dark-strong-muted-foreground);
+  --sidebar-border: var(--charcoal-dark-strong-border);
 }
 .dark .erp-app-shell[data-background-style="THEME"][data-dark-brightness="soft"],
 html.dark .erp-app-shell[data-background-style="THEME"][data-dark-brightness="soft"] { --background: color-mix(in srgb, var(--primary) 3%, #22272e); }
@@ -646,6 +737,119 @@ html.dark .erp-app-shell[data-dark-contrast="strong"] {
 
 .erp-app-shell[data-background-style="GRAY"] .erp-sidebar-drawer > div:last-child {
   background-color: var(--gray-sidebar-secondary) !important;
+}
+
+.rahcom-table thead th {
+  background-color: var(--gray-header, var(--surface-elevated)) !important;
+  border-bottom-color: var(--border-strong, var(--border));
+}
+
+.rahcom-table tbody > tr:nth-child(odd) > td:not([colspan]) {
+  background-color: var(--background) !important;
+}
+
+.rahcom-table tbody > tr:nth-child(even) > td:not([colspan]) {
+  background-color: var(--gray-sidebar-secondary, color-mix(in srgb, var(--surface-muted) 18%, var(--background))) !important;
+}
+
+.rahcom-sticky-table.rahcom-aggregate-table tbody > tr > td.rahcom-aggregate-ticket-cell:not([colspan]) {
+  height: auto !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  line-height: 1.4 !important;
+}
+
+/* Shared scrollbar treatment for Rahcom data tables. Keep the track and thumb
+   in the same charcoal/gray palette as the table surfaces in both themes. */
+.rahcom-table-scroll {
+  scrollbar-color: var(--border-strong, var(--border)) var(--gray-sidebar-secondary, var(--background));
+  scrollbar-width: thin;
+}
+
+.rahcom-table-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.rahcom-table-scroll::-webkit-scrollbar-track {
+  background-color: var(--gray-sidebar-secondary, var(--background));
+  border-radius: 999px;
+}
+
+.rahcom-table-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong, var(--muted-foreground));
+  border: 2px solid var(--gray-sidebar-secondary, var(--background));
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.rahcom-table-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+.rahcom-toolbar {
+  align-items: center;
+}
+
+.rahcom-toolbar > button,
+.rahcom-toolbar > label,
+.rahcom-toolbar > [role="group"] {
+  box-sizing: border-box;
+  height: 36px;
+}
+
+.rahcom-toolbar [role="group"] > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> svg:only-child),
+html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> span[aria-hidden="true"]:only-child),
+html[data-toolbar-labels="true"] .rahcom-toolbar [role="group"] > button[title]:has(> svg:only-child) {
+  display: inline-flex;
+  width: auto;
+  min-width: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding-inline: 12px;
+}
+
+html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> svg:only-child)::after,
+html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> span[aria-hidden="true"]:only-child)::after,
+html[data-toolbar-labels="true"] .rahcom-toolbar [role="group"] > button[title]:has(> svg:only-child)::after {
+  content: attr(title);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.rahcom-toolbar label[data-toolbar-label] {
+  box-sizing: border-box;
+  width: 36px;
+  min-width: 36px;
+  justify-content: center;
+  gap: 0;
+  padding-inline: 0;
+}
+
+html[data-toolbar-labels="true"] .rahcom-toolbar label[data-toolbar-label] {
+  width: auto;
+  min-width: 36px;
+  justify-content: center;
+  gap: 7px;
+  padding-inline: 12px;
+}
+
+html[data-toolbar-labels="true"] .rahcom-toolbar label[data-toolbar-label]::after {
+  content: attr(data-toolbar-label);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .erp-app-shell .sidebar-module-selected {
@@ -1099,6 +1303,10 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   z-index: 30;
   background-color: var(--card);
   opacity: 1;
+}
+
+.rahcom-record-summary-bar {
+  background-color: var(--gray-header, var(--card));
 }
 
 .rahcom-popup-header,

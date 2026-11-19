@@ -1,6 +1,6 @@
 ﻿// File: frontend/src/app/(workspace)/settings/users/roles-json.ts
 
-import type { RoleItem } from '@/lib/api/settings/settings-api';
+import type { RoleItem } from '@/lib/api/settings-api';
 
 export type RoleImportData = {
   key?: string;

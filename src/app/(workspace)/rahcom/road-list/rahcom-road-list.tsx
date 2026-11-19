@@ -1,12 +1,15 @@
 'use client';
 
+import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { DataTable } from '@/components/ui/data-table';
+
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, LoaderCircle, LockKeyhole, Pencil, Save, TriangleAlert, X } from 'lucide-react';
-import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
+import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi } from '@/lib/api/settings/settings-api';
+import { settingsApi } from '@/lib/api/settings-api';
 import { apiClient } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -511,7 +514,7 @@ export function RahcomRoadList() {
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
   return <main dir={getLocaleDirection(locale)} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 w-full max-w-full flex-col gap-3 overflow-hidden">
-    <header className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
+    <RahcomToolbar as="header" className="rahcom-mobile-toolbar max-sm:-mb-2 flex shrink-0 flex-nowrap items-center justify-start gap-3 overflow-x-auto overflow-y-hidden pb-2 sm:flex-wrap sm:overflow-visible sm:pb-0">
       <RahcomHeaderDate compact loadMarkedDates={loadRoadListDates} />
       {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManage} deletingId={deletingSolarSnapshotId} onDelete={(item) => void deleteSolarSnapshot(item)} />}
       <RahcomCountCapsule count={filteredRows.length} />
@@ -519,20 +522,20 @@ export function RahcomRoadList() {
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
         <button type="button" onClick={() => void openRoadListImagePrompt()} aria-label={locale === 'fa' ? 'نمایش پرامپت راهداری' : 'View road list prompt'} title={locale === 'fa' ? 'نمایش و ویرایش پرامپت' : 'View and edit prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><ClipboardCopy size={17} aria-hidden="true" /></button>
-        {canManage && <label aria-label={t('rahcomRoadListChooseFile')} title={t('rahcomRoadListChooseFile')} className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+        {canManage && <label data-toolbar-label={busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')} aria-label={t('rahcomRoadListChooseFile')} title={busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')} className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
-          <span>{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
+          <span className="sr-only">{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
           <input type="file" accept=".xlsx,.xls" disabled={busy || !province} onChange={(event) => void uploadFile(event)} className="sr-only" />
         </label>}
       </div>
-    </header>
+    </RahcomToolbar>
 
     {error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
     {message && <p role="status" className="shrink-0 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">{message}</p>}
     {!province ? <p className="shrink-0 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListChooseProvince')}</p> : loading ? <p role="status" className="shrink-0 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</p> : error ? null : !snapshot ? <p className="shrink-0 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomRoadListNoData')}</p> : <section className="rahcom-traffic-table-frame flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={t('rahcomRoadList')} fileName={snapshot.fileName} recordDate={snapshot.listDate.slice(0, 10)} count={snapshot.rowCount} savedAt={snapshot.importedAt} /></div>
-      <div className="rahcom-contained-table-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-auto">
-        <table className="rahcom-sticky-table w-full min-w-max border-separate border-spacing-0 text-sm">
+      <div className="rahcom-record-summary-bar border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={t('rahcomRoadList')} fileName={snapshot.fileName} recordDate={snapshot.listDate.slice(0, 10)} count={snapshot.rowCount} savedAt={snapshot.importedAt} /></div>
+      <div className="rahcom-table-scroll rahcom-contained-table-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-auto">
+        <DataTable className="rahcom-sticky-table w-full min-w-max border-separate border-spacing-0 text-sm">
           <thead className="bg-card text-start text-xs text-muted-foreground"><tr>
             <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold whitespace-nowrap">{t('rahcomRowNumber')}</th>
             <th scope="col" className="w-9 border-b border-border px-1 py-2.5 text-center"><RahcomInfoHeader /></th>
@@ -554,11 +557,11 @@ export function RahcomRoadList() {
               {showIncidents && <td className="min-w-[140px] max-w-[140px] border-b border-border/70 px-2 py-2 text-center align-middle text-foreground">{getIncidentText(match)}</td>}
               {identifierIndex >= 0 && <td dir="ltr" className="min-w-[100px] whitespace-nowrap border-b border-border/70 px-2 py-2 text-center align-middle font-mono text-foreground">{row[identifierIndex] ?? ''}</td>}
               {displayedDataColumns.map((column, index) => column === 'solar'
-                ? <td key="solar-status" className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const equipmentStatuses = getSolarStatuses(match); return equipmentStatuses.length ? <span className="inline-flex flex-nowrap items-center justify-center gap-x-3" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" title={`${equipment}: ${label}`} aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'; })()}</td>
-                : <td key={`${column}-${index}`} title={row[column] ?? ''} className={`border-b border-border/70 px-3 py-2 align-top text-foreground ${positionIndex === column || cityIndex === column || wideSingleLineIndexes.includes(column) ? 'whitespace-nowrap' : 'max-w-80 whitespace-pre-wrap'}`}>{row[column] ?? ''}</td>)}
+                ? <td key="solar-status" className="min-w-[180px] whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{(() => { const equipmentStatuses = getSolarStatuses(match); return equipmentStatuses.length ? <span className="inline-flex flex-nowrap items-center justify-center gap-x-3" dir="ltr">{equipmentStatuses.map(({ equipment, state }) => { const label = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={equipment} className="inline-flex items-center gap-1.5" aria-label={`${equipment}: ${label}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'; })()}</td>
+                : <td key={`${column}-${index}`} className={`border-b border-border/70 px-3 py-2 align-top text-foreground ${positionIndex === column || cityIndex === column || wideSingleLineIndexes.includes(column) ? 'whitespace-nowrap' : 'max-w-80 whitespace-pre-wrap'}`}>{row[column] ?? ''}</td>)}
             </tr>;
           })}</tbody>
-        </table>
+        </DataTable>
       </div>
       {pageCount > 1 && <div className="flex items-center justify-center gap-3 border-t border-border p-3 text-sm">
         <button type="button" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} aria-label={t('rahcomRoadListPreviousPage')} className="grid size-8 place-items-center rounded-full border border-border text-foreground disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight size={16} /></button>

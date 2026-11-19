@@ -5,8 +5,8 @@
 
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { ThemeProvider } from "@/components/theme-provider";
-import { PreferencesProvider } from "@/components/preferences-provider";
+import { ThemeProvider } from "@/components/providers/theme";
+import { PreferencesProvider } from "@/components/providers/preferences-provider";
 import { VisitorPresenceTracker } from "@/components/home/visitor-presence-tracker";
 import "./globals.css";
 

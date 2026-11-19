@@ -4,7 +4,7 @@ import { Code2 } from "lucide-react";
 import {
   getLocaleDirection,
   usePreferences,
-} from "@/components/preferences-provider";
+} from "@/components/providers/preferences-provider";
 import { uiMessage } from "@/lib/ui-messages";
 
 export default function DevelopmentPage() {

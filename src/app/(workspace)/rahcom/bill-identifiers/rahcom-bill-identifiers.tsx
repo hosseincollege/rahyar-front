@@ -1,10 +1,13 @@
 'use client';
 
+import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { DataTable } from '@/components/ui/data-table';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { ArchiveRestore, Download, LoaderCircle, Plus, Save, Search, Trash2, Upload, WrapText, X, Zap } from 'lucide-react';
-import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
+import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 
 import { getAccessToken } from '@/lib/api-client';
 import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
@@ -12,11 +15,11 @@ import { uiMessage } from '@/lib/ui-messages';
 import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
 type BillWorkbook = { headers: string[]; rows: string[][] };
-type ExternalSystemType = 'USO' | 'RAHCOM' | 'BST' | 'VSAT';
+type ExternalSystemType = 'USO' | 'RAHCOM' | 'VSAT';
 type ExternalSystemAssignment = { type: ExternalSystemType; code: string; name: string };
 const splitSystemCodes = (value: string | undefined) => (value ?? '').split(/[;,،|]/).map((code) => code.trim()).filter(Boolean);
 const parseExternalSystem = (value: string): ExternalSystemAssignment | null => {
-  const match = value.match(/^EXTERNAL:(USO|RAHCOM|BST|VSAT):([^:]*):([^:]*)$/);
+  const match = value.match(/^EXTERNAL:(USO|RAHCOM|VSAT):([^:]*):([^:]*)$/);
   if (!match) return null;
   try { return { type: match[1] as ExternalSystemType, code: decodeURIComponent(match[2]), name: decodeURIComponent(match[3]) }; }
   catch { return null; }
@@ -167,6 +170,10 @@ export function RahcomBillIdentifiers() {
   ) ?? -1, [workbook]);
   const rowNumberIndex = useMemo(() => workbook?.headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('\u0631\u062f\u06cc\u0641')) ?? -1, [workbook]);
   const registeredDateIndex = useMemo(() => workbook?.headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a')) ?? -1, [workbook]);
+  const latestBillMessageIndex = useMemo(() => workbook?.headers.findIndex((header) => [normalizeBillHeader('\u0648\u0636\u0639\u06cc\u062a \u0628\u0631\u0631\u0633\u06cc'), normalizeBillHeader('\u0622\u062e\u0631\u06cc\u0646 \u067e\u06cc\u0627\u0645\u06a9 \u0642\u0628\u0636')].includes(normalizeBillHeader(header))) ?? -1, [workbook]);
+  const displayColumnLabel = (header: string, index: number) => index === latestBillMessageIndex
+    ? locale === 'fa' ? '\u0622\u062e\u0631\u06cc\u0646 \u067e\u06cc\u0627\u0645\u06a9 \u0642\u0628\u0636' : 'Latest bill SMS'
+    : header;
   const systemNameByCode = useMemo(() => new Map(systems.map((system) => [
     system.systemCode.normalize('NFKC').trim().toUpperCase(), system.systemName,
   ])), [systems]);
@@ -184,6 +191,11 @@ export function RahcomBillIdentifiers() {
     return canUseAssignmentFamily(remainingFamilies, assignmentFamily({ type: nextType, code: '', name: '' }));
   };
   const getCellValue = useCallback((row: string[], columnIndex: number) => {
+    if (columnIndex === -3) {
+      const families = [...new Set(splitSystemCodes(systemCodeIndex >= 0 ? row[systemCodeIndex] : undefined)
+        .map((code) => parseExternalSystem(code)?.type ?? 'RAHCOM'))];
+      return families.map((family) => family === 'RAHCOM' ? (locale === 'fa' ? 'رهکام' : 'Rahcom') : family).join('، ');
+    }
     if (columnIndex === -1) {
       return splitSystemCodes(systemCodeIndex >= 0 ? row[systemCodeIndex] : undefined)
         .map((code) => parseExternalSystem(code)?.name || systemNameByCode.get(code.toUpperCase())).filter(Boolean).join('\n');
@@ -221,6 +233,9 @@ export function RahcomBillIdentifiers() {
       const index = workbook.headers.findIndex((header) => aliases.includes(normalizeBillHeader(header)));
       return index < 0 ? [] : [{ index, header: workbook.headers[index] }];
     });
+    if (latestBillMessageIndex >= 0 && !dataColumns.some((column) => column.index === latestBillMessageIndex)) {
+      dataColumns.push({ index: latestBillMessageIndex, header: workbook.headers[latestBillMessageIndex] });
+    }
     const rowNumber = workbook.headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('ردیف'));
     const systemCode = dataColumns.find((column) => column.index === systemCodeIndex);
     const billId = dataColumns.find((column) => ['شناسه قبض', 'شناسه قبض برق'].some((alias) => normalizeBillHeader(alias) === normalizeBillHeader(column.header)));
@@ -233,12 +248,13 @@ export function RahcomBillIdentifiers() {
       { index: -2, header: '\u0639\u0645\u0644\u06cc\u0627\u062a' },
       { index: -1, header: uiMessage(locale, 'rahcomSystemName') },
       ...(systemCode ? [systemCode] : []),
+      { index: -3, header: uiMessage(locale, 'rahcomBillAssignmentType') },
       ...(billId ? [billId] : []),
       ...(computerPassword ? [computerPassword] : []),
       ...(meterBody ? [meterBody] : []),
       ...dataColumns.filter((column) => column !== systemCode && column !== billId && column !== meterBody),
     ];
-  }, [locale, systemCodeIndex, workbook]);
+  }, [latestBillMessageIndex, locale, systemCodeIndex, workbook]);
   const editableAddColumns = useMemo(() => displayColumns.filter((column) =>
     column.index >= 0 && column.index !== rowNumberIndex && column.index !== systemCodeIndex && column.index !== billIdentifierIndex && column.index !== registeredDateIndex,
   ), [billIdentifierIndex, displayColumns, registeredDateIndex, rowNumberIndex, systemCodeIndex]);
@@ -352,7 +368,7 @@ export function RahcomBillIdentifiers() {
 
   const downloadDisplayedTable = () => {
     const exportColumns = displayColumns.filter(({ index }) => index !== -2);
-    const exportHeaders = exportColumns.map(({ header }) => header);
+    const exportHeaders = exportColumns.map(({ header, index }) => displayColumnLabel(header, index));
     const exportRows = rows.map((row) => exportColumns.map(({ index }) => getCellValue(row, index)));
     const worksheet = XLSX.utils.aoa_to_sheet([exportHeaders, ...exportRows]);
     const workbook = XLSX.utils.book_new();
@@ -473,8 +489,8 @@ export function RahcomBillIdentifiers() {
   };
 
   return <section dir={direction} className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-    <header className="rahcom-page-toolbar flex shrink-0 flex-wrap items-center justify-start gap-3">
-      <span role="status" aria-label={`${new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)} رکورد`} title="تعداد رکوردها" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Zap size={16} className="text-primary" aria-hidden="true" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}</strong><span>رکورد</span></span>
+    <RahcomToolbar as="header" className=" flex shrink-0 flex-wrap items-center justify-start gap-3">
+      <span role="status" aria-label={`تعداد شناسه‌ها: ${new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}`} title="تعداد شناسه‌ها" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Zap size={16} className="text-primary" aria-hidden="true" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}</strong></span>
       {canManageBillIdentifiers && <button type="button" onClick={() => { setAddBillError(''); setNewBillIdentifier(''); setNewBillSystemIds([]); setNewBillSystemQuery(''); setNewBillFields({}); setNewExternalSystems([]); setNewExternalDraft({ type: 'USO', code: '', name: '' }); setAddingBill(true); }} aria-label={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} title={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={18} /></button>}
       {canManageBillIdentifiers && <button type="button" onClick={() => { setOperationError(''); uploadInputRef.current?.click(); }} disabled={importBusy} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}</button>}
       {canManageBillIdentifiers && <input ref={uploadInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />}
@@ -491,28 +507,28 @@ export function RahcomBillIdentifiers() {
           <button type="button" onClick={() => void restoreBillBackup()} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
         </div>}
       </div>}
-    </header>
+    </RahcomToolbar>
     {operationError && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-3 text-sm text-destructive">{operationError}</p>}
     {accessLoaded && !canManageBillIdentifiers && <p role="status" className="shrink-0 rounded-xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">{'\u062f\u0633\u062a\u0631\u0633\u06cc \u0627\u06cc\u0646 \u062d\u0633\u0627\u0628 \u0628\u0647 \u0646\u0645\u0627\u06cc\u0634 \u0645\u062d\u062f\u0648\u062f \u0627\u0633\u062a\u061b \u0628\u0631\u0627\u06cc \u062a\u063a\u06cc\u06cc\u0631 \u0641\u0647\u0631\u0633\u062a \u0634\u0646\u0627\u0633\u0647\u200c\u0647\u0627\u06cc \u0642\u0628\u0636 \u0628\u0627 \u0645\u062f\u06cc\u0631 \u0631\u0647\u06a9\u0627\u0645 \u0647\u0645\u0627\u0647\u0646\u06af \u06a9\u0646\u06cc\u062f.'}</p>}
     {loading && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
     {!loading && loadFailed && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{uiMessage(locale, 'rahcomBillIdentifiersLoadFailed')}</p>}
     {!loading && !loadFailed && !workbook?.headers.length && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
     {!loading && workbook?.headers.length && rows.length === 0 && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{query ? uiMessage(locale, 'searchNoResults') : uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
-    {!loading && workbook?.headers.length && rows.length > 0 && <div className="rahcom-traffic-table-frame flex min-h-0 min-w-0 max-w-full flex-col overflow-auto rounded-2xl border border-border bg-card">
+    {!loading && workbook?.headers.length && rows.length > 0 && <div className="rahcom-table-scroll rahcom-traffic-table-frame flex min-h-0 min-w-0 max-w-full flex-col overflow-auto rounded-2xl border border-border bg-card">
       <div className="w-max min-w-full">
-        <table className="rahcom-sticky-table rahcom-bill-identifiers-table w-full min-w-max text-sm">
+        <DataTable className="rahcom-sticky-table rahcom-bill-identifiers-table w-full min-w-max text-sm">
           <thead className="bg-muted/50"><tr>{displayColumns.map(({ header, index }) => {
             const normalizedHeader = normalizeBillHeader(header);
             const narrowColumnClass = normalizedHeader === normalizeBillHeader('آدرس انشعاب')
-              ? 'w-48 min-w-48 max-w-48'
+              ? 'w-96 min-w-96 max-w-96'
               : normalizedHeader === normalizeBillHeader('وضعیت بررسی') ? 'w-64 min-w-64 max-w-64' : '';
-            return <th key={`${header}-${index}`} scope="col" title={index === -2 ? 'ویرایش' : header} aria-label={index === -2 ? 'ویرایش' : undefined} className={`overflow-hidden text-ellipsis whitespace-nowrap p-2 text-center align-middle ${narrowColumnClass}`}>{index === -2 ? <span className="inline-flex w-full justify-center"><Zap size={15} fill="currentColor" aria-hidden="true" /></span> : header || '—'}</th>;
+            return <th key={`${header}-${index}`} scope="col" title={index === -2 ? 'ویرایش' : undefined} aria-label={index === -2 ? 'ویرایش' : undefined} className={`overflow-hidden text-ellipsis whitespace-nowrap p-2 text-center align-middle ${narrowColumnClass}`}>{index === -2 ? <span className="inline-flex w-full justify-center"><Zap size={15} fill="currentColor" aria-hidden="true" /></span> : displayColumnLabel(header, index) || '—'}</th>;
           })}</tr></thead>
           <tbody>{rows.map((row, rowIndex) => <tr key={`${row[0] || 'bill'}-${rowIndex}`} className="border-t border-border">
             {displayColumns.map(({ header, index: columnIndex }) => {
               if (columnIndex === -2) return <td key={`${header}-${columnIndex}`} className="whitespace-nowrap p-2 text-center align-middle"><div className="flex items-center justify-center gap-1">
                 <button type="button" onClick={(event) => {
-                  const fields = displayColumns.filter(({ index }) => index !== -2).map(({ header, index }) => ({ label: header, value: getCellValue(row, index) }));
+                  const fields = displayColumns.filter(({ index }) => index !== -2).map(({ header, index }) => ({ label: displayColumnLabel(header, index), value: getCellValue(row, index) }));
                   const billId = row[billIdentifierIndex] ?? '';
                   openRahcomRowInfo(billId || 'شناسه قبض', fields, event.currentTarget, { x: event.clientX, y: event.clientY }, billId, null, canManageBillIdentifiers ? () => openRecordEditor(row) : undefined);
                 }} aria-label="نمایش اطلاعات شناسه قبض" title="نمایش اطلاعات شناسه قبض" className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"><Zap size={14} fill="currentColor" /></button>
@@ -522,16 +538,16 @@ export function RahcomBillIdentifiers() {
               const isSystemAssignment = isCode || columnIndex === -1;
               const wrapCellText = wrapTableText && !isSystemAssignment && columnIndex !== 0;
               const normalizedHeader = normalizeBillHeader(header);
-              const isReviewDescription = normalizedHeader === normalizeBillHeader('وضعیت بررسی');
+              const isReviewDescription = columnIndex === latestBillMessageIndex || normalizedHeader === normalizeBillHeader('وضعیت بررسی');
               const narrowColumnClass = normalizedHeader === normalizeBillHeader('آدرس انشعاب')
-                ? 'w-48 min-w-48 max-w-48'
+                ? 'w-96 min-w-96 max-w-96'
                 : isReviewDescription ? 'w-64 min-w-64 max-w-64' : '';
-              return <td key={`${header}-${columnIndex}`} dir={isCode || columnIndex === 0 ? 'ltr' : 'auto'} title={value} className={`group relative p-2 text-center align-middle ${wrapCellText ? 'max-w-64 overflow-hidden' : 'overflow-hidden text-ellipsis'} ${narrowColumnClass} ${isSystemAssignment ? 'bill-assignment-cell whitespace-pre-line' : isCode || columnIndex === 0 ? 'whitespace-nowrap font-mono tabular-nums' : `min-w-28 ${wrapCellText ? 'whitespace-normal break-words' : 'whitespace-nowrap'}`} ${isCode ? 'font-mono tabular-nums' : ''}`}>
+              return <td key={`${header}-${columnIndex}`} dir={isCode || columnIndex === 0 ? 'ltr' : 'auto'} className={`group relative p-2 text-center align-middle ${wrapCellText ? 'max-w-64 overflow-hidden' : 'overflow-hidden text-ellipsis'} ${narrowColumnClass} ${isSystemAssignment ? 'bill-assignment-cell whitespace-pre-line' : isCode || columnIndex === 0 ? 'whitespace-nowrap font-mono tabular-nums' : `min-w-28 ${wrapCellText ? 'whitespace-normal break-words' : 'whitespace-nowrap'}`} ${isCode ? 'font-mono tabular-nums' : ''}`}>
                 <span className={isReviewDescription ? `text-start text-xs leading-5 ${wrapCellText ? 'block max-w-64 whitespace-normal break-words' : 'line-clamp-1 whitespace-nowrap'}` : wrapCellText ? 'block max-w-64 whitespace-normal break-words' : ''}>{value || '—'}</span>
               </td>;
             })}
           </tr>)}</tbody>
-        </table>
+        </DataTable>
       </div>
     </div>}
     {addingBill && <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }} onMouseDown={(event) => { if (event.target === event.currentTarget && !savingNewBill) setAddingBill(false); }}>
@@ -562,7 +578,7 @@ export function RahcomBillIdentifiers() {
           <legend className="px-1 text-sm font-medium">{'\u0633\u0627\u0645\u0627\u0646\u0647 \u062e\u0627\u0631\u062c \u0627\u0632 \u0631\u0647\u06a9\u0627\u0645'}</legend>
           <p className="mb-2 text-xs text-muted-foreground">{uiMessage(locale, 'rahcomBillAssignmentSingleGroup')}</p>
           <div className="grid gap-2 sm:grid-cols-[5rem_1fr_1fr_auto]">
-            <select value={newExternalDraft.type} onChange={(event) => setNewExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'USO')}>USO</option><option value="RAHCOM" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'RAHCOM')}>Rahcom</option><option value="BST" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'BST')}>BST</option><option value="VSAT" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'VSAT')}>VSAT</option></select>
+            <select value={newExternalDraft.type} onChange={(event) => setNewExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'USO')}>USO</option><option value="RAHCOM" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'RAHCOM')}>Rahcom</option><option value="VSAT" disabled={!canUseAssignmentFamily(newBillAssignmentFamilies, 'VSAT')}>VSAT</option></select>
             <input value={newExternalDraft.code} onChange={(event) => setNewExternalDraft((current) => ({ ...current, code: event.target.value }))} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
             <input value={newExternalDraft.name} onChange={(event) => setNewExternalDraft((current) => ({ ...current, name: event.target.value }))} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
             <button type="button" disabled={!newExternalDraft.code.trim() || !newExternalDraft.name.trim() || savingNewBill || !canUseAssignmentFamily(newBillAssignmentFamilies, assignmentFamily(newExternalDraft))} onClick={() => { setNewExternalSystems((current) => collectExternalAssignments(current, newExternalDraft)); setNewExternalDraft((current) => ({ ...current, code: '', name: '' })); }} className="h-10 rounded-xl border border-border px-3 text-sm hover:bg-muted disabled:opacity-50"><Plus size={16} /></button>
@@ -570,8 +586,8 @@ export function RahcomBillIdentifiers() {
           {newExternalSystems.length > 0 && <ul className="mt-2 divide-y divide-border rounded-lg border border-border">{newExternalSystems.map((external, index) => <li key={`${external.type}-${external.code}-${index}`} className="flex items-center justify-between gap-2 p-2 text-xs"><span className="min-w-0 truncate"><bdi dir="ltr">{external.type} - {external.code}</bdi>{' \u00b7 '}{external.name}</span><button type="button" onClick={() => setNewExternalSystems((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={'\u062d\u0630\u0641'} className="grid size-7 shrink-0 place-items-center rounded-full hover:bg-muted"><X size={14} /></button></li>)}</ul>}
         </fieldset>
         <div className="mt-4 grid gap-3">
-          {editableAddColumns.map(({ header }) => <label key={header} className="block space-y-2 text-sm">
-            <span>{header}</span>
+          {editableAddColumns.map(({ header, index }) => <label key={header} className="block space-y-2 text-sm">
+            <span>{displayColumnLabel(header, index)}</span>
             <input value={newBillFields[header] ?? ''} onChange={(event) => setNewBillFields((current) => ({ ...current, [header]: event.target.value }))} className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
           </label>)}
         </div>
@@ -589,8 +605,8 @@ export function RahcomBillIdentifiers() {
           <button type="button" onClick={() => { setEditingRecordIndex(null); setConfirmEditDelete(false); }} disabled={savingRecordEdit || deletingRecord} aria-label={'\u0628\u0633\u062a\u0646'} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><X size={16} /></button>
         </div>
         <div className="grid gap-3">
-          {editableRecordColumns.map(({ header }) => <label key={header} className="block space-y-2 text-sm">
-            <span>{header}</span>
+          {editableRecordColumns.map(({ header, index }) => <label key={header} className="block space-y-2 text-sm">
+            <span>{displayColumnLabel(header, index)}</span>
             <input value={editingBillFields[header] ?? ''} onChange={(event) => setEditingBillFields((current) => ({ ...current, [header]: event.target.value }))} disabled={savingRecordEdit} className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary disabled:opacity-50" />
           </label>)}
         </div>
@@ -613,9 +629,9 @@ export function RahcomBillIdentifiers() {
         </fieldset>
         <fieldset className="mt-4 rounded-xl border border-border p-3">
           <legend className="px-1 text-sm font-medium">{'\u0633\u0627\u0645\u0627\u0646\u0647 \u062e\u0627\u0631\u062c \u0627\u0632 \u0631\u0647\u06a9\u0627\u0645'}</legend>
-          {editingExternalSystems.length > 0 && <ul className="mb-3 divide-y divide-border rounded-lg border border-border">{editingExternalSystems.map((external, index) => <li key={`${external.type}-${external.code}-${index}`} className="p-2"><div className="grid grid-cols-[5rem_1fr_auto] gap-2"><select value={external.type} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value as ExternalSystemType } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0648\u0639 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"><option value="USO" disabled={!canChangeEditingExternalType(index, 'USO')}>USO</option><option value="RAHCOM" disabled={!canChangeEditingExternalType(index, 'RAHCOM')}>Rahcom</option><option value="BST" disabled={!canChangeEditingExternalType(index, 'BST')}>BST</option><option value="VSAT" disabled={!canChangeEditingExternalType(index, 'VSAT')}>VSAT</option></select><input value={external.code} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, code: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground" /><button type="button" onClick={() => setEditingExternalSystems((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={savingRecordEdit} aria-label={'\u062d\u0630\u0641'} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><X size={16} /></button></div><input value={external.name} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="mt-2 h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground" /></li>)}</ul>}
+          {editingExternalSystems.length > 0 && <ul className="mb-3 divide-y divide-border rounded-lg border border-border">{editingExternalSystems.map((external, index) => <li key={`${external.type}-${external.code}-${index}`} className="p-2"><div className="grid grid-cols-[5rem_1fr_auto] gap-2"><select value={external.type} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value as ExternalSystemType } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0648\u0639 \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground"><option value="USO" disabled={!canChangeEditingExternalType(index, 'USO')}>USO</option><option value="RAHCOM" disabled={!canChangeEditingExternalType(index, 'RAHCOM')}>Rahcom</option><option value="VSAT" disabled={!canChangeEditingExternalType(index, 'VSAT')}>VSAT</option></select><input value={external.code} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, code: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} className="h-9 min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground" /><button type="button" onClick={() => setEditingExternalSystems((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={savingRecordEdit} aria-label={'\u062d\u0630\u0641'} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><X size={16} /></button></div><input value={external.name} onChange={(event) => setEditingExternalSystems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} disabled={savingRecordEdit} aria-label={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} className="mt-2 h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground" /></li>)}</ul>}
           <div className="grid gap-2 sm:grid-cols-[5rem_1fr_1fr_auto]">
-            <select value={editingExternalDraft.type} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} disabled={savingRecordEdit} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'USO')}>USO</option><option value="RAHCOM" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'RAHCOM')}>Rahcom</option><option value="BST" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'BST')}>BST</option><option value="VSAT" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'VSAT')}>VSAT</option></select>
+            <select value={editingExternalDraft.type} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, type: event.target.value as ExternalSystemType }))} disabled={savingRecordEdit} className="h-10 rounded-xl border border-border bg-background px-2 text-sm text-foreground"><option value="USO" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'USO')}>USO</option><option value="RAHCOM" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'RAHCOM')}>Rahcom</option><option value="VSAT" disabled={!canUseAssignmentFamily(editingBillAssignmentFamilies, 'VSAT')}>VSAT</option></select>
             <input value={editingExternalDraft.code} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, code: event.target.value }))} placeholder={'\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647'} disabled={savingRecordEdit} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
             <input value={editingExternalDraft.name} onChange={(event) => setEditingExternalDraft((current) => ({ ...current, name: event.target.value }))} placeholder={'\u0646\u0627\u0645 \u0633\u0627\u0645\u0627\u0646\u0647'} disabled={savingRecordEdit} className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-sm text-foreground" />
             <button type="button" disabled={!editingExternalDraft.code.trim() || !editingExternalDraft.name.trim() || savingRecordEdit || !canUseAssignmentFamily(editingBillAssignmentFamilies, assignmentFamily(editingExternalDraft))} onClick={() => { setEditingExternalSystems((current) => collectExternalAssignments(current, editingExternalDraft)); setEditingExternalDraft((current) => ({ ...current, code: '', name: '' })); }} className="grid size-8 place-items-center rounded-[.65rem] border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><Plus size={16} /></button>

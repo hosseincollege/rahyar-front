@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Bot, SquareTerminal, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
+import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 
 export type MissionEntryMode = 'form' | 'command' | 'ai';

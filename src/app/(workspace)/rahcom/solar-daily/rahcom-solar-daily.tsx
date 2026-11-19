@@ -1,19 +1,21 @@
 'use client';
 
+import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { DataTable } from '@/components/ui/data-table';
+
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardList, Download, LoaderCircle, Save } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
-import { filterRahcomLtePairs, parseRahcomSolarList as parseList, rahcomLongOutageReasonLabel, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
+import { filterRahcomLtePairs, normalizeRahcomSolarEquipmentColumn, parseRahcomSolarList as parseList, RAHCOM_SOLAR_EQUIPMENT_COLUMNS, rahcomLongOutageReasonLabel, tehranDateKey, type RahcomSolarEntry as Entry } from '@/lib/api/rahcom/solar-status';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 
-const commonEquipment = ['LTE', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2', 'PC', 'RLY', 'RLY-1', 'WL-1', 'WLP2P'];
 const emptyTrafficHeaders: string[] = [];
-const defaultEquipment = ['LTE', 'RTR-1', 'CAM-1', 'RAD-1'];
+const defaultEquipment = [...RAHCOM_SOLAR_EQUIPMENT_COLUMNS];
 
 function jalaliParts(date: Date) {
   const values = new Intl.DateTimeFormat('en-u-ca-persian-nu-latn', {
@@ -356,16 +358,11 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     return result;
   }, [validEntries]);
   const equipmentGroups = useMemo(() => {
-    const fixedEquipment = ['LTE', 'LTE-1', 'LTE-2', 'RTR-1', 'RTR-2', 'CAM-1', 'RAD-1', 'RAD-2'];
-    const extraEquipment = [...selectedColumns].filter((item) => !fixedEquipment.includes(item)).sort((a, b) => a.localeCompare(b));
-    const selectedRouters = ['RTR-1', 'RTR-2'].filter((equipment) => selectedColumns.has(equipment));
-    const selectedRadars = ['RAD-1', 'RAD-2'].filter((equipment) => selectedColumns.has(equipment));
     return [
       ...(selectedColumns.has('LTE') ? [{ label: 'LTE', equipment: ['LTE-1', 'LTE-2'] }] : []),
-      ...(selectedRouters.length ? [{ label: `${t('solarRouter')} (${selectedRouters.join('/')})`, equipment: selectedRouters }] : []),
+      ...(selectedColumns.has('RTR-1') ? [{ label: `${t('solarRouter')} (RTR-1)`, equipment: ['RTR-1'] }] : []),
       ...(selectedColumns.has('CAM-1') ? [{ label: `${t('solarCamera')} (CAM-1)`, equipment: ['CAM-1'] }] : []),
-      ...(selectedRadars.length ? [{ label: `${t('solarRadar')} (${selectedRadars.join('/')})`, equipment: selectedRadars }] : []),
-      ...extraEquipment.map((equipment) => ({ label: equipment, equipment: [equipment] })),
+      ...(selectedColumns.has('RAD-1') ? [{ label: `${t('solarRadar')} (RAD-1)`, equipment: ['RAD-1'] }] : []),
     ];
   }, [selectedColumns, t]);
   const displayedEquipmentCodes = useMemo(() => [...new Set(equipmentGroups.flatMap((group) => group.equipment.map((equipment) => equipment.toUpperCase())))], [equipmentGroups]);
@@ -402,13 +399,13 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
     downloadLink.click();
     window.setTimeout(() => URL.revokeObjectURL(fileUrl), 1000);
   };
-  const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<div className="inline-flex shrink-0 items-center gap-2 text-sm">
+  const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<RahcomToolbar className=" inline-flex shrink-0 items-center gap-2 text-sm">
     <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button>
-  </div>, toolbarTarget) : null;
+  </RahcomToolbar>, toolbarTarget) : null;
   const columnCount = 11 + equipmentGroups.length;
   let nextRowNumber = 0;
   const numberedRows = sortedRows.map((row) => ({ ...row, rowNumber: ++nextRowNumber }));
-  return <div className={currentSnapshot ? 'flex min-w-0 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className="h-auto max-h-none min-w-0 max-w-full shrink-0 overflow-x-auto rounded-2xl border border-border bg-card"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
+  return <div className={currentSnapshot ? 'flex min-w-0 flex-col gap-3' : 'space-y-3'}>{toolbarControls}<div className="h-auto max-h-none min-w-0 max-w-full shrink-0 overflow-x-auto rounded-2xl border border-border bg-card"><DataTable ref={tableRef} className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
     <th className="p-3 text-center align-middle">{t('rahcomRowNumber')}</th><th className="w-9 px-1 py-3 text-center"><RahcomInfoHeader /></th><th className="p-3 text-center align-middle">{t('rahcomIncidentFilter')}</th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="whitespace-nowrap p-3 text-center align-middle">تردد لحظه‌ای CRM</th>
     {equipmentGroups.map((group) => <th key={group.equipment.join('|')} className={`whitespace-nowrap p-3 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`} dir="ltr">{group.label}</th>)}
     <th className="p-3 text-start">{t('rahcomOutageDaysColumn')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th><th className="w-32 max-w-32 whitespace-nowrap p-3 text-center align-middle">{t('rahcomTrafficSolarStatus')}</th><th className="p-3 text-start">{t('solarHistory')}</th>
@@ -423,13 +420,13 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
       return <tr key={site} className="border-t border-border">
         <td className="p-2 text-center tabular-nums">{rowNumber.toLocaleString(locale)}</td>
         <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={system?.systemName || site} systemCode={site} system={system} fields={[{ label: t('rahcomSystemCode'), value: site }, { label: t('rahcomSystemName'), value: system?.systemName ?? '' }, { label: t('rahcomIncidentFilter'), value: longOutageText }, { label: t('rahcomDailyTraffic'), value: trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() ?? '' : '' }, ...displayedEquipmentCodes.map((equipment) => ({ label: equipment, value: bySiteEquipment.has(`${site}:${equipment}`) ? statusText(bySiteEquipment.get(`${site}:${equipment}`)!) : '' })), { label: t('rahcomOutageDaysColumn'), value: outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() ?? '' : '' }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomAxisName'), value: axisName }]} /></td>
-        <td title={longOutageText} className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{longOutageText || '\u2014'}</td>
+        <td className="max-w-64 whitespace-nowrap p-2 text-center align-middle">{longOutageText || '\u2014'}</td>
         <td className="p-2 font-mono" dir="ltr">{site}</td>
         <td className="p-2">{system?.systemName || (systemNameIndex >= 0 ? trafficRow?.[systemNameIndex] : '') || (stationNameIndex >= 0 ? trafficRow?.[stationNameIndex] : '') || '—'}</td>
         <td className="whitespace-nowrap p-2 text-center align-middle">{trafficCrmIndex >= 0 ? trafficRow?.[trafficCrmIndex]?.trim() || '—' : '—'}</td>
 
 
-        {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className={`whitespace-nowrap p-2 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`}>{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment, equipmentIndex, visibleEquipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className={`inline-flex items-center gap-1.5 ${equipmentIndex < visibleEquipment.length - 1 ? 'mx-1.5' : ''}`} dir="auto"><bdi dir="ltr">{equipment}</bdi><span title={statusText(state)} aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
+        {equipmentGroups.map((group) => <td key={group.equipment.join('|')} className={`whitespace-nowrap p-2 text-center ${group.label === 'LTE' ? 'min-w-[11rem]' : ''}`}>{group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).length === 0 ? '—' : group.equipment.filter((equipment) => bySiteEquipment.has(site + ':' + equipment)).map((equipment, equipmentIndex, visibleEquipment) => { const state = bySiteEquipment.get(site + ':' + equipment)!; return <span key={equipment} className={`inline-flex items-center gap-1.5 ${equipmentIndex < visibleEquipment.length - 1 ? 'mx-1.5' : ''}`} dir="auto"><bdi dir="ltr">{equipment}</bdi><span aria-label={statusText(state)} data-export-state={state}><span className={state === 'down' ? 'inline-block size-3 rounded-full bg-red-600' : 'inline-block size-3 rounded-full bg-gray-400'} /></span></span>; })}</td>)}
         <td className="p-2 text-center tabular-nums">{(outageIndex >= 0 ? trafficRow?.[outageIndex]?.trim() : '') || '—'}</td>
         <td className="p-2 font-mono" dir="ltr">{axisCode || '—'}</td>
         <td className="p-2">{axisName || '—'}</td>
@@ -438,7 +435,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
         <td className="whitespace-nowrap p-2 text-xs"><time className="me-2 inline text-[11px] text-muted-foreground">{currentSnapshot ? formatCapturedAt(currentSnapshot.capturedAt, locale) : t('solarHistory')}</time>{!historyChange ? <span className="text-muted-foreground">{previousSnapshot ? t('solarNoChanges') : '—'}</span> : <span>{historyChange.from ? `${historyStatusText(historyChange.from)} → ` : ''}{historyStatusText(historyChange.to)}</span>}</td>
       </tr>;
     })}
-  </tbody></table></div></div>;
+  </tbody></DataTable></div></div>;
 }
 
 function formatCapturedAt(value: string, locale: Parameters<typeof uiMessage>[0]) {
@@ -455,7 +452,6 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const [capturedTime, setCapturedTime] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>(defaultEquipment);
   const [editingColumns, setEditingColumns] = useState(false);
-  const [customEquipment, setCustomEquipment] = useState<string[]>([]);
   const [snapshots, setSnapshots] = useState<RahcomSolarSnapshot[]>([]);
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
   const [editingSnapshotProvince, setEditingSnapshotProvince] = useState<string | null>(null);
@@ -469,11 +465,14 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const entries = useMemo(() => [...parseList(downText, 'down'), ...parseList(unreachableText, 'unreachable')], [downText, unreachableText]);
-  const columns = useMemo(() => [...commonEquipment, ...[...customEquipment].sort()].filter((item) => selectedEquipment.includes(item)), [customEquipment, selectedEquipment]);
+  const columns = useMemo(() => RAHCOM_SOLAR_EQUIPMENT_COLUMNS.filter((item) => selectedEquipment.includes(item)), [selectedEquipment]);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const snapshotsForDate = snapshots.filter((snapshot) => tehranDateKey(snapshot.capturedAt) === (date ?? tehranDateKey()));
   const selectedSnapshot = snapshotsForDate.find((snapshot) => snapshot.id === selectedSnapshotId) ?? snapshotsForDate[0] ?? null;
-  const selectedSnapshotColumns = selectedSnapshot?.equipmentColumns.map((column) => /^LTE-[12]$/i.test(column) ? 'LTE' : column).filter((column, index, all) => all.indexOf(column) === index) ?? [];
+  const selectedSnapshotColumns = selectedSnapshot?.equipmentColumns
+    .map(normalizeRahcomSolarEquipmentColumn)
+    .filter((column): column is typeof RAHCOM_SOLAR_EQUIPMENT_COLUMNS[number] => column !== null)
+    .filter((column, index, all) => all.indexOf(column) === index) ?? [];
   const selectedSnapshotEntries = selectedSnapshot ? [...parseList(selectedSnapshot.downText, 'down'), ...parseList(selectedSnapshot.unreachableText, 'unreachable')] : [];
   useEffect(() => { if (!selectedSnapshot) onSystemCountChange(0); }, [onSystemCountChange, selectedSnapshot]);
 
@@ -533,20 +532,6 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
   useEffect(() => {
     if (!loading) onSolarSnapshotsChange(snapshots);
   }, [loading, onSolarSnapshotsChange, snapshots]);
-  useEffect(() => {
-    const found = [...new Set(entries.map((entry) => entry.equipment))]
-      .filter((item) => !/^LTE-[12]$/i.test(item) && !commonEquipment.includes(item) && !customEquipment.includes(item));
-    if (found.length) {
-      queueMicrotask(() => {
-        setCustomEquipment((current) => {
-          const unseen = found.filter((item) => !current.includes(item));
-          return unseen.length ? [...current, ...unseen] : current;
-        });
-        setSelectedEquipment((current) => [...new Set([...current, ...found])]);
-      });
-    }
-  }, [customEquipment, entries]);
-
   async function saveSnapshot() {
     if (!snapshotProvince) { setError(t('solarChooseProvinceFromHeader')); return; }
     if (!downText.trim() && !unreachableText.trim()) { setError(t('solarPasteListsFirst')); return; }
@@ -600,7 +585,7 @@ export function RahcomSolarDaily({ formOpen, onFormOpenChange, selectedProvince,
     </div>
 
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
-      <div><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t('solarVisibleColumns')}</h2><button type="button" onClick={() => setEditingColumns((open) => !open)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground">{t(editingColumns ? 'solarDoneEditingColumns' : 'solarEditColumns')}</button></div>{editingColumns && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{[...commonEquipment, ...[...customEquipment].sort()].map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedEquipment.includes(item)} onChange={(event) => setSelectedEquipment((current) => event.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div>}</div>
+      <div><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t('solarVisibleColumns')}</h2><button type="button" onClick={() => setEditingColumns((open) => !open)} className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground">{t(editingColumns ? 'solarDoneEditingColumns' : 'solarEditColumns')}</button></div>{editingColumns && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">{RAHCOM_SOLAR_EQUIPMENT_COLUMNS.map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedEquipment.includes(item)} onChange={(event) => setSelectedEquipment((current) => event.target.checked ? [...new Set([...current, item])] : current.filter((value) => value !== item))} />{item}</label>)}</div>}</div>
       <div className="flex flex-wrap items-end gap-3 border-t border-border bg-card py-2"><span className="self-center text-xs text-muted-foreground">{t('solarCaptureDate')}: {dateText}</span><label className="grid gap-1 text-xs text-muted-foreground">{t('solarCaptureTime')}<input type="text" inputMode="numeric" dir="ltr" placeholder="23:59" maxLength={5} value={capturedTime} onChange={(event) => setCapturedTime(event.target.value)} className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={saving || !snapshotProvince} onClick={() => void saveSnapshot()} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60">{saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}{t('solarSaveSnapshot')}</button></div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {!snapshotProvince && <p role="status" className="text-xs text-muted-foreground">{t('solarChooseProvinceFromHeader')}</p>}

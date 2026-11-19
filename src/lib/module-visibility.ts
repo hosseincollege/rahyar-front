@@ -1,6 +1,6 @@
 ﻿import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi } from '@/lib/api/settings/settings-api';
+import { settingsApi } from '@/lib/api/settings-api';
 
 export const MODULE_VISIBILITY_KEY = 'rahyar-module-visibility-v1';
 export type HeaderControlId = 'missionTools' | 'accountSwitcher' | 'provinceSelector';

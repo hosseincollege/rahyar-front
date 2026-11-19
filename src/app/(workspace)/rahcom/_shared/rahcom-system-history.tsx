@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { LoaderCircle, Plus } from 'lucide-react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { rahcomApi, type RahcomActivity, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';

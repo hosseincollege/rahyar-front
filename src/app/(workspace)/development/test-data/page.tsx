@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, ChevronDown, Database, LoaderCircle } from 'lucide-react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type TestDataModuleKey, type TestDataModuleStatus } from '@/app/(workspace)/development/development-api';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
+import { developmentApi, type TestDataModuleKey, type TestDataModuleStatus } from '@/lib/api/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { isReducedEdition } from '@/lib/product-edition';

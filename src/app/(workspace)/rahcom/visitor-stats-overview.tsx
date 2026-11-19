@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, RefreshCw, Users } from 'lucide-react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { visitorStatsApi, type VisitorStats } from '@/lib/api/shared/visitor-stats-api';
 

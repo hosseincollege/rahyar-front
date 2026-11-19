@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { filterExcludedIsfahanSystems } from './system-exclusions';
 
 function notifySystemsChanged() {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('rahyar:systems-changed'));
@@ -100,10 +101,15 @@ export const rahcomApi = {
   memberProvinces: () => apiClient.get<RahcomMemberProvince[]>('/rahcom/members'),
   setMemberProvince: (id: string, province: string | null) => apiClient.put<{ id: string; rahcomProvince: string | null }>(`/rahcom/members/${encodeURIComponent(id)}/province`, { province }),
   systems: async (province?: string) => {
-    return apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
+    const systems = await apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
+    return filterExcludedIsfahanSystems(systems);
   },
-  searchSystems: (province: string | undefined, query: string) => apiClient.get<RahcomSystem[]>(`/rahcom/systems/search?${new URLSearchParams({ ...(province ? { province } : {}), q: query })}`),
-  lookupSystems: (province: string, ids: string[], codes: string[]) => apiClient.post<RahcomWorkflowSystem[]>('/rahcom/systems/lookup', { province, ids, codes }),
+  searchSystems: async (province: string | undefined, query: string) => filterExcludedIsfahanSystems(
+    await apiClient.get<RahcomSystem[]>(`/rahcom/systems/search?${new URLSearchParams({ ...(province ? { province } : {}), q: query })}`),
+  ),
+  lookupSystems: async (province: string, ids: string[], codes: string[]) => filterExcludedIsfahanSystems(
+    await apiClient.post<RahcomWorkflowSystem[]>('/rahcom/systems/lookup', { province, ids, codes }),
+  ),
   createSystem: (data: { province: string; systemName: string; systemCode: string; axisCode: string; announcedAxis: string; latitude?: number; longitude?: number; electricityBillId?: string }) => afterSystemsMutation(apiClient.post<RahcomSystem>('/rahcom/systems', data)),
   solarSnapshots: (province?: string, date?: string) => apiClient.get<RahcomSolarSnapshot[]>(`/rahcom/solar-snapshots?${new URLSearchParams({ ...(province ? { province } : {}), ...(date ? { date } : {}) })}`),
   solarSnapshotDates: (province: string | undefined, from: string, to: string) => apiClient.get<string[]>(`/rahcom/solar-snapshots/dates?${new URLSearchParams({ ...(province ? { province } : {}), from, to })}`),

@@ -4,7 +4,7 @@
  * ساختار فایل JSON برای Import/Export تنظیمات شرکت.
  *
  * این فیلدها با DTO بک‌اند هماهنگ‌اند:
- * backend/src/settings/dto/update-organization-settings.dto.ts
+ * backend/src/settings/company/dto/update-organization-settings.dto.ts
  */
 export type CompanyImportData = {
   name: string;

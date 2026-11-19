@@ -24,7 +24,7 @@ Source paths
 - rahyar-front/docs/templates/Ù„ÛŒØ³Øª-Ø±Ø§Ù‡Ø¯Ø§Ø±ÛŒ-Ù†Ù…ÙˆÙ†Ù‡.xlsx
 - rahyar-back/src/rahcom/rahcom.controller.ts
 - rahyar-back/src/rahcom/rahcom.service.ts
-- rahyar-back/src/rahcom/dto/rahcom.dto.ts
+- rahyar-back/src/rahcom/rahcom.dto.ts
 
 Incident and system labels
 - The road-list «برچسب» column displays only the matched system's saved long-outage label (`longOutageReason` and, for `OTHER`, `longOutageDetails`) from Rahcom > Systems. It displays an em dash when the system has no saved label. The same value appears in row details and Excel downloads.

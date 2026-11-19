@@ -1,6 +1,6 @@
 'use client';
 
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { VisitorStatsOverview } from '@/app/(workspace)/rahcom/visitor-stats-overview';
 
 export default function RahcomPage() {

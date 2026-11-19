@@ -1,10 +1,12 @@
 'use client';
 
+import { DataTable } from '@/components/ui/data-table';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Check, Clock3, LoaderCircle, Pencil, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { getCurrentUser } from '@/lib/api/shared/auth-api';
 import { iranProvinces, rahcomApi, type RahcomAccess, type RahcomImportedTicket, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
@@ -34,7 +36,7 @@ const ticketTitle = (ticket: RahcomImportedTicket) => {
   return [...new Set(codes)].join('، ');
 };
 
-export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (count: number) => void }) {
+export function RahcomTickets({ onSystemCountChange, wrapLongText = false }: { onSystemCountChange: (count: number) => void; wrapLongText?: boolean }) {
   const { locale } = usePreferences();
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { date } = useRahcomDate();
@@ -243,39 +245,40 @@ export function RahcomTickets({ onSystemCountChange }: { onSystemCountChange: (c
     {!importedTickets && !error && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
     {error && <p role="alert" className="shrink-0 text-sm text-destructive">{error}</p>}
     {visibleTickets.length ? <div className="flex max-h-[68vh] min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /></div>
-      <div className="max-h-[calc(68vh-5rem)] overflow-auto"><table ref={tableRef} className="rahcom-sticky-table w-full min-w-[2500px] text-sm">
-        <thead className="bg-muted/50"><tr><th className="w-12 min-w-12 max-w-12 p-1 text-center">{uiMessage(locale, 'rahcomRowNumber')}</th><th className="w-9 min-w-9 max-w-9 p-1 text-center"><RahcomInfoHeader /></th>{[['rahcomSystemName','Name'],['rahcomSystemCode','System'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomIncidentFilter','Incident'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[150px] min-w-[150px] max-w-[150px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
+      <div className="rahcom-record-summary-bar flex shrink-0 items-center gap-3 border-b border-border px-4 py-3"><RahcomRecordSummary bare showRecordDate={false} showCount={false} locale={locale} source={uiMessage(locale, 'rahcomTickets')} fileName={visibleTickets[0]?.sourceFileName || selectedFileName} recordDate={date ?? tehranDateKey()} count={visibleTickets.length} savedAt={visibleTickets[0]?.importedAt} /></div>
+      <div className="rahcom-table-scroll max-h-[calc(68vh-5rem)] overflow-auto"><DataTable ref={tableRef} className="rahcom-sticky-table rahcom-tickets-table w-full min-w-[2500px] text-sm">
+        <thead className="bg-muted/50"><tr><th className="w-12 min-w-12 max-w-12 p-1 text-center">{uiMessage(locale, 'rahcomRowNumber')}</th><th className="w-9 min-w-9 max-w-9 p-1 text-center"><RahcomInfoHeader /></th>{[['rahcomSystemName','Name'],['rahcomSystemCode','System'],['rahcomIncidentFilter','Incident'],['rahcomTicketTitle','TicketTitle'],['rahcomTicketDescription','Description'],['rahcomAxisCode','AxisCode'],['rahcomAxisName','AxisName'],['rahcomTicketNumber','TicketCode'],['rahcomTicketCreatedOn','Created On'],['rahcomTicketImportedAt','Imported At'],['rahcomTicketSubject','Summary'],['rahcomProvince','Province'],['rahcomTicketCustomer','Customer'],['rahcomTicketEquipment','NetworkEquipment'],['rahcomTicketType','TicketType'],['rahcomTicketStatus','TicketStatus'],['rahcomTicketPriority','TicketPriority'],['rahcomTicketSupportTeam','TicketSupportTeam']].map(([key]) => <th key={key} className={`whitespace-nowrap p-3 text-start ${key === 'rahcomTicketSubject' ? 'min-w-[560px]' : key === 'rahcomTicketDescription' ? 'w-[300px] min-w-[300px] max-w-[300px]' : ''}`}>{uiMessage(locale, key as Parameters<typeof uiMessage>[1])}</th>)}</tr></thead>
         <tbody>{visibleTickets.map((ticket, index) => {
           const system = ticket.system ?? undefined;
+          const textWrapClass = wrapLongText ? 'whitespace-normal break-words' : 'whitespace-nowrap';
           return <tr key={ticket.id} className="border-t border-border">
             <td className="whitespace-nowrap p-3 text-center tabular-nums">{numberFormatter.format(index + 1)}</td>
             <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo previewBeforeCopy title={system?.systemName || ticket.systemCode || ticket.summary} systemCode={ticket.systemCode} system={system} fields={[{ label: uiMessage(locale, 'rahcomSystemCode'), value: ticket.systemCode }, { label: uiMessage(locale, 'rahcomSystemName'), value: system?.systemName ?? '' }, { label: uiMessage(locale, 'rahcomAxisCode'), value: system?.axisCode ?? '' }, { label: uiMessage(locale, 'rahcomTicketTitle'), value: ticketTitle(ticket) }, { label: uiMessage(locale, 'rahcomTicketDescription'), value: ticket.description ?? '' }, { label: uiMessage(locale, 'rahcomIncidentFilter'), value: systemLongOutageLabel(system) }, { label: uiMessage(locale, 'rahcomTicketNumber'), value: ticket.ticketCode }, { label: uiMessage(locale, 'rahcomTicketCreatedOn'), value: ticket.createdOn }, { label: uiMessage(locale, 'rahcomTicketSubject'), value: ticket.summary }, { label: uiMessage(locale, 'rahcomProvince'), value: provinceName(ticket.province, locale) }, { label: uiMessage(locale, 'rahcomTicketCustomer'), value: ticket.customer ?? '' }, { label: uiMessage(locale, 'rahcomTicketEquipment'), value: ticket.equipment ?? '' }, { label: uiMessage(locale, 'rahcomTicketType'), value: ticket.type ?? '' }, { label: uiMessage(locale, 'rahcomTicketStatus'), value: ticket.status ?? '' }, { label: uiMessage(locale, 'rahcomTicketPriority'), value: ticket.priority ?? '' }, { label: uiMessage(locale, 'rahcomTicketSupportTeam'), value: ticket.supportTeam ?? '' }]} /></td>
-            <td className="min-w-[220px] whitespace-nowrap p-3">{system?.systemName || '—'}</td>
+            <td className={`min-w-[220px] p-3 ${textWrapClass}`}>{system?.systemName || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.systemCode || '—'}</td>
-            <td className="min-w-[120px] whitespace-nowrap p-3 font-mono" dir="ltr">{ticketTitle(ticket) || '—'}</td>
-            <td className="w-[150px] max-w-[150px] p-2 align-middle">
-              <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => { setDescriptionDraft(ticket.description ?? ''); setEditingDescription(false); setDescriptionTicketId(ticket.id); }} aria-label={uiMessage(locale, 'rahcomTicketDescription')} title={ticket.description || uiMessage(locale, 'rahcomTicketDescription')} className="group flex h-5 min-h-0 w-full items-center gap-2 overflow-hidden text-start text-foreground hover:text-primary disabled:opacity-50">
-                <span className="line-clamp-1 min-w-0 flex-1 whitespace-nowrap">{ticket.description || '—'}</span>
+            <td className={`p-3 ${textWrapClass}`}>{systemLongOutageLabel(system) || '—'}</td>
+            <td className={`min-w-[120px] p-3 font-mono ${textWrapClass}`} dir="ltr">{ticketTitle(ticket) || '—'}</td>
+            <td className="w-[300px] max-w-[300px] p-2 align-middle">
+              <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => { setDescriptionDraft(ticket.description ?? ''); setEditingDescription(false); setDescriptionTicketId(ticket.id); }} aria-label={uiMessage(locale, 'rahcomTicketDescription')} className={`group flex min-h-5 w-full cursor-pointer gap-2 overflow-hidden text-start text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${wrapLongText ? 'items-start whitespace-pre-wrap break-words' : 'h-5 items-center whitespace-nowrap'}`}>
+                <span className={`min-w-0 flex-1 ${wrapLongText ? 'whitespace-pre-wrap break-words' : 'line-clamp-1 whitespace-nowrap'}`}>{ticket.description || '—'}</span>
               </button>
             </td>
-            <td className="whitespace-nowrap p-3">{systemLongOutageLabel(system) || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{system?.axisCode || '—'}</td>
-            <td className="min-w-[180px] whitespace-nowrap p-3">{system?.announcedAxis || '—'}</td>
+            <td className={`min-w-[180px] p-3 ${textWrapClass}`}>{system?.announcedAxis || '—'}</td>
             <td className="whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.ticketCode || '—'}</td>
             <td className="whitespace-nowrap p-3" dir="auto">{ticket.createdOn || '—'}</td>
             <td className="whitespace-nowrap p-3"><span className="inline-flex items-center gap-1.5"><Clock3 size={14} className="text-muted-foreground" />{formatImportedAt(ticket.importedAt)}</span></td>
-            <td className="min-w-[560px] whitespace-nowrap p-3">{ticket.summary || '—'}</td>
-            <td className="whitespace-nowrap p-3">{provinceName(ticket.province, locale)}</td>
-            <td className="min-w-[180px] whitespace-nowrap p-3">{ticket.customer || '—'}</td>
-            <td className="min-w-[240px] whitespace-nowrap p-3 font-mono" dir="ltr">{ticket.equipment || '—'}</td>
-            <td className="whitespace-nowrap p-3">{ticket.type || '—'}</td>
-            <td className="whitespace-nowrap p-3">{ticket.status || '—'}</td>
-            <td className="whitespace-nowrap p-3">{ticket.priority || '—'}</td>
-            <td className="min-w-[220px] whitespace-nowrap p-3">{ticket.supportTeam || '—'}</td>
+            <td className={`${wrapLongText ? 'min-w-[320px]' : 'min-w-[560px]'} p-3 ${textWrapClass}`}>{ticket.summary || '—'}</td>
+            <td className={`p-3 ${textWrapClass}`}>{provinceName(ticket.province, locale)}</td>
+            <td className={`min-w-[180px] p-3 ${textWrapClass}`}>{ticket.customer || '—'}</td>
+            <td className={`min-w-[240px] p-3 font-mono ${textWrapClass}`} dir="ltr">{ticket.equipment || '—'}</td>
+            <td className={`p-3 ${textWrapClass}`}>{ticket.type || '—'}</td>
+            <td className={`p-3 ${textWrapClass}`}>{ticket.status || '—'}</td>
+            <td className={`p-3 ${textWrapClass}`}>{ticket.priority || '—'}</td>
+            <td className={`min-w-[220px] p-3 ${textWrapClass}`}>{ticket.supportTeam || '—'}</td>
           </tr>;
         })}</tbody>
-      </table></div>
+      </DataTable></div>
     </div> : importedTickets && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
     {descriptionTicket && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingDescriptionId) setDescriptionTicketId(null); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="rahcom-ticket-description-title" style={{ width: 'fit-content', minWidth: 'min(20rem, calc(100vw - 2rem))', maxWidth: 'min(42rem, calc(100vw - 2rem))', opacity: 1, backdropFilter: 'none' }} className="rahcom-ticket-description-dialog relative z-[101] rounded-2xl border border-border bg-card p-3 shadow-xl sm:p-4">

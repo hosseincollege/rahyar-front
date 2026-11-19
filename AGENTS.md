@@ -27,7 +27,7 @@ Help authorized users across provinces find their assigned systems, understand o
 - Treat each module's main destination (`href`) as its landing/overview page. Keep its submenu focused on distinct workflows and resources; never duplicate that landing page as an "Overview" submenu item. Put useful overview content on the module landing page itself, and keep submenu entries separate only when they represent genuinely distinct tasks. Apply this rule consistently across every module.
 - Improve settings and module page contents within the current shell; global preferences must be additive and preserve responsive behavior.
 - Persian and RTL remain the default. Apply English/LTR only when the user selects English.
-- Keep province backup workbooks directly under `src/provinces/`, prefixed by the province's three-letter code (for example, `ESF-systems.xlsx` and `ESF-electricity.xlsx`). Export shared workbook names through `src/provinces/index.ts`.
+- Keep province backup workbooks directly under `src/province-backup/`, prefixed by the province's three-letter code (for example, `ESF-systems.xlsx` and `ESF-electricity.xlsx`). Export shared workbook names through `src/province-backup/index.ts`.
 
 ### Immediate interaction responsiveness (Priority 1 / P0 — highest priority)
 - User-perceived responsiveness is a core, non-negotiable requirement across every screen. For every new feature or edit, prioritize immediate visible feedback and an unblocked interaction path ahead of nonessential features or visual polish, and explicitly review this before finishing.
@@ -103,6 +103,8 @@ Whenever assigned a task:
 - Inspect this repository Git status and diffs before editing; preserve unrelated work. Do not edit ERP unless cross-product work is explicitly requested.
 - Preserve Rahyar organization identity as رهیار and administrator-customized organization details and logo.
 - Keep global search in the authenticated top header between assistant/action icons and centered company identity; keep it out of Tools tabs and usable on narrow screens.
+- Top-header Rahcom system search must use the selected province and show every matching system returned by the API. Do not impose an arbitrary fixed suggestion cap (such as eight); if a real technical constraint ever requires limiting results, provide explicit pagination or load-more and explain the constraint.
+- Bill identifier assignments support only Rahcom, USO, and VSAT families. Do not add other system families to the UI, API, validation, or documentation.
 - The user will move project folders. Do not move or rename directories.
 
 ## Shared Rahyar and ERP administration UI
@@ -116,6 +118,8 @@ Whenever assigned a task:
 - Keep `docs/presentation/` useful for the user's course presentation. Update its technical descriptions when the system architecture or demonstrated workflows change.
 
 ## Rahcom incident toggle invariant
+- In Aggregate, the incident-label toggle controls tagged records and the Label column together: when active, show incident-marked systems and the column immediately after system name; when inactive, remove those systems from the result and hide the column. Derive labels only from marked source columns in the imported traffic list.
+- In Aggregate, place axis code and axis name at the end of the table, after Solar status when that column is enabled.
 - The shared «سرقت و تخریب» icon is a visibility toggle for incident records from the imported daily traffic list. Its incident fields are سرقت، تخریب، تعریض، and جابه‌جایی.
 - The toggle is active by default. Active means incident-marked systems remain visible with the normal records; inactive means hide systems marked in those traffic-list fields while preserving all other records.
 - Always classify this toggle from the traffic-list snapshot. Do not switch its source to `RahcomSystem.incidentType` or `RahcomSystem.incidentDetails`, and do not restore the two-button source selector.
@@ -127,6 +131,7 @@ Whenever assigned a task:
 - **System detail popup layout invariant:** In the Systems table and map, keep the popup order as system code, system name, axis name, axis code, then actions for copying coordinates, editing (when permitted), routing, and history. Change this layout only when the user explicitly requests it.
 - **Rahcom table header invariant:** Keep table headers sticky with fully opaque card backgrounds in Systems, Daily Traffic, Road List, Solar Daily, Tickets, Aggregate, and Bill Identifiers so row content never shows through while scrolling. Preserve each table's approved column labels and order.
 - **Rahcom table row-height invariant:** Keep every data row in all Rahcom tables at 36px, matching Daily Traffic. Prevent wrapped content or oversized controls from expanding rows; keep long text accessible through its existing details or a title tooltip. Change this density only when the user explicitly asks.
+- Avoid native `title` tooltips on table data cells that repeat cell content; keep hover tooltips for distinct interactive controls such as edit, delete, and info buttons.
 - **Map toolbar height invariant:** Keep map toolbar controls and capsules at the Systems count capsule's height (36px), vertically centered in the toolbar. Preserve this sizing unless the user explicitly requests a change.
 - **Rahcom toolbar spacing invariant:** In Map, Systems, Daily Traffic, Road List, Solar Daily, Tickets, Aggregate, Actions, and Bill Identifiers, keep toolbar controls 36px high and vertically centered. Keep exactly 12px of visual space between the toolbar controls and the page content, accounting for the mobile toolbar's scrollbar gutter. Preserve all other layout, table titles, and column order unless the user explicitly asks for a change.
 - **Map and Systems vertical alignment:** Keep the Systems page top inset equal to the Map page top inset, with toolbar controls centered on the same 36px height and the same 12px gap before the table/map.

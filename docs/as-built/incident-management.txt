@@ -13,7 +13,7 @@
 - فیلتر نقشه: src/app/(workspace)/rahcom/map/open-street-map.tsx
 - فیلتر تردد: src/app/(workspace)/rahcom/daily-traffic/rahcom-daily-traffic.tsx
 - فیلتر لیست سولار: src/app/(workspace)/rahcom/solar-daily/rahcom-solar-daily.tsx
-- اعتبارسنجی سمت سرور: rahyar-back/src/rahcom/dto/rahcom.dto.ts
+- اعتبارسنجی سمت سرور: rahyar-back/src/rahcom/rahcom.dto.ts
 - انتقال داده: rahyar-back/prisma/migrations/20261031130000_move_solar_specials_to_systems/migration.sql
 
 محدودیت SNMP

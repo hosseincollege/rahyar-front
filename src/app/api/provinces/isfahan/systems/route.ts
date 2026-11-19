@@ -4,7 +4,8 @@ import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/lib/api-environment';
-import { esfSystemsWorkbook } from '@/provinces';
+import { esfSystemsWorkbook } from '@/province-backup';
+import { isExcludedIsfahanSystemCode } from '@/lib/api/rahcom/system-exclusions';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
-    const filePath = path.join(process.cwd(), 'src', 'provinces', esfSystemsWorkbook);
+    const filePath = path.join(process.cwd(), 'src', 'province-backup', esfSystemsWorkbook);
     const workbookBytes = await readFile(filePath);
     if (request.nextUrl.searchParams.get('source') === 'backup') {
       return new NextResponse(new Uint8Array(workbookBytes), {
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
       const id = String(row.id ?? '').trim();
       const systemName = String(row.systemName ?? '').trim();
       const systemCode = String(row.systemCode ?? '').trim();
+      if (isExcludedIsfahanSystemCode(systemCode, 'isfahan')) return [];
       const hasLatitude = row.latitude !== null && row.latitude !== undefined && String(row.latitude).trim() !== '';
       const hasLongitude = row.longitude !== null && row.longitude !== undefined && String(row.longitude).trim() !== '';
       const latitude = hasLatitude ? Number(row.latitude) : null;
@@ -171,7 +173,7 @@ export async function PUT(request: NextRequest) {
       })) {
       return NextResponse.json({ error: 'invalid_workbook' }, { status: 400 });
     }
-    const filePath = path.join(process.cwd(), 'src', 'provinces', esfSystemsWorkbook);
+    const filePath = path.join(process.cwd(), 'src', 'province-backup', esfSystemsWorkbook);
     const tempPath = `${filePath}.${randomUUID()}.tmp`;
     try {
       await writeFile(tempPath, bytes, { flag: 'wx' });

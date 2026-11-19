@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Check, Copy, FileUp, History, LoaderCircle, Pencil, Save, Trash2, X } from 'lucide-react';
-import { usePreferences, getLocaleDirection } from '@/components/preferences-provider';
+import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { formatRahcomCoordinates, hasRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';

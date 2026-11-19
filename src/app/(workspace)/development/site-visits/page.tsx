@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, Pencil, RefreshCw, Save, Search, Users, X } from 'lucide-react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/app/(workspace)/development/development-api';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
+import { developmentApi, type SiteVisitor, type SiteVisitorSession, type SiteVisitsRange } from '@/lib/api/development-api';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import type { UiMessage } from '@/lib/languages/types';

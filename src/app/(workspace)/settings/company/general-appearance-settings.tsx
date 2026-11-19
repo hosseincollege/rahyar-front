@@ -3,9 +3,9 @@
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { Check, LoaderCircle, Paintbrush, Upload } from 'lucide-react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { resolveOrganizationLogoUrl, settingsApi } from '@/lib/api/settings/settings-api';
+import { resolveOrganizationLogoUrl, settingsApi } from '@/lib/api/settings-api';
 import { uiMessage } from '@/lib/ui-messages';
 import type { SaveOrganizationAppearance } from '@/lib/api/shared/preferences-api';
 

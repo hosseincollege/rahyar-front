@@ -1,9 +1,11 @@
 'use client';
 
+import { DataTable } from '@/components/ui/data-table';
+
 import { getCalendarLocale } from '@/lib/calendar';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { CheckCircle2, CircleDashed, Download, FileJson2, FolderKanban, LoaderCircle, Pencil, Plus, Search, Ticket, Trash2, Upload, Users, X } from 'lucide-react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { ApiError } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 import { projectsApi, type ProjectDraft, type ProjectImportRecord, type ProjectItem, type ProjectStatus } from '@/lib/api/shared/projects-api';
@@ -173,7 +175,7 @@ export default function ProjectsSettingsPage() {
 
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
         {loading ? <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground"><LoaderCircle size={17} className="animate-spin"/>{t('notificationsLoading')}</div> : filteredProjects.length === 0 ? <div className="flex flex-col items-center px-6 py-14 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground"><CircleDashed size={23}/></span><p className="mt-3 font-semibold">{projects.length ? t('projectsNoResults') : t('projectsEmpty')}</p></div> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-start text-sm">
+          <div className="overflow-x-auto"><DataTable className="w-full min-w-[760px] text-start text-sm">
             <thead className="border-b border-border bg-muted/35 text-xs text-muted-foreground"><tr><th className="px-4 py-3 font-medium">{t('projectsCode')}</th><th className="px-4 py-3 font-medium">{t('projectsName')}</th><th className="px-4 py-3 font-medium">{t('projectsStatus')}</th><th className="px-4 py-3 font-medium">{t('projectsUpdatedAt')}</th><th className="px-4 py-3 font-medium">{t('projectsTicketCount')} / {t('projectsMemberCount')}</th><th className="px-4 py-3 font-medium"><span className="sr-only">{t('projectsEdit')}</span></th></tr></thead>
             <tbody className="divide-y divide-border/70">{filteredProjects.map((project) => <tr key={project.id}>
               <td className="px-4 py-3"><code dir="ltr" className="rounded-md bg-muted px-2 py-1 font-mono text-xs font-semibold text-primary">{project.code}</code></td>
@@ -183,7 +185,7 @@ export default function ProjectsSettingsPage() {
               <td className="px-4 py-3"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Ticket size={13}/>{new Intl.NumberFormat(locale).format(project._count?.tickets ?? 0)}<Users size={13} className="ms-2"/>{new Intl.NumberFormat(locale).format(project._count?.members ?? 0)}</span></td>
               <td className="px-4 py-3"><div className="flex justify-end gap-1"><button type="button" onClick={() => openEditForm(project)} aria-label={`${t('projectsEdit')} ${project.name}`} title={t('projectsEdit')} className="rounded-lg p-2 text-muted-foreground transition hover:bg-primary/10 hover:text-primary"><Pencil size={15}/></button><button type="button" onClick={() => void removeProject(project)} aria-label={`${t('projectsDelete')} ${project.name}`} title={t('projectsDelete')} className="rounded-lg p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"><Trash2 size={15}/></button></div></td>
             </tr>)}</tbody>
-          </table></div>
+          </DataTable></div>
         )}
       </section>
 

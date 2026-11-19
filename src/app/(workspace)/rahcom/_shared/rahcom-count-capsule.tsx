@@ -1,7 +1,7 @@
 'use client';
 
 import { MapPin } from 'lucide-react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 
 export function RahcomCountCapsule({ count }: { count: number }) {

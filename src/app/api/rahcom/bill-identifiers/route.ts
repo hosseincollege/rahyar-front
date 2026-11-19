@@ -4,7 +4,7 @@ import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
 import { API_BASE_URL } from '@/lib/api-environment';
-import { esfElectricityWorkbook } from '@/provinces';
+import { esfElectricityWorkbook } from '@/province-backup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,9 +22,8 @@ const billIdAliases = ['\u0634\u0646\u0627\u0633\u0647\u0642\u0628\u0636', '\u06
 const systemCodeAliases = ['\u06a9\u062f\u0633\u0627\u0645\u0627\u0646\u0647', '\u06a9\u062f\u0633\u06cc\u0633\u062a\u0645'];
 const rowNumberAlias = normalizeHeader('\u0631\u062f\u06cc\u0641');
 const registeredDateAlias = normalizeHeader('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a');
-const statusAlias = normalizeHeader('\u0648\u0636\u0639\u06cc\u062a \u0628\u0631\u0631\u0633\u06cc');
 const assignmentFamily = (value: string) => {
-  const externalType = value.match(/^EXTERNAL:(USO|RAHCOM|BST|VSAT):/i)?.[1]?.toUpperCase();
+  const externalType = value.match(/^EXTERNAL:(USO|RAHCOM|VSAT):/i)?.[1]?.toUpperCase();
   return externalType && externalType !== 'RAHCOM' ? externalType : 'RAHCOM';
 };
 const hasMixedAssignmentFamilies = (codes: string[]) => new Set(codes.map(assignmentFamily)).size > 1;
@@ -52,7 +51,7 @@ export async function GET(request: NextRequest) {
     const { response } = await readList(authHeader(request));
     if (!response.ok) return jsonError(response.status, 'database_unavailable');
     try {
-      const filePath = path.join(process.cwd(), 'src', 'provinces', esfElectricityWorkbook);
+      const filePath = path.join(process.cwd(), 'src', 'province-backup', esfElectricityWorkbook);
       const workbookBytes = await readFile(filePath);
       return new NextResponse(new Uint8Array(workbookBytes), {
         headers: {
@@ -93,7 +92,7 @@ export async function PUT(request: NextRequest) {
       const headers = (values[0] ?? []).map((value) => String(value ?? '').trim());
       if (headers.length < 2 || headers.length > 100 || findColumn(headers, billIdAliases) < 0 || values.length > 20001) return jsonError(400, 'invalid_workbook');
 
-      const filePath = path.join(process.cwd(), 'src', 'provinces', esfElectricityWorkbook);
+      const filePath = path.join(process.cwd(), 'src', 'province-backup', esfElectricityWorkbook);
       const tempPath = `${filePath}.${randomUUID()}.tmp`;
       try {
         await writeFile(tempPath, bytes, { flag: 'wx' });
@@ -143,7 +142,6 @@ export async function POST(request: NextRequest) {
   const billColumn = findColumn(data.headers, billIdAliases);
   const codeColumn = findColumn(data.headers, systemCodeAliases);
   const rowColumn = data.headers.findIndex((h) => normalizeHeader(h) === rowNumberAlias);
-  const statusColumn = data.headers.findIndex((h) => normalizeHeader(h) === statusAlias);
   let dateColumn = data.headers.findIndex((h) => normalizeHeader(h) === registeredDateAlias);
   if (billColumn < 0) return jsonError(400, 'bill_identifier_column_missing');
   if (dateColumn < 0) { dateColumn = data.headers.length; data.headers.push('\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a'); data.rows = data.rows.map((row) => [...row, '']); }
@@ -162,7 +160,6 @@ export async function POST(request: NextRequest) {
     nextRow[column] = value.trim();
   }
   if (rowColumn >= 0) nextRow[rowColumn] = String(data.rows.length + 1);
-  if (statusColumn >= 0 && !nextRow[statusColumn]) nextRow[statusColumn] = '\u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631 \u0628\u0631\u0631\u0633\u06cc';
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   nextRow[dateColumn] = `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`;
   const saved = await saveList(authHeader(request), { ...data, rows: [...data.rows, nextRow] });

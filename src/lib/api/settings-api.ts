@@ -1,4 +1,4 @@
-// Path: frontend/src/lib/api/settings/settings-api.ts
+// Settings API client shared by Settings and workspace components.
 // Frontend - Next.js
 // این فایل مسئول برقراری ارتباط با APIهای بخش تنظیمات و سازمان در بک‌اند است.
 //

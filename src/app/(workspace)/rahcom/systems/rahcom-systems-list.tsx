@@ -1,10 +1,14 @@
 'use client';
 
+import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { RahcomTableCount, RahcomTableFrame } from '@/components/rahcom/table';
+import { DataTable } from '@/components/ui/data-table';
+
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { ArchiveRestore, Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, MapPinned, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { getAccessToken } from '@/lib/api-client';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
@@ -518,9 +522,9 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const systemRows = allSystemRows;
   return (
     <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 max-w-full flex-col gap-3 overflow-hidden">
-      <div className="rahcom-mobile-toolbar rahcom-page-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
+      <RahcomToolbar className="rahcom-mobile-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
         <RahcomHeaderDate compact loadMarkedDates={loadTrafficDatesForCalendar} />
-        <span role="status" aria-label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground"><MapPinned size={16} className="text-primary" />{numberFormatter.format(systems.length)}</span>
+        <RahcomTableCount label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`}><MapPinned size={16} className="text-primary" />{numberFormatter.format(systems.length)}</RahcomTableCount>
         <SystemsSearchInput value={searchDraft} onChange={(value) => { setSearchDraft(value); startTransition(() => setQuery(value)); }} placeholder={t('rahcomSearchSystems')} clearLabel={t('searchClear')} />
         {canManage && selectedProvince !== 'all' && <button type="button" onClick={openAddSystem} aria-label={t('rahcomAddSystem')} title={t('rahcomAddSystem')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
         {canEditSystems && <button type="button" aria-pressed={editMode} onClick={() => setEditMode((enabled) => !enabled)} aria-label={t('rahcomEditSystem')} title={t('rahcomEditSystem')} style={editMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${editMode ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Pencil size={16} /></button>}
@@ -534,7 +538,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
           </div>}
         </div>
 
-      </div>
+      </RahcomToolbar>
       {newSystemOpen && newSystemPosition && typeof document !== 'undefined' && createPortal(<div className="fixed inset-0 z-[1000] bg-transparent" onMouseDown={(event) => { if (event.target === event.currentTarget && !newSystemBusy) setNewSystemOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-label={t('rahcomAddSystem')} style={{ position: 'fixed', top: newSystemPosition.top, left: newSystemPosition.left, width: newSystemPosition.width, maxWidth: newSystemPosition.width, maxHeight: newSystemPosition.maxHeight, overflowY: 'auto', backgroundColor: 'var(--card)', opacity: 1 }} className="rounded-xl border border-border p-2 text-card-foreground shadow-2xl">
           <div className="rahcom-system-popup">
@@ -563,10 +567,9 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       {error ? <div role="alert" className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
       {!loading && !error && !anyRows ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
 
-      {systemRows.length > 0 && <section className="rahcom-systems-table-frame rahcom-traffic-table-frame flex min-h-0 w-fit max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="rahcom-contained-table-scroll min-h-0 min-w-0 w-full max-w-full flex-1 overflow-auto">
-          <table className="rahcom-sticky-table w-[80.5rem] table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup><col style={{ width: '3rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '17rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '13rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '4rem' }} /><col style={{ width: '6rem' }} /></colgroup>
+      {systemRows.length > 0 && <RahcomTableFrame className="rahcom-systems-table-frame rahcom-traffic-table-frame w-fit max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full max-w-full">
+          <DataTable className="rahcom-sticky-table rahcom-systems-table w-[101.5rem] table-fixed border-separate border-spacing-0 text-sm">
+            <colgroup><col style={{ width: '4rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '20rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '18rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '15rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '6rem' }} /></colgroup>
             <thead className="text-xs text-muted-foreground"><tr>
               <th scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{t('rahcomRowNumber')}</th><th scope="col" className="sticky top-0 z-30 border-b border-border bg-card p-1 text-center"><RahcomInfoHeader /></th>
               {[t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomIncidentFilter'), t('rahcomStationName'), t('rahcomAggregationCode'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomProvince'), t('rahcomBillId')].map((heading) => <th key={heading} scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}
@@ -582,7 +585,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                   aria-selected={selectedSystemId === system.id}
                   className="odd:bg-background even:bg-muted/30"
                 >
-                  <td className="border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{numberFormatter.format(rowIndex + 1)}</td>
+                  <td className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle tabular-nums text-foreground">{numberFormatter.format(rowIndex + 1)}</td>
                   <td className="border-b border-border/70 px-1 py-2 text-center align-middle"><RahcomRowInfo title={system.systemName} systemCode={system.systemCode} system={{ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }} fields={[{ label: t('rahcomSystemCode'), value: system.systemCode }, { label: t('rahcomSystemName'), value: system.systemName }, { label: t('rahcomAxisName'), value: axisName }, { label: t('rahcomAxisCode'), value: axisCode }, { label: t('rahcomProvince'), value: provinceName(system.province) }]} electricityDetails={electricityDetailsBySystem.get(normalizeRahcomSystemCode(system.systemCode)) ?? []} onEdit={canEditSystems ? () => startEdit({ ...system, announcedAxis: axisName || system.announcedAxis, axisCode: axisCode || system.axisCode }) : undefined} /></td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono font-bold tracking-wide text-foreground">
                   {selectedSystemId === system.id && systemPopupPosition && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[100] bg-transparent" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSystemId(null); }}>
@@ -636,24 +639,23 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                   </div>, document.body) : null}
                   {system.systemCode}
                   </td>
-                  <td title={system.systemName} className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-semibold text-foreground">{system.systemName}</td>
-                  <td title={displayedOutageReason || undefined} className="group relative border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-semibold text-foreground">{system.systemName}</td>
+                  <td className="group relative border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">
                     <div className="flex min-h-8 items-center justify-center gap-1.5">
-                      <span className="truncate" title={system.longOutageReason === 'OTHER' ? system.longOutageDetails ?? '' : undefined}>{displayedOutageReason || '—'}</span>
+                      <span className="truncate">{displayedOutageReason || '—'}</span>
                     </div>
                   </td>
-                  <td title={stationName} className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{stationName || '—'}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{stationName || '—'}</td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-foreground">{aggregationCode || '—'}</td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-foreground">{axisCode || '—'}</td>
-                  <td title={axisName} className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{axisName || '—'}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{axisName || '—'}</td>
                   <td className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{provinceName(system.province)}</td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-xs text-foreground">{system.electricityBillId || '—'}</td>
                 </tr>
               );
             })}</tbody>
-          </table>
-        </div>
-      </section>}
+          </DataTable>
+      </RahcomTableFrame>}
 
     </section>
   );

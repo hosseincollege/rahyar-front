@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Activity, BarChart3, Bell, BriefcaseBusiness, Building2, CalendarDays, Calculator, ClipboardList, Clock3, Database, Eye, FileText, History, LayoutDashboard, Layers, LifeBuoy, List, MapPinned, Megaphone, MessageSquare, Package, Save, Search, Settings, ShoppingCart, Sun, User, UsersRound, Wallet, type LucideIcon } from 'lucide-react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { getLocaleDirection } from '@/lib/languages';
 import { uiMessage } from '@/lib/ui-messages';
 import { isReducedEdition } from '@/lib/product-edition';
@@ -25,7 +25,7 @@ const headerIcons: Record<HeaderControlId, LucideIcon> = {
   provinceSelector: MapPinned,
 };
 const navigationGroups: Array<{ title: UiMessage; items: Array<{ href: string; title: UiMessage }> }> = [
-  { title: 'sidebarRahkam', items: [{ href: '/rahcom/map', title: 'rahcomMap' }, { href: '/rahcom/systems', title: 'rahcomSystemsList' }, { href: '/rahcom/sites', title: 'rahcomSites' }, { href: '/rahcom/daily-traffic', title: 'rahcomDailyTraffic' }, { href: '/rahcom/solar-daily', title: 'rahcomSolarDaily' }, { href: '/rahcom/tickets', title: 'rahcomTickets' }, { href: '/rahcom/aggregate', title: 'rahcomAggregateList' }, { href: '/rahcom/actions', title: 'rahcomActions' }, { href: '/rahcom/bill-identifiers', title: 'rahcomBillIdentifiers' }] },
+  { title: 'sidebarRahkam', items: [{ href: '/rahcom/map', title: 'rahcomMap' }, { href: '/rahcom/systems', title: 'rahcomSystemsList' }, { href: '/rahcom/daily-traffic', title: 'rahcomDailyTraffic' }, { href: '/rahcom/solar-daily', title: 'rahcomSolarDaily' }, { href: '/rahcom/tickets', title: 'rahcomTickets' }, { href: '/rahcom/aggregate', title: 'rahcomAggregateList' }, { href: '/rahcom/actions', title: 'rahcomActions' }, { href: '/rahcom/bill-identifiers', title: 'rahcomBillIdentifiers' }, { href: '/rahcom/sites', title: 'rahcomSites' }] },
   { title: 'sidebarSettings', items: [{ href: '/settings/general', title: 'sidebarGeneral' }, { href: '/settings/company', title: 'settingsOrganizationWorkspace' }, { href: '/settings/modules', title: 'settingsDisplayManagement' }] },
   { title: 'sidebarDevelopment', items: [{ href: '/development/site-visits', title: 'developmentSiteVisits' }, { href: '/development/test-data', title: 'sidebarTestData' }] },
 ];

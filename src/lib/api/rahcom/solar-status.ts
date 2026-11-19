@@ -1,8 +1,19 @@
 import { iranProvinces, type RahcomSolarSnapshot, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { jalaliDateToGregorian } from '@/lib/api/rahcom/jalali-date';
+import { isExcludedIsfahanSystemCode } from './system-exclusions';
 
 export type RahcomSolarState = 'down' | 'unreachable';
 export type RahcomSolarEntry = { site: string; equipment: string; state: RahcomSolarState; province?: string };
+
+/** The only equipment columns that may contribute to Solar status across Rahcom. */
+export const RAHCOM_SOLAR_EQUIPMENT_COLUMNS = ['LTE', 'RTR-1', 'CAM-1', 'RAD-1'] as const;
+const supportedSolarEquipmentColumns = new Set<string>(RAHCOM_SOLAR_EQUIPMENT_COLUMNS.slice(1));
+
+export function normalizeRahcomSolarEquipmentColumn(value: string) {
+  const equipment = value.normalize('NFKC').trim().toUpperCase();
+  if (equipment === 'LTE' || /^LTE-[12]$/.test(equipment)) return 'LTE';
+  return supportedSolarEquipmentColumns.has(equipment) ? equipment : null;
+}
 
 export function parseRahcomSolarList(text: string, state: RahcomSolarState): RahcomSolarEntry[] {
   const output: RahcomSolarEntry[] = [];
@@ -15,13 +26,12 @@ export function parseRahcomSolarList(text: string, state: RahcomSolarState): Rah
         ?? match[1].match(/^(.+?)-ESF/i)?.[1]
         ?? match[1].match(/^([A-Z]+-\d+)(?:-|$)/i)?.[1]
         ?? match[1].split('-')[0];
+      if (!normalizeRahcomSolarEquipmentColumn(equipment)) continue;
       const site = line.match(/\d{3}[A-Z]\d{5}/i)?.[0];
       const province = /(?:^|-)ESF(?:-|$)|ISFAHAN/i.test(match[1]) ? 'isfahan' : undefined;
-      if (site) output.push({ site: site.toUpperCase(), equipment: equipment.toUpperCase(), state, province });
+      if (site && !isExcludedIsfahanSystemCode(site, province)) output.push({ site: site.toUpperCase(), equipment: equipment.toUpperCase(), state, province });
       continue;
     }
-    const site = line.match(/\d{3}[A-Z]\d{5}/i)?.[0];
-    if (site) output.push({ site: site.toUpperCase(), equipment: 'WLP2P', state });
   }
   return output;
 }

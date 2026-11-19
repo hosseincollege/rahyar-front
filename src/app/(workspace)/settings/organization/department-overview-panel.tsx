@@ -8,7 +8,7 @@ import {
   type DepartmentEmployeeSummary,
   type DepartmentOverview,
   type DepartmentTeamSummary,
-} from '@/lib/api/settings/settings-api';
+} from '@/lib/api/settings-api';
 
 type Props = {
   departmentId: string;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Archive, Megaphone, Pin, Send, Pencil, X } from 'lucide-react';
-import { getLocaleDirection, localeOptions, usePreferences, type Locale } from '@/components/preferences-provider';
+import { getLocaleDirection, localeOptions, usePreferences, type Locale } from '@/components/providers/preferences-provider';
 import { notificationsApi, type Announcement } from '@/lib/api/shared/notifications-api';
 import { uiMessage } from '@/lib/ui-messages';
 

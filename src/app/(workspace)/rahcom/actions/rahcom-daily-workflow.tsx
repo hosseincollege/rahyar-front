@@ -1,16 +1,18 @@
 'use client';
 
+import { DataTable } from '@/components/ui/data-table';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Clipboard, LoaderCircle, Save, Search, Sparkles, X } from 'lucide-react';
+import { Check, Clipboard, Copy, LoaderCircle, Save, Search, Sparkles, Trash2, Wrench, X } from 'lucide-react';
 import { iranProvinces, rahcomApi, type RahcomActivity, type RahcomWorkflowSystem } from '@/lib/api/rahcom/rahcom-api';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 
 type VisitEntry = { systemId: string; issue: 'radar' | 'system' | ''; visitType: 'local' | 'no_lift' | 'with_lift' | ''; reason: string; performedBy: string; handedOverTo: string };
 type WorkflowRecordType = 'SYSTEM_CODES' | 'ACTIONS_DATA' | 'VISIT_PLAN' | 'COMPLETION_REPORT' | 'DAILY_NOTE' | 'EXCEL_UPDATE';
-const card = 'rounded-xl border border-border bg-card p-3 sm:p-4';
+const card = 'min-w-0';
 const field = 'h-9 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary';
 const button = 'inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50';
 
@@ -139,6 +141,14 @@ export function RahcomDailyWorkflow({ date, province, items, onSaved }: { date: 
   const searchLoading = Boolean(query) && (searchState.query !== query || searchState.loading);
   const jalaliDate = date ? formatJalaliDate(date) : '';
   const provinceName = iranProvinces.find(([id]) => id === province)?.[1] ?? province;
+  const dailyReportHeading = (() => {
+    if (!date) return '';
+    const parts = new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-arabext', {
+      timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }).formatToParts(new Date(`${date}T12:00:00Z`));
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+    return `گزارش اکسل روزانه\n${part('weekday')} ${part('day')} ${part('month')} ماه ${part('year')}، استان ${provinceName}`;
+  })();
 
   function addSystem(system: RahcomWorkflowSystem) {
     dirtyRef.current = true;
@@ -175,7 +185,7 @@ export function RahcomDailyWorkflow({ date, province, items, onSaved }: { date: 
       setSaving(false);
     }
   }
-  async function copyText(kind: 'plan' | 'report', value: string) {
+  async function copyText(kind: 'plan' | 'report' | 'excelHeading', value: string) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(kind);
@@ -198,43 +208,42 @@ export function RahcomDailyWorkflow({ date, province, items, onSaved }: { date: 
 
   return <section className="mb-5 space-y-3" dir="rtl" aria-label="ثبت برنامه روزانه اقدامات">
     {toolbarSearch && createPortal(searchControl, toolbarSearch)}
-    {toolbarCount && createPortal(<span className="inline-flex h-full items-center">{new Intl.NumberFormat(locale).format(selectedSystems.length)} {uiMessage(locale, 'rahcomSystemsCount')}</span>, toolbarCount)}
+    {toolbarCount && createPortal(<span role="status" aria-label={`تعداد رکوردها: ${new Intl.NumberFormat(locale).format(selectedSystems.length)}`} title="تعداد رکوردها" className="inline-flex h-full items-center gap-1.5"><Wrench size={15} className="text-primary" aria-hidden="true" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(selectedSystems.length)}</strong></span>, toolbarCount)}
     <div className={card}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">ثبت برنامه روزانه</h2>
-          <p className="mt-1 text-xs text-muted-foreground">سامانه‌ها را پیدا کنید و نوع مراجعه و وضعیت را مشخص کنید؛ متن‌ها از انتخاب‌های شما ساخته می‌شوند.</p>
-        </div>
-      </div>
-
-      {selectedSystems.length === 0 ? <div className="mt-3 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">{loadingSavedSystems ? <span className="inline-flex items-center gap-2"><LoaderCircle size={15} className="animate-spin" />در حال بازیابی سامانه‌های ذخیره‌شده…</span> : 'برای شروع، یک سامانه را از کادر جست‌وجو انتخاب کنید.'}</div> : <div className="mt-3 space-y-2">
-        {selectedSystems.map(({ entry, system }, index) => <article key={system.id} className="grid gap-3 rounded-lg border border-border bg-background p-3 xl:grid-cols-[minmax(180px,1.1fr)_minmax(140px,0.9fr)_minmax(140px,0.9fr)_minmax(140px,1fr)_minmax(130px,0.8fr)_minmax(130px,0.8fr)_auto] xl:items-end">
-          <div className="flex min-w-0 items-center gap-2 self-center">
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-xs tabular-nums text-muted-foreground">{(index + 1).toLocaleString('fa-IR')}</span>
-            <div className="min-w-0"><p className="truncate text-sm font-medium text-foreground" title={system.systemName}>{system.systemName}</p><bdi dir="ltr" className="font-mono text-xs text-muted-foreground">{system.systemCode}</bdi></div>
-          </div>
-          <label className="grid gap-1 text-xs text-muted-foreground">وضعیت سامانه<select className={field} value={entry.issue} disabled={saving} onChange={(event) => patchEntry(system.id, { issue: event.target.value as VisitEntry['issue'] })}><option value="">انتخاب وضعیت</option><option value="radar">قطعی رادار</option><option value="system">قطعی کامل سامانه</option></select></label>
-          <label className="grid gap-1 text-xs text-muted-foreground">نوع مراجعه<select className={field} value={entry.visitType} disabled={saving} onChange={(event) => patchEntry(system.id, { visitType: event.target.value as VisitEntry['visitType'] })}><option value="">انتخاب نوع مراجعه</option><option value="local">نیروی محلی</option><option value="no_lift">بدون بالابر</option><option value="with_lift">با بالابر</option></select></label>
-          <label className="grid gap-1 text-xs text-muted-foreground">{uiMessage(locale, 'rahcomVisitReason')}<input className={field} value={entry.reason} disabled={saving} onChange={(event) => patchEntry(system.id, { reason: event.target.value })} /></label>
-          <label className="grid gap-1 text-xs text-muted-foreground">{uiMessage(locale, 'rahcomVisitor')}<input className={field} value={entry.performedBy} disabled={saving} onChange={(event) => patchEntry(system.id, { performedBy: event.target.value })} /></label>
-          <label className="grid gap-1 text-xs text-muted-foreground">{uiMessage(locale, 'rahcomHandedOverTo')}<input className={field} value={entry.handedOverTo} disabled={saving} onChange={(event) => patchEntry(system.id, { handedOverTo: event.target.value })} /></label>
-          <button type="button" onClick={() => { dirtyRef.current = true; setEntries((current) => current.filter((item) => item.systemId !== system.id)); }} disabled={saving} className="grid size-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 lg:mb-0" aria-label={`حذف ${system.systemName}`} title="حذف سامانه"><X size={15} /></button>
-        </article>)}
+      {selectedSystems.length === 0 ? <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">{loadingSavedSystems ? <span className="inline-flex items-center gap-2"><LoaderCircle size={15} className="animate-spin" />در حال بازیابی سامانه‌های ذخیره‌شده…</span> : 'برای شروع، یک سامانه را از کادر جست‌وجو انتخاب کنید.'}</div> : <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <DataTable className="w-full min-w-[1120px] border-separate border-spacing-0 text-sm">
+          <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>
+            {['ردیف', 'کد سامانه', 'نام سامانه', 'وضعیت', 'نوع مراجعه', 'علت مراجعه', 'نفر مراجعه‌کننده', 'تحویل به', 'حذف'].map((heading, index) => <th key={`${heading}-${index}`} scope="col" className="whitespace-nowrap border-b border-border px-3 py-2.5 text-start font-semibold">{heading}</th>)}
+          </tr></thead>
+          <tbody>{selectedSystems.map(({ entry, system }, index) => <tr key={system.id} className="border-b border-border last:border-b-0 odd:bg-background even:bg-muted/20">
+            <td className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center tabular-nums text-muted-foreground">{(index + 1).toLocaleString(locale)}</td>
+            <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center font-mono text-xs">{system.systemCode}</td>
+            <td className="min-w-[14rem] max-w-[20rem] border-b border-border/70 px-3 py-2 font-medium text-foreground">{system.systemName}</td>
+            <td className="w-48 border-b border-border/70 px-2 py-2"><select aria-label={`وضعیت ${system.systemName}`} className={field} value={entry.issue} disabled={saving} onChange={(event) => patchEntry(system.id, { issue: event.target.value as VisitEntry['issue'] })}><option value="">انتخاب وضعیت</option><option value="radar">قطعی رادار</option><option value="system">قطعی کامل سامانه</option></select></td>
+            <td className="w-48 border-b border-border/70 px-2 py-2"><select aria-label={`نوع مراجعه ${system.systemName}`} className={field} value={entry.visitType} disabled={saving} onChange={(event) => patchEntry(system.id, { visitType: event.target.value as VisitEntry['visitType'] })}><option value="">انتخاب نوع مراجعه</option><option value="local">نیروی محلی</option><option value="no_lift">بدون بالابر</option><option value="with_lift">با بالابر</option></select></td>
+            <td className="min-w-[13rem] border-b border-border/70 px-2 py-2"><input aria-label={`علت مراجعه ${system.systemName}`} className={field} value={entry.reason} disabled={saving} onChange={(event) => patchEntry(system.id, { reason: event.target.value })} /></td>
+            <td className="min-w-[11rem] border-b border-border/70 px-2 py-2"><input aria-label={`نفر مراجعه‌کننده ${system.systemName}`} className={field} value={entry.performedBy} disabled={saving} onChange={(event) => patchEntry(system.id, { performedBy: event.target.value })} /></td>
+            <td className="min-w-[11rem] border-b border-border/70 px-2 py-2"><input aria-label={`تحویل به ${system.systemName}`} className={field} value={entry.handedOverTo} disabled={saving} onChange={(event) => patchEntry(system.id, { handedOverTo: event.target.value })} /></td>
+            <td className="w-12 border-b border-border/70 px-2 py-2 text-center"><button type="button" onClick={() => { dirtyRef.current = true; setEntries((current) => current.filter((item) => item.systemId !== system.id)); }} disabled={saving} className="grid size-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50" aria-label={`حذف ${system.systemName}`} title="حذف رکورد"><Trash2 size={16} /></button></td>
+          </tr>)}</tbody>
+        </DataTable>
       </div>}
     </div>
 
-    <div className="grid gap-3 lg:grid-cols-2">
-      {([{ key: 'plan', label: 'متن برنامه مراجعه', value: plan, set: setPlan }, { key: 'report', label: 'متن گزارش تکمیلی', value: report, set: setReport }] as const).map((box) => <div key={box.key} className={card}>
+    <div className="grid gap-3 xl:grid-cols-4">
+      {([{ key: 'plan', label: 'برنامه مراجعه', value: plan, set: setPlan }, { key: 'report', label: 'گزارش تکمیلی', value: report, set: setReport }] as const).map((box) => <div key={box.key} className={card}>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><label htmlFor={`actions-${box.key}`} className="text-sm font-semibold text-foreground">{box.label}</label><div className="flex items-center gap-1.5"><button type="button" onClick={() => { dirtyRef.current = true; box.set(makeText(box.key)); }} disabled={saving || !selectedSystems.length} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50"><Sparkles size={14} />ساخت متن</button><button type="button" disabled={saving || !box.value.trim()} onClick={() => void copyText(box.key, box.value)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground transition-colors hover:bg-muted disabled:opacity-50">{copied === box.key ? <Check size={14} /> : <Clipboard size={14} />}{copied === box.key ? 'کپی شد' : 'کپی متن'}</button></div></div>
         <textarea id={`actions-${box.key}`} maxLength={10000} value={box.value} disabled={saving} onChange={(event) => { dirtyRef.current = true; box.set(event.target.value); }} placeholder={`${box.label} را بنویسید یا با انتخاب سامانه‌ها بسازید…`} className="min-h-40 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm leading-6 text-foreground outline-none focus:border-primary disabled:opacity-60" dir="auto" />
       </div>)}
-    </div>
-
-    <div className={card}>
-      <div className="grid gap-3 lg:grid-cols-2">
-        <label htmlFor="actions-daily-note" className="grid content-start gap-2 text-sm font-semibold text-foreground">یادداشت روز<textarea id="actions-daily-note" maxLength={10000} value={note} disabled={saving} onChange={(event) => { dirtyRef.current = true; setNote(event.target.value); }} placeholder="یادداشت‌های مربوط به این روز…" className="min-h-24 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm font-normal leading-6 text-foreground outline-none focus:border-primary disabled:opacity-60" dir="auto" /></label>
-        <div className="grid content-start gap-3 rounded-lg border border-border bg-background p-3">
+        <label htmlFor="actions-daily-note" className={`${card} grid content-start gap-2 text-sm font-semibold text-foreground`}>یادداشت روز<textarea id="actions-daily-note" maxLength={10000} value={note} disabled={saving} onChange={(event) => { dirtyRef.current = true; setNote(event.target.value); }} placeholder="یادداشت‌های مربوط به این روز…" className="min-h-40 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm font-normal leading-6 text-foreground outline-none focus:border-primary disabled:opacity-60" dir="auto" /></label>
+        <div className={`${card} grid content-start gap-3`}>
           <h3 className="text-sm font-semibold text-foreground">اکسل گزارش روزانه</h3>
+          <div className="flex min-w-0 items-start gap-2 rounded-lg border border-border bg-card p-2.5">
+            <p dir="auto" className="min-w-0 flex-1 whitespace-pre-line text-xs leading-6 text-muted-foreground">{dailyReportHeading || 'تاریخ و استان انتخاب‌شده'}</p>
+            <button type="button" disabled={!dailyReportHeading} onClick={() => void copyText('excelHeading', dailyReportHeading)} aria-label={uiMessage(locale, 'rahcomCopyDateProvince')} title={uiMessage(locale, 'rahcomCopyDateProvince')} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">
+              {copied === 'excelHeading' ? <Check size={14} /> : <Copy size={14} />}{copied === 'excelHeading' ? 'کپی شد' : 'کپی متن'}
+            </button>
+          </div>
           <label htmlFor="actions-excel-updated" className="flex min-h-9 cursor-pointer items-center gap-2 text-sm text-foreground">
             <input id="actions-excel-updated" type="checkbox" checked={excelUpdated} disabled={saving} onChange={(event) => { dirtyRef.current = true; setExcelUpdated(event.target.checked); }} className="size-4 accent-primary" />
             فایل اکسل گزارش این روز تکمیل شده است
@@ -243,8 +252,7 @@ export function RahcomDailyWorkflow({ date, province, items, onSaved }: { date: 
             <input id="actions-excel-file-name" maxLength={255} value={excelFileName} disabled={saving || !excelUpdated} onChange={(event) => { dirtyRef.current = true; setExcelFileName(event.target.value); }} placeholder="مثلاً گزارش-روزانه-اصفهان.xlsx" className={field} dir="auto" />
           </label>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 lg:col-span-2"><span className="text-xs text-muted-foreground">تاریخ انتخاب‌شده: {jalaliDate || '—'} · ذخیره در پایگاه داده</span><button type="button" disabled={!date || saving} onClick={() => void save()} className={button}>{saving ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />}{saving ? 'در حال ذخیره…' : 'ذخیره تغییرات روز'}</button></div>
-      </div>
+        <div className="flex flex-wrap items-center justify-end gap-3 xl:col-span-4"><button type="button" disabled={!date || saving} onClick={() => void save()} className={button}>{saving ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />}{saving ? 'در حال ذخیره…' : 'ذخیره تغییرات روز'}</button></div>
     </div>
     {error && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>}
   </section>;

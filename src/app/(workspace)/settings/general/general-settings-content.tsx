@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { localeOptions, usePreferences, type BrightnessPreferences, type ContrastLevel, type ContrastPreferences, type Locale } from '@/components/preferences-provider';
+import { localeOptions, usePreferences, type BrightnessPreferences, type ContrastLevel, type ContrastPreferences, type Locale } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/providers/theme';
 import type { OrganizationAppearance, SaveOrganizationAppearance } from '@/lib/api/shared/preferences-api';
 
 const accentOptions: Array<{

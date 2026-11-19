@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { UsersRound } from 'lucide-react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
-import { developmentApi, type DevelopmentAccount, type ImpersonationContext } from '@/app/(workspace)/development/development-api';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
+import { developmentApi, type DevelopmentAccount, type ImpersonationContext } from '@/lib/api/development-api';
 import { ApiError, setAccessToken } from '@/lib/api-client';
 import { uiMessage } from '@/lib/ui-messages';
 

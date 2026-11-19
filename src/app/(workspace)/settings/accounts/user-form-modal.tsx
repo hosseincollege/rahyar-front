@@ -1,12 +1,12 @@
-﻿// src/app/(workspace)/settings/accounts/user-form-modal.tsx
+// src/app/(workspace)/settings/accounts/user-form-modal.tsx
 
 'use client';
 
 import { Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
-import type { BranchItem, DepartmentItem, RoleItem } from '@/lib/api/settings/settings-api';
+import type { BranchItem, DepartmentItem, RoleItem } from '@/lib/api/settings-api';
 
 export type UserFormData = {
   name: string;

@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { FileUp, LoaderCircle } from 'lucide-react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi } from '@/lib/api/settings/settings-api';
+import { settingsApi } from '@/lib/api/settings-api';
 import { rahcomApi, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 

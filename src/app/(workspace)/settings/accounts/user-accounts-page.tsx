@@ -2,6 +2,8 @@
 
 'use client';
 
+import { DataTable } from '@/components/ui/data-table';
+
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,11 +19,11 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { settingsApi, type UserItem, type BranchItem, type DepartmentItem, type RoleItem } from '@/lib/api/settings/settings-api';
+import { settingsApi, type UserItem, type BranchItem, type DepartmentItem, type RoleItem } from '@/lib/api/settings-api';
 
 import { UserFormModal, type UserFormData } from './user-form-modal';
 import { parseUsersToItems, usersImportSample } from './users-json';
@@ -554,7 +556,7 @@ export function UserAccountsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-start text-sm">
+            <DataTable className="w-full min-w-[760px] text-start text-sm">
               <thead className="border-b bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="px-5 py-4 font-medium">{message('accountFullName')}</th>
@@ -648,7 +650,7 @@ export function UserAccountsPage() {
                     );
                   })}
               </tbody>
-            </table>
+            </DataTable>
           </div>
         )}
       </div>

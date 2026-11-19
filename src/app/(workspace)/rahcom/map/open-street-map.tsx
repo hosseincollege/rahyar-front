@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom';
 import type { CircleMarker, LayerGroup, Map as LeafletMap, Marker, TileLayer } from 'leaflet';
 import type { Feature, Polygon } from 'geojson';
 import { Compass, Map as MapIcon, MapPinned, Navigation, X } from 'lucide-react';
-import { useTheme } from '@/components/theme-provider';
-import { usePreferences } from '@/components/preferences-provider';
+import { useTheme } from '@/components/providers/theme';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import 'leaflet/dist/leaflet.css';
 import { formatRahcomCoordinates, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -100,16 +100,17 @@ function normalizeMapSearchText(value: string) {
     .replace(/[\s\u200c\p{P}\p{S}]/gu, '');
 }
 
-export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery = '', mapSourceFilterActive = false, mapFilterSource = 'none', selectedSolarSnapshotId = '', showMapIncidents = true, onLocateMeReady, onAxisOptionsChange, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
+export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery = '', mapSourceFilterActive = false, mapFilterSource = 'none', aggregateSetOperation = 'union', aggregateSources = { traffic: true, road: true, solar: true, tickets: true }, selectedSolarSnapshotId = '', showMapIncidents = true, onLocateMeReady, onSystemsCountChange, onUnmappedSolarCountChange, onUnmappedSolarDetailsChange, onIncidentMapSummaryChange, onSystemsErrorChange, onLocationStatusChange, onSolarSnapshotsChange }: {
   focusProvince: boolean;
   canManage?: boolean;
   mapSearchQuery?: string;
   mapSourceFilterActive?: boolean;
   mapFilterSource?: 'none' | 'traffic' | 'road-list' | 'solar' | 'tickets' | 'aggregate';
+  aggregateSetOperation?: 'union' | 'intersection';
+  aggregateSources?: { traffic: boolean; road: boolean; solar: boolean; tickets: boolean };
   selectedSolarSnapshotId?: string;
   showMapIncidents?: boolean;
   onLocateMeReady?: (locate: (() => void) | null) => void;
-  onAxisOptionsChange?: (axes: string[]) => void;
   onSystemsCountChange?: (count: number) => void;
   onUnmappedSolarCountChange?: (count: number) => void;
   onUnmappedSolarDetailsChange?: (details: UnmappedSolarDetail[]) => void;
@@ -319,7 +320,17 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
     ? new Set([...solarStatusCodes, ...incidentCodes])
     : solarStatusCodes,
   [solarStatusCodes, incidentCodes, showMapIncidents]);
-  const aggregateMapCodes = useMemo(() => new Set([...trafficNoTrafficCodes, ...roadListCodes, ...solarStatusCodes, ...ticketSystemCodes]), [roadListCodes, solarStatusCodes, ticketSystemCodes, trafficNoTrafficCodes]);
+  const aggregateMapCodes = useMemo(() => {
+    const sourceSets = [
+      aggregateSources.traffic ? new Set([...trafficNoTrafficCodes, ...(showMapIncidents ? incidentCodes : [])]) : null,
+      aggregateSources.road ? roadListCodes : null,
+      aggregateSources.solar ? solarStatusCodes : null,
+      aggregateSources.tickets ? ticketSystemCodes : null,
+    ].filter((codes): codes is Set<string> => codes !== null);
+    if (!sourceSets.length) return new Set<string>();
+    if (aggregateSetOperation === 'union') return new Set(sourceSets.flatMap((codes) => [...codes]));
+    return new Set([...sourceSets[0]].filter((code) => sourceSets.every((codes) => codes.has(code))));
+  }, [aggregateSetOperation, aggregateSources, incidentCodes, roadListCodes, showMapIncidents, solarStatusCodes, ticketSystemCodes, trafficNoTrafficCodes]);
   const selectedMapSourceCodes = useMemo(() => mapFilterSource === 'none' ? new Set<string>()
     : mapFilterSource === 'traffic' ? trafficNoTrafficCodes
     : mapFilterSource === 'road-list' ? roadListCodes
@@ -546,7 +557,6 @@ export function OpenStreetMap({ focusProvince, canManage = false, mapSearchQuery
     return () => { active = false; };
   }, [province, systemsRevision]);
 
-  useEffect(() => { onAxisOptionsChange?.(axisOptions); }, [axisOptions, onAxisOptionsChange]);
   useEffect(() => { onSystemsCountChange?.(mapSystems.length); }, [onSystemsCountChange, mapSystems.length]);
   useEffect(() => { onUnmappedSolarCountChange?.(unmappedSolarCount); }, [onUnmappedSolarCountChange, unmappedSolarCount]);
   useEffect(() => { onUnmappedSolarDetailsChange?.(unmappedSolarDetails); }, [onUnmappedSolarDetailsChange, unmappedSolarDetails]);

@@ -1,7 +1,9 @@
 'use client';
 
+import { DataTable } from '@/components/ui/data-table';
+
 import { useEffect, useMemo, useState } from 'react';
-import { usePreferences } from '@/components/preferences-provider';
+import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
 import { filterRahcomLtePairs, isRahcomIncidentValue, parseRahcomSolarList, tehranDateKey, latestRahcomSolarSnapshotsByProvince, rahcomTicketDateKey } from '@/lib/api/rahcom/solar-status';
@@ -25,7 +27,7 @@ function ticketDisplayTitle(ticket: RahcomImportedTicket) {
     for (const match of text.matchAll(pattern)) codes.push(`${prefix}-${match[1] === 'یک' ? '1' : match[1] === 'دو' ? '2' : match[1]}`);
   }
   if (/\bWLP[\s_-]*2[\s_-]*P\b/.test(text)) codes.push('WLP2P');
-  return [...new Set(codes)].join('، ') || ticket.summary?.trim() || ticket.equipment?.trim() || ticket.ticketCode;
+  return [...new Set(codes)].join('، ');
 }
 
 type AggregateSources = { traffic: boolean; road: boolean; solar: boolean; tickets: boolean };
@@ -108,6 +110,7 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
     const trafficRowsByCode = new Map<string, string[]>();
     const trafficNoRealtimeCodes = new Set<string>();
     const trafficIncidentCodes = new Set<string>();
+    const trafficTagsByCode = new Map<string, string[]>();
     if (traffic && codeIndex >= 0) for (const row of Array.isArray(traffic.rows) ? traffic.rows : []) {
       if (provinceIndex >= 0 && !belongsToProvince(row[provinceIndex] ?? '')) continue;
       const code = resolveKey(row[codeIndex] ?? '', provinceIndex >= 0 ? row[provinceIndex] : null);
@@ -118,7 +121,15 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
       if (!trafficRowsByCode.has(code)) trafficRowsByCode.set(code, row);
       const crmValue = normalizeTrafficText(crmIndex >= 0 ? row[crmIndex] ?? '' : '');
       if (crmIndex >= 0 && (crmValue.includes(normalizeTrafficText('\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f')) || crmValue.includes('notraffic') || crmValue.includes('norealtime'))) trafficNoRealtimeCodes.add(code);
-      if (trafficIncidentIndexes.some((index) => isRahcomIncidentValue(row[index]))) trafficIncidentCodes.add(code);
+      const incidentIndexes = trafficIncidentIndexes.filter((index) => isRahcomIncidentValue(row[index]));
+      if (incidentIndexes.length) {
+        trafficIncidentCodes.add(code);
+        const tags = trafficTagsByCode.get(code) ?? [];
+        for (const tag of incidentIndexes.map((index) => traffic?.headers[index]?.trim()).filter((value): value is string => Boolean(value))) {
+          if (!tags.includes(tag)) tags.push(tag);
+        }
+        if (tags.length) trafficTagsByCode.set(code, tags);
+      }
     }
     const ticketCountByCode = new Map<string, number>();
     const ticketTitlesByCode = new Map<string, string[]>();
@@ -127,67 +138,131 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
       if (code && systemByCode.has(code)) {
         ticketCountByCode.set(code, (ticketCountByCode.get(code) ?? 0) + 1);
         const titles = ticketTitlesByCode.get(code) ?? [];
-        const title = ticketDisplayTitle(ticket)?.trim();
+        const title = ticketDisplayTitle(ticket).trim();
         if (title && !titles.includes(title)) titles.push(title);
         ticketTitlesByCode.set(code, titles);
       }
     }
-    const solarIncidentCodes = new Set([...systemByCode].filter(([, system]) => system.longOutage).map(([key]) => key));
-    const solarListCodes = new Set([...solarByCode.keys(), ...(showIncidents ? solarIncidentCodes : [])]
-      .filter((code) => systemByCode.has(code) && (showIncidents || !solarIncidentCodes.has(code))));
+    const solarListCodes = new Set([...solarByCode.keys()].filter((code) => systemByCode.has(code)));
     const ticketListCodes = new Set(ticketCountByCode.keys());
-    const roadHeaders = Array.isArray(roadList?.headers) ? roadList.headers.map((header) => normalize(String(header ?? ''))) : [];
-    const stationCodeIndex = roadHeaders.findIndex((header) => header.includes('stationcode') || header.includes('stationid') || header.includes('\u06a9\u062f\u0627\u06cc\u0633\u062a\u06af\u0627\u0647') || header.includes('\u06a9\u062f\u062a\u062c\u0645\u06cc\u0639'));
+    const roadHeaders = Array.isArray(roadList?.headers) ? roadList.headers.map((header) => normalize(String(header ?? '')).replace(/[()_./-]/g, '')) : [];
+    const stationCodeIndex = roadHeaders.findIndex((header) => {
+      const isCode = header.includes('\u06a9\u062f') || header.includes('code');
+      const isSiteIdentifier = header.includes('\u0627\u06cc\u0633\u062a\u06af\u0627\u0647') || header.includes('\u0633\u0627\u0645\u0627\u0646\u0647') || header.includes('\u0633\u0627\u06cc\u062a') || header.includes('\u0634\u0646\u0627\u0633') || header.includes('station') || header.includes('system') || header.includes('site') || header.includes('identifier');
+      return isCode && (isSiteIdentifier || header === '\u06a9\u062f' || header === 'code');
+    });
+    const roadIdentifierIndex = stationCodeIndex >= 0 ? stationCodeIndex : roadHeaders.findIndex((header) => header.includes('\u0634\u0646\u0627\u0633\u0647') || header === 'id' || header === 'identifier');
+    const stationNameIndex = roadHeaders.findIndex((header) => (header.includes('\u0646\u0627\u0645') || header.includes('name')) && (header.includes('\u0627\u06cc\u0633\u062a\u06af\u0627\u0647') || header.includes('\u0633\u0627\u0645\u0627\u0646\u0647') || header.includes('\u0633\u0627\u06cc\u062a') || header.includes('station') || header.includes('system') || header.includes('site')));
     const trafficAggregationIndex = trafficHeaders.findIndex((header) => header.includes('aggregationcode') || header.includes('aggregatecode') || header.includes('\u06a9\u062f\u062a\u062c\u0645\u06cc\u0639'));
     const roadActivityByCode = new Map<string, string>();
     const roadListCodes = new Set<string>();
-    if (roadList && traffic && stationCodeIndex >= 0 && trafficAggregationIndex >= 0 && codeIndex >= 0) {
+    if (roadList && roadIdentifierIndex >= 0) {
       const keysByAggregationCode = new Map<string, string[]>();
-      for (const row of traffic.rows ?? []) {
-        if (provinceIndex >= 0 && !belongsToProvince(row[provinceIndex] ?? '')) continue;
-        const aggregateCode = normalize(row[trafficAggregationIndex] ?? '');
-        const key = resolveKey(row[codeIndex] ?? '', provinceIndex >= 0 ? row[provinceIndex] : null);
-        if (aggregateCode && key) {
-          const candidates = keysByAggregationCode.get(aggregateCode) ?? [];
-          if (!candidates.includes(key)) candidates.push(key);
-          keysByAggregationCode.set(aggregateCode, candidates);
+      for (const [key, system] of systemByCode) {
+        const aggregateCode = normalize(system.aggregationCode ?? '');
+        if (!aggregateCode) continue;
+        const candidates = keysByAggregationCode.get(aggregateCode) ?? [];
+        if (!candidates.includes(key)) candidates.push(key);
+        keysByAggregationCode.set(aggregateCode, candidates);
+      }
+      if (traffic && trafficAggregationIndex >= 0 && codeIndex >= 0) {
+        for (const row of traffic.rows ?? []) {
+          if (provinceIndex >= 0 && !belongsToProvince(row[provinceIndex] ?? '')) continue;
+          const aggregateCode = normalize(row[trafficAggregationIndex] ?? '');
+          const key = resolveKey(row[codeIndex] ?? '', provinceIndex >= 0 ? row[provinceIndex] : null);
+          if (aggregateCode && key) {
+            const candidates = keysByAggregationCode.get(aggregateCode) ?? [];
+            if (!candidates.includes(key)) candidates.push(key);
+            keysByAggregationCode.set(aggregateCode, candidates);
+          }
         }
       }
       for (const row of Array.isArray(roadList.rows) ? roadList.rows : []) {
-        const candidates = keysByAggregationCode.get(normalize(row[stationCodeIndex] ?? '')) ?? [];
-        if (candidates.length === 1) {
-          const key = candidates[0];
-          if (!showIncidents && trafficIncidentCodes.has(key)) continue;
-          roadListCodes.add(key);
-          roadActivityByCode.set(key, 'غیرفعال');
-        }
+        const identifier = row[roadIdentifierIndex] ?? '';
+        const directKey = resolveKey(identifier, roadList.province || selectedProvince);
+        const candidates = keysByAggregationCode.get(normalize(identifier)) ?? [];
+        const stationName = stationNameIndex >= 0 ? normalize(row[stationNameIndex] ?? '') : '';
+        const namedCandidates = stationName ? [...systemByCode].filter(([, system]) =>
+          normalize(system.stationName ?? '') === stationName || normalize(system.systemName ?? '') === stationName,
+        ).map(([key]) => key) : [];
+        const namedAggregationCandidates = stationName ? candidates.filter((key) => {
+          const system = systemByCode.get(key);
+          return normalize(system?.stationName ?? '') === stationName || normalize(system?.systemName ?? '') === stationName;
+        }) : [];
+        const key = directKey || (namedAggregationCandidates.length === 1 ? namedAggregationCandidates[0] : candidates.length === 1 ? candidates[0] : namedCandidates.length === 1 ? namedCandidates[0] : '');
+        if (!key) continue;
+        roadListCodes.add(key);
+        roadActivityByCode.set(key, 'غیرفعال');
       }
     }
-    const trafficListCodes = new Set([...trafficNoRealtimeCodes].filter((code) => showIncidents || !trafficIncidentCodes.has(code)));
+    const trafficListCodes = new Set([...trafficNoRealtimeCodes, ...(showIncidents ? trafficIncidentCodes : [])]);
     const allSourceCodes = { traffic: trafficListCodes, road: roadListCodes, solar: solarListCodes, tickets: ticketListCodes };
     const sourceCodes = (Object.keys(allSourceCodes) as Array<keyof AggregateSources>).filter((source) => sources[source]).map((source) => allSourceCodes[source]);
     const codes = new Set((sourceCodes.length === 0 ? [] : setOperation === 'union'
       ? sourceCodes.flatMap((source) => [...source])
       : [...sourceCodes[0]].filter((code) => sourceCodes.every((source) => source.has(code))))
-      .filter((code) => systemByCode.has(code)));
+      .filter((code) => systemByCode.has(code) && (showIncidents || !trafficIncidentCodes.has(code))));
     const resultRows = [...codes].map((code) => {
       const system = systemByCode.get(code);
       const trafficRow = trafficRowsByCode.get(code);
       const axisCode = system?.axisCode || '';
       const axisName = system?.announcedAxis?.trim() ?? '';
-      return { key: code, code: system?.systemCode ?? code, system, trafficRow, trafficNoRealtime: trafficNoRealtimeCodes.has(code), roadActivity: roadActivityByCode.get(code) ?? '', solarEquipment: [...(solarByCode.get(code) ?? [])], ticketTitles: ticketTitlesByCode.get(code) ?? [], name: system?.systemName || (nameIndex >= 0 ? trafficRow?.[nameIndex] : '') || '\u2014', axisCode, axisName };
+      return { key: code, code: system?.systemCode ?? code, system, trafficRow, trafficNoRealtime: trafficNoRealtimeCodes.has(code), trafficTags: trafficTagsByCode.get(code) ?? [], roadActivity: roadActivityByCode.get(code) ?? '', solarEquipment: [...(solarByCode.get(code) ?? [])], ticketTitles: ticketTitlesByCode.get(code) ?? [], name: system?.systemName || (nameIndex >= 0 ? trafficRow?.[nameIndex] : '') || '\u2014', axisCode, axisName };
     }).sort((a, b) => a.axisName.localeCompare(b.axisName, locale, { numeric: true, sensitivity: 'base' }) || a.code.localeCompare(b.code));
     return resultRows;
   }, [locale, roadList, selectedProvince, setOperation, showIncidents, sources, solar, systems, tickets, traffic]);
 
-  const tableColumnCount = 7 + Number(sources.traffic) + Number(sources.road) + Number(sources.solar) + Number(sources.tickets);
+  const tableColumnCount = 7 + Number(showIncidents) + Number(sources.traffic) + Number(sources.road) + Number(sources.solar) + Number(sources.tickets);
   useEffect(() => { onSystemCountChange(rows.length); }, [onSystemCountChange, rows.length]);
   const errorMessage = error ? error instanceof Error && error.message ? error.message : t('rahcomHistoryLoadError') : '';
   return <section dir="auto" className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     {errorMessage && <p role="alert" className="shrink-0 text-sm text-destructive">{errorMessage}</p>}
-    <div className="rahcom-traffic-table-frame min-h-0 overflow-auto rounded-2xl border border-border bg-card"><table className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
-      <th className="p-3 text-start">{t('rahcomRowNumber')}</th><th className="w-9 px-1 py-2 text-center"><RahcomInfoHeader /></th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomProvince')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th>
-      {sources.traffic && <th className="p-3 text-start">{locale === 'fa' ? '\u062a\u0631\u062f\u062f \u0644\u062d\u0638\u0647\u0627\u06cc CRM' : t('rahcomDailyTraffic')}</th>}{sources.road && <th className="p-3 text-start">{t('rahcomRoadList')}</th>}{sources.tickets && <th className="p-3 text-start">{t('rahcomTickets')}</th>}{sources.solar && <th className="p-3 text-start">{t('rahcomSystemSolar')}</th>}
-    </tr></thead><tbody>{loading ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('rahcomSystemsLoading')}</td></tr> : rows.length === 0 ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr> : rows.map((row, index) => <tr key={row.key} className="border-t border-border"><td className="p-3 text-center tabular-nums">{(index + 1).toLocaleString(locale)}</td><td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={row.name} systemCode={row.code} system={row.system} fields={[{ label: t('rahcomSystemCode'), value: row.code }, { label: t('rahcomSystemName'), value: row.name }, { label: t('rahcomProvince'), value: iranProvinces.find(([id]) => id === row.system?.province)?.[1] ?? row.system?.province ?? '' }, { label: t('rahcomAxisCode'), value: row.axisCode }, { label: t('rahcomAxisName'), value: row.axisName }, { label: t('rahcomDailyTraffic'), value: row.trafficNoRealtime ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : '' }, { label: t('rahcomRoadList'), value: row.roadActivity }, { label: t('rahcomTickets'), value: row.ticketTitles.join('، ') }, { label: t('rahcomSystemSolar'), value: row.solarEquipment.join('، ') }]} /></td><td className="p-3 font-mono" dir="ltr">{row.code}</td><td className="p-3">{iranProvinces.find(([id]) => id === row.system?.province)?.[1] ?? row.system?.province}</td><td className="p-3">{row.name}</td><td className="p-3 font-mono" dir="ltr">{row.axisCode || '\u2014'}</td><td className="p-3">{row.axisName || '\u2014'}</td>{sources.traffic && <td className="p-3">{row.trafficNoRealtime ? locale === 'fa' ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : t('rahcomTrafficNoRealtimeTraffic') : '\u2014'}</td>}{sources.road && <td className="p-3">{row.roadActivity || '\u2014'}</td>}{sources.tickets && <td className="max-w-72 p-3">{row.ticketTitles.length ? row.ticketTitles.join(' \u00b7 ') : '\u2014'}</td>}{sources.solar && <td className="p-3">{row.solarEquipment.length ? <span className="inline-flex flex-nowrap items-center gap-3 whitespace-nowrap" dir="ltr">{row.solarEquipment.map((item) => { const [equipment, state] = item.split(':'); const statusLabel = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={item} className="inline-flex items-center gap-1.5" title={`${equipment}: ${statusLabel}`} aria-label={`${equipment}: ${statusLabel}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'}</td>}</tr>)}</tbody></table></div>
+    <div className="rahcom-table-scroll rahcom-traffic-table-frame min-h-0 overflow-auto rounded-2xl border border-border bg-card">
+      <DataTable className="rahcom-sticky-table rahcom-aggregate-table w-full min-w-max text-sm">
+        <thead className="bg-muted/50"><tr>
+          <th className="p-3 text-start">{t('rahcomRowNumber')}</th>
+          <th className="w-9 px-1 py-2 text-center"><RahcomInfoHeader /></th>
+          <th className="p-3 text-start">{t('rahcomSystemCode')}</th>
+          <th className="p-3 text-start">{t('rahcomProvince')}</th>
+          <th className="p-3 text-start">{t('rahcomSystemName')}</th>
+          {showIncidents && <th className="p-3 text-start">{t('rahcomIncidentFilter')}</th>}
+          {sources.traffic && <th className="p-3 text-start">{locale === 'fa' ? '\u062a\u0631\u062f\u062f \u0644\u062d\u0638\u0647\u0627\u06cc CRM' : t('rahcomDailyTraffic')}</th>}
+          {sources.road && <th className="p-3 text-start">{t('rahcomRoadList')}</th>}
+          {sources.tickets && <th className="p-3 text-start">{t('rahcomTicketTitle')}</th>}
+          {sources.solar && <th className="p-3 text-start">{t('rahcomSystemSolar')}</th>}
+          <th className="p-3 text-start">{t('rahcomAxisCode')}</th>
+          <th className="p-3 text-start">{t('rahcomAxisName')}</th>
+        </tr></thead>
+        <tbody>
+          {loading ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('rahcomSystemsLoading')}</td></tr>
+            : rows.length === 0 ? <tr><td colSpan={tableColumnCount} className="p-5 text-center text-muted-foreground">{t('solarNoEntries')}</td></tr>
+              : rows.map((row, index) => <tr key={row.key} className="border-t border-border">
+                <td className="p-3 text-center tabular-nums">{(index + 1).toLocaleString(locale)}</td>
+                <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={row.name} systemCode={row.code} system={row.system} fields={[
+                  { label: t('rahcomSystemCode'), value: row.code },
+                  { label: t('rahcomSystemName'), value: row.name },
+                  { label: t('rahcomProvince'), value: iranProvinces.find(([id]) => id === row.system?.province)?.[1] ?? row.system?.province ?? '' },
+                  { label: t('rahcomIncidentFilter'), value: row.trafficTags.join('\u060c ') },
+                  { label: t('rahcomDailyTraffic'), value: row.trafficNoRealtime ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : '' },
+                  { label: t('rahcomRoadList'), value: row.roadActivity },
+                  { label: t('rahcomTicketTitle'), value: row.ticketTitles.join('\u060c ') },
+                  { label: t('rahcomSystemSolar'), value: row.solarEquipment.join('\u060c ') },
+                  { label: t('rahcomAxisCode'), value: row.axisCode },
+                  { label: t('rahcomAxisName'), value: row.axisName },
+                ]} /></td>
+                <td className="p-3 font-mono" dir="ltr">{row.code}</td>
+                <td className="p-3">{iranProvinces.find(([id]) => id === row.system?.province)?.[1] ?? row.system?.province}</td>
+                <td className="p-3">{row.name}</td>
+                {showIncidents && <td className="p-3">{row.trafficTags.length ? row.trafficTags.join('\u060c ') : '\u2014'}</td>}
+                {sources.traffic && <td className="p-3">{row.trafficNoRealtime ? locale === 'fa' ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : t('rahcomTrafficNoRealtimeTraffic') : '\u2014'}</td>}
+                {sources.road && <td className="p-3">{row.roadActivity || '\u2014'}</td>}
+                {sources.tickets && <td className="rahcom-aggregate-ticket-cell max-w-72 p-3">{row.ticketTitles.length ? row.ticketTitles.join(' \u00b7 ') : '\u2014'}</td>}
+                {sources.solar && <td className="p-3">{row.solarEquipment.length ? <span className="inline-flex flex-nowrap items-center gap-3 whitespace-nowrap" dir="ltr">{row.solarEquipment.map((item) => { const [equipment, state] = item.split(':'); const statusLabel = t(state === 'down' ? 'solarStatusDown' : 'solarStatusUnreachable'); return <span key={item} className="inline-flex items-center gap-1.5" aria-label={`${equipment}: ${statusLabel}`}><bdi className="font-mono text-xs">{equipment}</bdi><span className={`inline-block size-3 rounded-full ${state === 'down' ? 'bg-red-600' : 'bg-gray-400'}`} /></span>; })}</span> : '\u2014'}</td>}
+                <td className="p-3 font-mono" dir="ltr">{row.axisCode || '\u2014'}</td>
+                <td className="p-3">{row.axisName || '\u2014'}</td>
+              </tr>)}
+        </tbody>
+      </DataTable>
+    </div>
   </section>;
 }

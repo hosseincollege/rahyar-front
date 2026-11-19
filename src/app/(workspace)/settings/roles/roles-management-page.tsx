@@ -24,11 +24,11 @@ import {
   saveRoles,
   settingsApi,
   type RoleItem,
-} from "@/lib/api/settings/settings-api";
+} from "@/lib/api/settings-api";
 import {
   usePreferences,
   getLocaleDirection,
-} from "@/components/preferences-provider";
+} from "@/components/providers/preferences-provider";
 import { uiMessage } from "@/lib/ui-messages";
 import type { UiMessage } from "@/lib/languages/types";
 import { SettingsPageToolbar } from "../components/settings-page-toolbar";

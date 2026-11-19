@@ -29,13 +29,13 @@ import {
 import { SettingsPageToolbar } from '../components/settings-page-toolbar';
 
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import {
   resolveOrganizationLogoUrl,
   settingsApi,
   type CompanySettings,
-} from '@/lib/api/settings/settings-api';
+} from '@/lib/api/settings-api';
 
 import {
   companyImportSample,

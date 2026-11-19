@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
+import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { jalaliDateToGregorian, todayJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { uiMessage } from '@/lib/ui-messages';
 import { useRahcomDate } from './rahcom-date';
