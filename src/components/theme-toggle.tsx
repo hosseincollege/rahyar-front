@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "@/components/theme-provider";
 
 const themes = [
@@ -11,13 +11,17 @@ const themes = [
   { key: "system", label: "System" },
 ] as const;
 
+const subscribeHydration = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    subscribeHydration,
+    getHydratedSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   if (!mounted) {
     return (

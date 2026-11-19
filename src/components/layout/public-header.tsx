@@ -13,7 +13,6 @@ import {
   Monitor,
   Moon,
   ShieldAlert,
-  Sparkles,
   Workflow,
   Sun,
   UserPlus,
@@ -87,7 +86,7 @@ export function PublicHeader() {
       try {
         const data = await fetchSetupStatus();
         setHasUsers(data.hasUsers);
-      } catch (error) {
+      } catch {
         setHasUsers(true);
       }
     };

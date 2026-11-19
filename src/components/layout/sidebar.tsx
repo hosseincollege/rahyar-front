@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { getCurrentOrganizationId, getCurrentUser, logout, AuthUser } from '@/lib/api/shared/auth-api';
@@ -154,21 +154,24 @@ export function Sidebar({
   }, []);
 
   // یافتن ماژول مطابق با مسیر فعلی
-  const getMatchedModuleId = () => {
+  const getMatchedModuleId = useCallback(() => {
     if (pathname === '/') return 'rahcom';
     const matched = navigation.find(
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`) ||
         item.sub?.some((subItem) => pathname === subItem.href.split('?')[0] || pathname.startsWith(`${subItem.href.split('?')[0]}/`))
     );
     return matched?.id || null;
-  };
-
-  const [activeTab, setActiveTab] = useState<string | null>(getMatchedModuleId());
-  const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
-
-  useEffect(() => {
-    setOptimisticPath(null);
   }, [pathname]);
+
+  const [selectedTab, setSelectedTab] = useState<{ pathname: string; value: string | null }>(() => ({
+    pathname,
+    value: getMatchedModuleId(),
+  }));
+  const activeTab = selectedTab.pathname === pathname
+    ? selectedTab.value
+    : isProfileRoute ? null : getMatchedModuleId();
+  const setActiveTab = useCallback((value: string | null) => setSelectedTab({ pathname, value }), [pathname]);
+  const [optimisticPath, setOptimisticPath] = useState<{ sourcePath: string; targetPath: string } | null>(null);
 
   useEffect(() => {
     const refresh = () => setModuleVisibility(readShellVisibility(isReducedEdition));
@@ -184,13 +187,10 @@ export function Sidebar({
   // همگام‌سازی تب فعال هنگام تغییر مسیر (Navigation)
   useEffect(() => {
     if (isHomeRoute) {
-      setActiveTab(getMatchedModuleId());
       onSetProfileActive?.(false);
     } else if (isProfileRoute) {
-      setActiveTab(null);
       onSetProfileActive?.(true);
     } else {
-      setActiveTab(getMatchedModuleId());
       onSetProfileActive?.(false);
     }
   }, [pathname, isHomeRoute, isProfileRoute, onSetProfileActive]);
@@ -247,6 +247,8 @@ export function Sidebar({
     isProfileRoute,
     isHomeRoute,
     pathname,
+    getMatchedModuleId,
+    setActiveTab,
     onCloseSidebar,
     onSetProfileActive,
   ]);
@@ -281,7 +283,7 @@ export function Sidebar({
     }).map((subItem) => ({ ...subItem, title: subItem.titleKey ? message(subItem.titleKey) : subItem.title })),
   }));
   const activeGroup = localizedNavigation.find((item) => item.id === activeTab);
-  const activePath = optimisticPath ?? pathname;
+  const activePath = optimisticPath?.sourcePath === pathname ? optimisticPath.targetPath : pathname;
   const isModuleLandingActive = Boolean(activeGroup && activePath === activeGroup.href);
   const activeSubItemPath = activeGroup?.sub
     ?.flatMap((subItem) => (subItem.activeHrefs ?? [subItem.href]).map((href) => href.split(/[?#]/)[0]))
@@ -423,7 +425,7 @@ export function Sidebar({
             <h2 className={`shrink-0 overflow-hidden border-b text-sm font-bold transition-[max-height,opacity,transform,margin,padding,color,border-color] duration-200 ease-out motion-reduce:transition-none ${isMainCollapsed ? 'mb-2 border-[var(--border)] pb-3 md:max-h-12 md:translate-y-0 md:opacity-100' : 'mb-2 border-[var(--border)] pb-3 md:mb-0 md:max-h-0 md:translate-y-1 md:border-transparent md:pb-0 md:opacity-0'} ${isModuleLandingActive ? 'text-[var(--primary)]' : 'text-[var(--foreground)]'}`}>
               <Link
                 href={activeGroup.href}
-                onClick={() => { setOptimisticPath(activeGroup.href); onMobileClose?.(); }}
+                onClick={() => { setOptimisticPath({ sourcePath: pathname, targetPath: activeGroup.href }); onMobileClose?.(); }}
                 aria-current={isModuleLandingActive ? 'page' : undefined}
                 className="block rounded-sm ps-2 text-start transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
@@ -439,7 +441,7 @@ export function Sidebar({
                     <Link
                       key={subItem.href}
                       href={subItem.href}
-                      onClick={() => { setOptimisticPath(subItem.href.split(/[?#]/)[0]); onMobileClose?.(); }}
+                      onClick={() => { setOptimisticPath({ sourcePath: pathname, targetPath: subItem.href.split(/[?#]/)[0] }); onMobileClose?.(); }}
                       className={`
                         flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors
                         ${

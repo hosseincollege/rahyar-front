@@ -39,13 +39,16 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
   const [roadList, setRoadList] = useState<RahcomRoadListSnapshot | null>(null);
   const [tickets, setTickets] = useState<RahcomImportedTicket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<unknown>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError('');
+    queueMicrotask(() => {
+      if (!active) return;
+      setLoading(true);
+      setError('');
+    });
     Promise.all([rahcomApi.systems(selectedProvince), rahcomApi.solarSnapshots(selectedProvince, date ?? undefined), rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined), rahcomApi.importedTickets(selectedProvince, date ?? undefined), selectedProvince === 'all' ? Promise.resolve(null) : rahcomApi.roadList(selectedProvince, date ?? tehranDateKey())])
       .then(([systemRows, solarRows, trafficRow, ticketRows, roadRow]) => {
         if (!active) return;
@@ -61,7 +64,7 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
           rows: Array.isArray(trafficRow.rows) ? trafficRow.rows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? ''))) : [],
         } : null);
       })
-      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : t('rahcomHistoryLoadError')); })
+      .catch((reason: unknown) => { if (active) setError(reason); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [date, selectedProvince]);
@@ -179,8 +182,9 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
 
   const tableColumnCount = 7 + Number(sources.traffic) + Number(sources.road) + Number(sources.solar) + Number(sources.tickets);
   useEffect(() => { onSystemCountChange(rows.length); }, [onSystemCountChange, rows.length]);
+  const errorMessage = error ? error instanceof Error && error.message ? error.message : t('rahcomHistoryLoadError') : '';
   return <section dir="auto" className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-    {error && <p role="alert" className="shrink-0 text-sm text-destructive">{error}</p>}
+    {errorMessage && <p role="alert" className="shrink-0 text-sm text-destructive">{errorMessage}</p>}
     <div className="rahcom-traffic-table-frame min-h-0 overflow-auto rounded-2xl border border-border bg-card"><table className="rahcom-sticky-table w-full min-w-max text-sm"><thead className="bg-muted/50"><tr>
       <th className="p-3 text-start">{t('rahcomRowNumber')}</th><th className="w-9 px-1 py-2 text-center"><RahcomInfoHeader /></th><th className="p-3 text-start">{t('rahcomSystemCode')}</th><th className="p-3 text-start">{t('rahcomProvince')}</th><th className="p-3 text-start">{t('rahcomSystemName')}</th><th className="p-3 text-start">{t('rahcomAxisCode')}</th><th className="p-3 text-start">{t('rahcomAxisName')}</th>
       {sources.traffic && <th className="p-3 text-start">{locale === 'fa' ? '\u062a\u0631\u062f\u062f \u0644\u062d\u0638\u0647\u0627\u06cc CRM' : t('rahcomDailyTraffic')}</th>}{sources.road && <th className="p-3 text-start">{t('rahcomRoadList')}</th>}{sources.tickets && <th className="p-3 text-start">{t('rahcomTickets')}</th>}{sources.solar && <th className="p-3 text-start">{t('rahcomSystemSolar')}</th>}

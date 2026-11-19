@@ -13,7 +13,7 @@ import "./globals.css";
 const appearanceBootstrap = `(() => {
   try {
     const root = document.documentElement;
-    const theme = localStorage.getItem('erp-theme') || 'system';
+    const theme = localStorage.getItem('rahyar-theme') || localStorage.getItem('erp-theme') || 'system';
     const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     root.classList.remove('light', 'dark');
     root.classList.add(dark ? 'dark' : 'light');
@@ -33,7 +33,7 @@ const appearanceBootstrap = `(() => {
     };
     for (const [property, value] of Object.entries(defaults)) root.style.setProperty(property, value);
 
-    const cached = JSON.parse(localStorage.getItem('erp-public-branding-v1') || 'null');
+    const cached = JSON.parse(localStorage.getItem('rahyar-public-branding-v1') || localStorage.getItem('erp-public-branding-v1') || 'null');
     const appearance = dark ? cached?.darkStyles : cached?.lightStyles;
     if (cached?.savedAt && Date.now() - cached.savedAt < 5 * 60 * 1000 && appearance && typeof appearance === 'object') {
       for (const [property, value] of Object.entries(appearance)) {
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     default: "Rahyar",
     template: "%s | Rahyar",
   },
-  description: "پلتفرم یکپارچه ERP و CRM",
+  description: "سامانهٔ رهیار برای پایش سامانه‌های جاده‌ای و هماهنگی نگهداری",
 };
 
 export const viewport: Viewport = {

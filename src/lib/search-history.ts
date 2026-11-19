@@ -1,11 +1,19 @@
 ﻿export function searchHistoryStorageKey(isReducedEdition: boolean) {
+  return isReducedEdition ? 'rahyar-search-history-v1' : 'erp-search-history-v1-erp';
+}
+
+function legacySearchHistoryStorageKey(isReducedEdition: boolean) {
   return `erp-search-history-v1-${isReducedEdition ? 'rahyar' : 'erp'}`;
 }
 
 export function readSearchHistory(isReducedEdition: boolean): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    const value = JSON.parse(window.localStorage.getItem(searchHistoryStorageKey(isReducedEdition)) || '[]');
+    const value = JSON.parse(
+      window.localStorage.getItem(searchHistoryStorageKey(isReducedEdition))
+        ?? window.localStorage.getItem(legacySearchHistoryStorageKey(isReducedEdition))
+        ?? '[]',
+    );
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 8) : [];
   } catch { return []; }
 }
@@ -20,4 +28,5 @@ export function saveSearchHistory(query: string, isReducedEdition: boolean): str
 
 export function clearSearchHistory(isReducedEdition: boolean) {
   window.localStorage.removeItem(searchHistoryStorageKey(isReducedEdition));
+  window.localStorage.removeItem(legacySearchHistoryStorageKey(isReducedEdition));
 }

@@ -92,7 +92,7 @@ export function UserFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex min-h-dvh items-start justify-center overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:items-center sm:p-5"
+      className="fixed inset-0 z-50 flex min-h-dvh items-start justify-center overflow-y-auto bg-transparent p-3 sm:items-center sm:p-5"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !isSaving) onClose();
       }}

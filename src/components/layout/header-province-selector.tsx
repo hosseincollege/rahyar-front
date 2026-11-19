@@ -60,14 +60,18 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
     let active = true;
     const organizationId = getCurrentOrganizationId();
     if (!organizationId) {
-      setOffices([]);
-      setLoaded(true);
+      void Promise.resolve().then(() => {
+        if (!active) return;
+        setOffices([]);
+        setLoaded(true);
+      });
       return () => { active = false; };
     }
 
     void rahcomApi.access().then(async (rahcomAccess) => {
       if (!active) return;
       const branches = await settingsApi.getBranches(organizationId).catch(() => [] as BranchItem[]);
+      if (!active) return;
       const branchProvinces = branches
         .filter((branch) => branch.isActive !== false)
         .map((branch) => {

@@ -10,7 +10,11 @@ export function useRahcomDate() {
   const [dateText, setDateText] = useState(() => todayJalaliDate());
 
   useEffect(() => {
-    setDateText(window.localStorage.getItem(storageKey) || todayJalaliDate());
+    let active = true;
+    const storedDate = window.localStorage.getItem(storageKey) || todayJalaliDate();
+    queueMicrotask(() => {
+      if (active) setDateText(storedDate);
+    });
     const onDateChange = (event: Event) => {
       const value = (event as CustomEvent<{ date?: string }>).detail?.date;
       if (value) setDateText(value);
@@ -21,6 +25,7 @@ export function useRahcomDate() {
     window.addEventListener(eventName, onDateChange);
     window.addEventListener('storage', onStorage);
     return () => {
+      active = false;
       window.removeEventListener(eventName, onDateChange);
       window.removeEventListener('storage', onStorage);
     };

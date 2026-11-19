@@ -9,7 +9,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -23,7 +23,9 @@ type ThemeContextValue = {
   toggleTheme: () => void;
 };
 
-const STORAGE_KEY = "erp-theme";
+const STORAGE_KEY = "rahyar-theme";
+const LEGACY_STORAGE_KEY = "erp-theme";
+const THEME_CHANGE_EVENT = "rahyar:theme-change";
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
@@ -41,12 +43,49 @@ function isValidTheme(value: string | null): value is Theme {
   return value === "light" || value === "dark" || value === "system";
 }
 
+function getStoredTheme(): Theme {
+  try {
+    const savedTheme = window.localStorage.getItem(STORAGE_KEY)
+      ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    return isValidTheme(savedTheme) ? savedTheme : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function subscribeTheme(callback: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === LEGACY_STORAGE_KEY || event.key === null) {
+      callback();
+    }
+  };
+  window.addEventListener(THEME_CHANGE_EVENT, callback);
+  window.addEventListener("storage", handleStorage);
+  return () => {
+    window.removeEventListener(THEME_CHANGE_EVENT, callback);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+function subscribeSystemTheme(callback: () => void) {
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  mediaQuery.addEventListener("change", callback);
+  return () => mediaQuery.removeEventListener("change", callback);
+}
+
+function getServerTheme(): Theme {
+  return "system";
+}
+
+function getServerSystemTheme(): ResolvedTheme {
+  return "light";
+}
+
 function resolveTheme(theme: Theme): ResolvedTheme {
   return theme === "system" ? getSystemTheme() : theme;
 }
 
-function applyTheme(theme: Theme): ResolvedTheme {
-  const resolvedTheme = resolveTheme(theme);
+function applyTheme(theme: Theme, resolvedTheme = resolveTheme(theme)): ResolvedTheme {
   const root = document.documentElement;
 
   root.classList.remove("light", "dark");
@@ -58,50 +97,34 @@ function applyTheme(theme: Theme): ResolvedTheme {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] =
-    useState<ResolvedTheme>("light");
-  const [mounted, setMounted] = useState(false);
+  const theme = useSyncExternalStore(subscribeTheme, getStoredTheme, getServerTheme);
+  const systemTheme = useSyncExternalStore(subscribeSystemTheme, getSystemTheme, getServerSystemTheme);
+  const resolvedTheme = theme === "system" ? systemTheme : theme;
 
   useEffect(() => {
-    const savedTheme = window.localStorage.getItem(STORAGE_KEY);
-    const initialTheme: Theme = isValidTheme(savedTheme)
-      ? savedTheme
-      : "system";
+    applyTheme(theme, resolvedTheme);
+  }, [theme, resolvedTheme]);
 
-    const initialResolvedTheme = applyTheme(initialTheme);
-
-    setThemeState(initialTheme);
-    setResolvedTheme(initialResolvedTheme);
-    setMounted(true);
+  useEffect(() => {
+    try {
+      const currentTheme = window.localStorage.getItem(STORAGE_KEY);
+      const legacyTheme = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (!currentTheme && isValidTheme(legacyTheme)) {
+        window.localStorage.setItem(STORAGE_KEY, legacyTheme);
+      }
+    } catch {
+      // Theme remains available for this session even when storage is blocked.
+    }
   }, []);
 
-  useEffect(() => {
-    if (!mounted) {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const handleSystemThemeChange = () => {
-      if (theme === "system") {
-        setResolvedTheme(applyTheme("system"));
-      }
-    };
-
-    mediaQuery.addEventListener("change", handleSystemThemeChange);
-
-    return () => {
-      mediaQuery.removeEventListener("change", handleSystemThemeChange);
-    };
-  }, [mounted, theme]);
-
   const setTheme = useCallback((nextTheme: Theme) => {
-    const nextResolvedTheme = applyTheme(nextTheme);
-
-    window.localStorage.setItem(STORAGE_KEY, nextTheme);
-    setThemeState(nextTheme);
-    setResolvedTheme(nextResolvedTheme);
+    applyTheme(nextTheme, nextTheme === "system" ? getSystemTheme() : nextTheme);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, nextTheme);
+    } catch {
+      // Keep the selected theme active for this session if storage is blocked.
+    }
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
   const toggleTheme = useCallback(() => {

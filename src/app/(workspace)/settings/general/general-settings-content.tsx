@@ -90,11 +90,28 @@ export function GeneralSettingsContent() {
   const [isSaving, setIsSaving] = useState(false);
   const message = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
 
-  useEffect(() => setDraftLocale(savedLocale), [savedLocale]);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if (active) setDraftLocale(savedLocale); });
+    return () => { active = false; };
+  }, [savedLocale]);
   useEffect(() => () => previewLocale(null), [previewLocale]);
-  useEffect(() => setDraftContrast(contrastPreferences), [contrastPreferences]);
-  useEffect(() => setDraftBrightness(brightnessPreferences), [brightnessPreferences]);
-  useEffect(() => setDraftAppearance(toSaveAppearance(organizationAppearance)), [organizationAppearance]);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if (active) setDraftContrast(contrastPreferences); });
+    return () => { active = false; };
+  }, [contrastPreferences]);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if (active) setDraftBrightness(brightnessPreferences); });
+    return () => { active = false; };
+  }, [brightnessPreferences]);
+  useEffect(() => {
+    let active = true;
+    const nextAppearance = toSaveAppearance(organizationAppearance);
+    queueMicrotask(() => { if (active) setDraftAppearance(nextAppearance); });
+    return () => { active = false; };
+  }, [organizationAppearance]);
   useEffect(() => {
     previewContrastPreferences(draftContrast);
     return () => previewContrastPreferences(null);

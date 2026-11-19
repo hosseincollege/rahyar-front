@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, ChevronDown, Database, LoaderCircle } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { developmentApi, type TestDataModuleKey, type TestDataModuleStatus } from '@/app/(workspace)/development/development-api';
@@ -31,6 +31,8 @@ export default function TestDataPage() {
   const [applyingAll, setApplyingAll] = useState(false);
   const [failedKeys, setFailedKeys] = useState<TestDataModuleKey[]>([]);
   const [visibility, setVisibility] = useState(() => readModuleVisibility(isReducedEdition));
+  const mountedRef = useRef(false);
+  const statusRequestInFlightRef = useRef(false);
   useEffect(() => {
     const refresh = () => setVisibility(readModuleVisibility(isReducedEdition));
     refresh();
@@ -48,21 +50,35 @@ export default function TestDataPage() {
   };
 
   const loadStatuses = useCallback(async () => {
-    setLoading(true);
-    setLoadFailed(false);
-    setDenied(false);
+    if (statusRequestInFlightRef.current) return;
+    statusRequestInFlightRef.current = true;
+    queueMicrotask(() => {
+      if (!mountedRef.current) return;
+      setLoading(true);
+      setLoadFailed(false);
+      setDenied(false);
+    });
     try {
       const result = await developmentApi.getTestDataStatus();
-      setStatuses(result.modules);
+      if (mountedRef.current) setStatuses(result.modules);
     } catch (error) {
-      setDenied(error instanceof ApiError && error.status === 403);
-      setLoadFailed(!(error instanceof ApiError && error.status === 403));
+      if (mountedRef.current) {
+        setDenied(error instanceof ApiError && error.status === 403);
+        setLoadFailed(!(error instanceof ApiError && error.status === 403));
+      }
     } finally {
-      setLoading(false);
+      statusRequestInFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void loadStatuses(); }, [loadStatuses]);
+  useEffect(() => {
+    mountedRef.current = true;
+    queueMicrotask(() => {
+      if (mountedRef.current) void loadStatuses();
+    });
+    return () => { mountedRef.current = false; };
+  }, [loadStatuses]);
 
   const applyModule = async (moduleKey: TestDataModuleKey) => {
     if (!visibleModules.some((module) => module.key === moduleKey)) return;

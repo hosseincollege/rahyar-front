@@ -219,7 +219,11 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     for (const { system, axis, provinceLabel } of searchableSystems) {
       const label = axis || t('rahcomNoAxis');
       const axisCode = system.axisCode || '';
-      const key = `${system.province}:${axisCode || label}`;
+      const axisNameKey = normalizeRahcomSystemSearchText(
+        system.announcedAxis ?? '',
+        locale,
+      );
+      const key = `${system.province}:${axisCode || label}:${axisNameKey}`;
       const group = grouped.get(key) ?? { label: selectedProvince === 'all' ? `${provinceLabel} · ${label}` : label, rows: [] };
       group.rows.push(system);
       grouped.set(key, group);

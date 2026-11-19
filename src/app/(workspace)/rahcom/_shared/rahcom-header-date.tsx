@@ -98,7 +98,7 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
     : 31;
   const leadingEmptyDays = firstDay ? (new Date(`${firstDay}T12:00:00Z`).getUTCDay() + 1) % 7 : 0;
   useEffect(() => {
-    if (!open || !loadMarkedDates || !firstDay || !nextFirstDay) { setMarkedDates([]); return; }
+    if (!open || !loadMarkedDates || !firstDay || !nextFirstDay) return;
     let active = true;
     const last = new Date(`${nextFirstDay}T12:00:00Z`); last.setUTCDate(last.getUTCDate() - 1);
     void loadMarkedDates(firstDay, last.toISOString().slice(0, 10)).then((dates) => { if (active) setMarkedDates(dates); }).catch(() => { if (active) setMarkedDates([]); });

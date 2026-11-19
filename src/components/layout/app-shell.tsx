@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { TopHeader } from './top-header';
@@ -16,9 +16,40 @@ import { loadOrganizationModuleVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
 import { uiMessage } from '@/lib/ui-messages';
 
-const SIDEBAR_COLLAPSED_KEY = 'erp-sidebar-collapsed';
-const SIDEBAR_LOCKED_KEY = 'erp-sidebar-locked';
-const NAVIGATE_ON_CLICK_KEY = 'erp-navigate-on-click';
+const SIDEBAR_COLLAPSED_KEY = 'rahyar-sidebar-collapsed';
+const SIDEBAR_LOCKED_KEY = 'rahyar-sidebar-locked';
+const NAVIGATE_ON_CLICK_KEY = 'rahyar-navigate-on-click';
+const LEGACY_SIDEBAR_KEYS = ['erp-sidebar-collapsed', 'erp-sidebar-locked', 'erp-navigate-on-click'];
+const SIDEBAR_PREFERENCES_EVENT = 'rahyar:sidebar-preferences-change';
+const DEFAULT_SIDEBAR_PREFERENCES = 'true|false|false';
+function getSidebarPreferencesSnapshot() {
+  try {
+    return [SIDEBAR_COLLAPSED_KEY, SIDEBAR_LOCKED_KEY, NAVIGATE_ON_CLICK_KEY]
+      .map((key, index) => window.localStorage.getItem(key) ?? window.localStorage.getItem(LEGACY_SIDEBAR_KEYS[index]) ?? DEFAULT_SIDEBAR_PREFERENCES.split('|')[index])
+      .join('|');
+  } catch {
+    return DEFAULT_SIDEBAR_PREFERENCES;
+  }
+}
+function subscribeSidebarPreferences(onChange: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === null || [SIDEBAR_COLLAPSED_KEY, SIDEBAR_LOCKED_KEY, NAVIGATE_ON_CLICK_KEY, ...LEGACY_SIDEBAR_KEYS].includes(event.key)) onChange();
+  };
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(SIDEBAR_PREFERENCES_EVENT, onChange);
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(SIDEBAR_PREFERENCES_EVENT, onChange);
+  };
+}
+function saveSidebarPreference(key: string, value: boolean) {
+  try {
+    window.localStorage.setItem(key, String(value));
+    window.dispatchEvent(new Event(SIDEBAR_PREFERENCES_EVENT));
+  } catch (error) {
+    console.warn('Could not save sidebar preference:', error);
+  }
+}
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0';
 const APP_BUILD_DATE = process.env.NEXT_PUBLIC_APP_BUILD_DATE ?? '2026-11-05';
 
@@ -32,7 +63,6 @@ export function AppShell({ children }: AppShellProps) {
   const isRahcomPage = pathname.startsWith('/rahcom/');
   const isRahcomMobileOverflowPage = pathname === '/rahcom/daily-traffic' || pathname === '/rahcom/road-list' || pathname === '/rahcom/systems' || pathname === '/rahcom/sites';
   const isRahcomSystems = pathname === '/rahcom/systems';
-  const isRahcomSolarDaily = pathname === '/rahcom/solar-daily';
   const isRahcomTickets = pathname === '/rahcom/tickets';
   const isRahcomAggregate = pathname === '/rahcom/aggregate';
   const isRahcomBillIdentifiers = pathname === '/rahcom/bill-identifiers';
@@ -54,12 +84,13 @@ export function AppShell({ children }: AppShellProps) {
   const activeContrast = contrastPreview ?? contrastPreferences;
   const activeBrightness = brightnessPreview ?? brightnessPreferences;
   const direction = getLocaleDirection(locale);
-  const [isCollapsed, setIsCollapsed] = useState(true);
-  const [isSidebarLocked, setIsSidebarLocked] = useState(false);
-  const [isSidebarStateLoaded, setIsSidebarStateLoaded] = useState(false);
+  const sidebarPreferenceSnapshot = useSyncExternalStore(subscribeSidebarPreferences, getSidebarPreferencesSnapshot, () => DEFAULT_SIDEBAR_PREFERENCES);
+  const [collapsedValue, lockedValue, navigateValue] = sidebarPreferenceSnapshot.split('|');
+  const isCollapsed = collapsedValue === 'true';
+  const isSidebarLocked = lockedValue === 'true';
+  const navigateOnClick = navigateValue === 'true';
   const [isProfileActive, setIsProfileActive] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [navigateOnClick, setNavigateOnClick] = useState(false);
   useEffect(() => {
     const refreshOrganizationVisibility = () => { void loadOrganizationModuleVisibility(isReducedEdition); };
     refreshOrganizationVisibility();
@@ -74,77 +105,14 @@ export function AppShell({ children }: AppShellProps) {
   /*
    * خواندن وضعیت ذخیره‌شده سایدبار و حالت ناوبری از localStorage در سمت کلاینت
    */
-  useEffect(() => {
-    try {
-      const savedCollapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-      const savedLocked = window.localStorage.getItem(SIDEBAR_LOCKED_KEY);
-      const savedNavigateOnClick = window.localStorage.getItem(NAVIGATE_ON_CLICK_KEY);
-
-      if (savedCollapsed !== null) {
-        setIsCollapsed(savedCollapsed === 'true');
-      }
-
-      if (savedLocked !== null) {
-        setIsSidebarLocked(savedLocked === 'true');
-      }
-
-      if (savedNavigateOnClick !== null) {
-        setNavigateOnClick(savedNavigateOnClick === 'true');
-      }
-    } catch (error) {
-      console.warn(
-        'امکان خواندن وضعیت‌ها از localStorage وجود ندارد:',
-        error
-      );
-    } finally {
-      setIsSidebarStateLoaded(true);
-    }
-  }, []);
-
-  /*
-   * ذخیره وضعیت جمع/باز بودن سایدبار
-   */
-  useEffect(() => {
-    if (!isSidebarStateLoaded) return;
-    try {
-      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(isCollapsed));
-    } catch (error) {
-      console.warn('امکان ذخیره وضعیت باز/جمع سایدبار وجود ندارد:', error);
-    }
-  }, [isCollapsed, isSidebarStateLoaded]);
-
-  /*
-   * ذخیره وضعیت قفل سایدبار
-   */
-  useEffect(() => {
-    if (!isSidebarStateLoaded) return;
-    try {
-      window.localStorage.setItem(SIDEBAR_LOCKED_KEY, String(isSidebarLocked));
-    } catch (error) {
-      console.warn('امکان ذخیره وضعیت قفل سایدبار وجود ندارد:', error);
-    }
-  }, [isSidebarLocked, isSidebarStateLoaded]);
-
-  /*
-   * ذخیره وضعیت حالت ناوبری با کلیک
-   */
-  useEffect(() => {
-    if (!isSidebarStateLoaded) return;
-    try {
-      window.localStorage.setItem(NAVIGATE_ON_CLICK_KEY, String(navigateOnClick));
-    } catch (error) {
-      console.warn('امکان ذخیره وضعیت حالت ناوبری وجود ندارد:', error);
-    }
-  }, [navigateOnClick, isSidebarStateLoaded]);
-
   const handleToggleSidebar = () => {
     if (!isCollapsed && isSidebarLocked) return;
-    setIsCollapsed((previous) => !previous);
+    saveSidebarPreference(SIDEBAR_COLLAPSED_KEY, !isCollapsed);
   };
 
   const handleCloseSidebar = () => {
     if (isSidebarLocked) return;
-    setIsCollapsed(true);
+    saveSidebarPreference(SIDEBAR_COLLAPSED_KEY, true);
     setIsProfileActive(false);
   };
 
@@ -189,17 +157,13 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   const handleToggleSidebarLock = () => {
-    setIsSidebarLocked((previousLocked) => {
-      const nextLocked = !previousLocked;
-      if (nextLocked) {
-        setIsCollapsed(false);
-      }
-      return nextLocked;
-    });
+    const nextLocked = !isSidebarLocked;
+    saveSidebarPreference(SIDEBAR_LOCKED_KEY, nextLocked);
+    if (nextLocked) saveSidebarPreference(SIDEBAR_COLLAPSED_KEY, false);
   };
 
   const handleToggleNavigateOnClick = () => {
-    setNavigateOnClick((previous) => !previous);
+    saveSidebarPreference(NAVIGATE_ON_CLICK_KEY, !navigateOnClick);
   };
 
   return (

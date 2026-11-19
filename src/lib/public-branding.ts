@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '@/lib/api-client';
 
-const PUBLIC_BRANDING_CACHE_KEY = 'erp-public-branding-v1';
+const PUBLIC_BRANDING_CACHE_KEY = 'rahyar-public-branding-v1';
 
 export type PublicBranding = {
   name: string;

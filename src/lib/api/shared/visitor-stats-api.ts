@@ -16,8 +16,10 @@ export type VisitorStats = {
 };
 
 let fallbackVisitorId: string | null = null;
-const VISITOR_ID_KEY = 'erp-visitor-id';
-const SESSION_ID_KEY = 'erp-visitor-session-id';
+const VISITOR_ID_KEY = 'rahyar-visitor-id';
+const LEGACY_VISITOR_ID_KEY = 'erp-visitor-id';
+const SESSION_ID_KEY = 'rahyar-visitor-session-id';
+const LEGACY_SESSION_ID_KEY = 'erp-visitor-session-id';
 const disabledStats = { enabled: false, daily: 0, weekly: 0, monthly: 0, yearly: 0, online: 0, today: 0, week: 0, month: 0, year: 0 };
 
 function isLocalRuntime() {
@@ -40,9 +42,11 @@ export function getVisitorId() {
   if (typeof window === 'undefined') return null;
   if (fallbackVisitorId) return fallbackVisitorId;
   try {
-    const saved = window.localStorage.getItem(VISITOR_ID_KEY);
+    const saved = window.localStorage.getItem(VISITOR_ID_KEY)
+      ?? window.localStorage.getItem(LEGACY_VISITOR_ID_KEY);
     if (saved && /^[0-9a-f-]{36}$/i.test(saved)) {
       fallbackVisitorId = saved;
+      window.localStorage.setItem(VISITOR_ID_KEY, saved);
       return saved;
     }
     fallbackVisitorId = createVisitorId();
@@ -57,8 +61,12 @@ export function getVisitorId() {
 export function getVisitorSessionId() {
   if (typeof window === 'undefined') return null;
   try {
-    const saved = window.sessionStorage.getItem(SESSION_ID_KEY);
-    if (saved && /^[0-9a-f-]{36}$/i.test(saved)) return saved;
+    const saved = window.sessionStorage.getItem(SESSION_ID_KEY)
+      ?? window.sessionStorage.getItem(LEGACY_SESSION_ID_KEY);
+    if (saved && /^[0-9a-f-]{36}$/i.test(saved)) {
+      window.sessionStorage.setItem(SESSION_ID_KEY, saved);
+      return saved;
+    }
     const created = createVisitorId();
     window.sessionStorage.setItem(SESSION_ID_KEY, created);
     return created;

@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type CSSProperties,
@@ -56,11 +57,17 @@ type PreferencesContextValue = {
   saveOrganizationAppearance: (appearance: SaveOrganizationAppearance) => Promise<void>;
 };
 
-const LOCALE_KEY = 'erp-locale';
-const CONTRAST_KEY = 'erp-shell-contrast-v2';
-const BRIGHTNESS_KEY = 'erp-shell-brightness';
-const LEGACY_BRIGHTNESS_KEY = 'erp-shell-contrast';
-const ORGANIZATION_APPEARANCE_KEY = 'erp-organization-appearance-v2';
+const LOCALE_KEY = 'rahyar-locale';
+const CONTRAST_KEY = 'rahyar-shell-contrast-v2';
+const BRIGHTNESS_KEY = 'rahyar-shell-brightness';
+const ORGANIZATION_APPEARANCE_KEY = 'rahyar-organization-appearance-v2';
+const LEGACY_LOCALE_KEY = 'erp-locale';
+const LEGACY_CONTRAST_KEY = 'erp-shell-contrast-v2';
+const LEGACY_BRIGHTNESS_KEY = 'erp-shell-brightness';
+const LEGACY_OLD_BRIGHTNESS_KEY = 'erp-shell-contrast';
+const LEGACY_ORGANIZATION_APPEARANCE_KEY = 'erp-organization-appearance-v2';
+const PREFERENCES_CHANGED_EVENT = 'rahyar-preferences-changed';
+const LEGACY_PREFERENCES_CHANGED_EVENT = 'erp-preferences-changed';
 const DEFAULT_CONTRAST = { light: 'balanced', dark: 'balanced' } as const satisfies ContrastPreferences;
 const DEFAULT_CONTRAST_SNAPSHOT = JSON.stringify(DEFAULT_CONTRAST);
 const DEFAULT_ORGANIZATION_APPEARANCE: OrganizationAppearance = {
@@ -76,12 +83,18 @@ const DEFAULT_ORGANIZATION_APPEARANCE: OrganizationAppearance = {
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
 function subscribePreferences(callback: () => void) {
-  window.addEventListener('erp-preferences-changed', callback);
+  window.addEventListener(PREFERENCES_CHANGED_EVENT, callback);
+  window.addEventListener(LEGACY_PREFERENCES_CHANGED_EVENT, callback);
   window.addEventListener('storage', callback);
   return () => {
-    window.removeEventListener('erp-preferences-changed', callback);
+    window.removeEventListener(PREFERENCES_CHANGED_EVENT, callback);
+    window.removeEventListener(LEGACY_PREFERENCES_CHANGED_EVENT, callback);
     window.removeEventListener('storage', callback);
   };
+}
+
+function dispatchPreferencesChanged() {
+  window.dispatchEvent(new Event(PREFERENCES_CHANGED_EVENT));
 }
 
 function isLocale(value: string | null): value is Locale {
@@ -107,7 +120,9 @@ function parsePreferenceLevels<T extends { light: ContrastLevel; dark: ContrastL
 
 function readContrastSnapshot(): string {
   try {
-    return window.localStorage.getItem(CONTRAST_KEY) ?? DEFAULT_CONTRAST_SNAPSHOT;
+    return window.localStorage.getItem(CONTRAST_KEY)
+      ?? window.localStorage.getItem(LEGACY_CONTRAST_KEY)
+      ?? DEFAULT_CONTRAST_SNAPSHOT;
   } catch {
     return DEFAULT_CONTRAST_SNAPSHOT;
   }
@@ -117,6 +132,7 @@ function readBrightnessSnapshot(): string {
   try {
     return window.localStorage.getItem(BRIGHTNESS_KEY)
       ?? window.localStorage.getItem(LEGACY_BRIGHTNESS_KEY)
+      ?? window.localStorage.getItem(LEGACY_OLD_BRIGHTNESS_KEY)
       ?? DEFAULT_CONTRAST_SNAPSHOT;
   } catch {
     return DEFAULT_CONTRAST_SNAPSHOT;
@@ -131,6 +147,7 @@ function readOrganizationAppearanceSnapshot(): string {
   try {
     const key = `${ORGANIZATION_APPEARANCE_KEY}:${getCurrentOrganizationId() ?? 'none'}`;
     return window.localStorage.getItem(key)
+      ?? window.localStorage.getItem(`${LEGACY_ORGANIZATION_APPEARANCE_KEY}:${getCurrentOrganizationId() ?? 'none'}`)
       ?? JSON.stringify(DEFAULT_ORGANIZATION_APPEARANCE);
   } catch {
     return JSON.stringify(DEFAULT_ORGANIZATION_APPEARANCE);
@@ -204,7 +221,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const savedLocale = useSyncExternalStore<Locale>(
     subscribePreferences,
     () => {
-      const saved = window.localStorage.getItem(LOCALE_KEY);
+      const saved = window.localStorage.getItem(LOCALE_KEY)
+        ?? window.localStorage.getItem(LEGACY_LOCALE_KEY);
       return isLocale(saved) ? saved : 'fa';
     },
     (): Locale => 'fa',
@@ -241,6 +259,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [contrastPreview, setContrastPreview] = useState<ContrastPreferences | null>(null);
   const [brightnessPreview, setBrightnessPreview] = useState<BrightnessPreferences | null>(null);
   const [appearancePreview, setAppearancePreview] = useState<SaveOrganizationAppearance | null>(null);
+  const mountedRef = useRef(false);
+  const preferencesRequestIdRef = useRef(0);
 
   useEffect(() => {
     applyLocale(locale);
@@ -251,8 +271,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   const loadUserPreferences = useCallback(async () => {
     if (!getAccessToken()) return;
+    const requestId = ++preferencesRequestIdRef.current;
+    const isCurrentRequest = () => mountedRef.current
+      && requestId === preferencesRequestIdRef.current
+      && Boolean(getAccessToken());
     try {
       const saved = await preferencesApi.get();
+      if (!isCurrentRequest()) return;
       setWorkspaceMode(saved.workspaceMode.toLowerCase() as WorkspaceMode);
       window.localStorage.setItem(LOCALE_KEY, saved.locale);
       window.localStorage.setItem(CONTRAST_KEY, JSON.stringify({
@@ -263,42 +288,55 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         light: saved.lightBrightness,
         dark: saved.darkBrightness,
       }));
-      window.dispatchEvent(new Event('erp-preferences-changed'));
+      dispatchPreferencesChanged();
     } catch (error) {
-      console.error('Could not load user preferences:', error);
+      if (isCurrentRequest()) console.error('Could not load user preferences:', error);
     }
+    if (!isCurrentRequest()) return;
     try {
       const sharedAppearance = await preferencesApi.getOrganizationAppearance();
+      if (!isCurrentRequest()) return;
       const key = `${ORGANIZATION_APPEARANCE_KEY}:${getCurrentOrganizationId() ?? 'none'}`;
       window.localStorage.setItem(key, JSON.stringify(sharedAppearance));
       applyOrganizationDisplay(sharedAppearance);
-      window.dispatchEvent(new Event('erp-preferences-changed'));
+      dispatchPreferencesChanged();
     } catch (error) {
-      console.error('Could not load organization appearance:', error);
+      if (isCurrentRequest()) console.error('Could not load organization appearance:', error);
     }
   }, []);
 
   useEffect(() => {
     const resetPreferences = () => {
+      preferencesRequestIdRef.current += 1;
       window.localStorage.removeItem(LOCALE_KEY);
+      window.localStorage.removeItem(LEGACY_LOCALE_KEY);
       setWorkspaceMode('form');
       window.localStorage.removeItem(CONTRAST_KEY);
+      window.localStorage.removeItem(LEGACY_CONTRAST_KEY);
       window.localStorage.removeItem(BRIGHTNESS_KEY);
       window.localStorage.removeItem(LEGACY_BRIGHTNESS_KEY);
+      window.localStorage.removeItem(LEGACY_OLD_BRIGHTNESS_KEY);
       setAppearancePreview(null);
       setLocalePreview(null);
-      window.dispatchEvent(new Event('erp-preferences-changed'));
+      dispatchPreferencesChanged();
     };
     const handleAuthStorageChange = (event: StorageEvent) => {
       if (event.key !== 'access_token') return;
       if (getAccessToken()) void loadUserPreferences();
       else resetPreferences();
     };
-    void loadUserPreferences();
+    let active = true;
+    mountedRef.current = true;
+    queueMicrotask(() => {
+      if (active) void loadUserPreferences();
+    });
     window.addEventListener('auth:login', loadUserPreferences);
     window.addEventListener('auth:logout', resetPreferences);
     window.addEventListener('storage', handleAuthStorageChange);
     return () => {
+      active = false;
+      mountedRef.current = false;
+      preferencesRequestIdRef.current += 1;
       window.removeEventListener('auth:login', loadUserPreferences);
       window.removeEventListener('auth:logout', resetPreferences);
       window.removeEventListener('storage', handleAuthStorageChange);
@@ -332,7 +370,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       light: saved.lightBrightness,
       dark: saved.darkBrightness,
     }));
-    window.dispatchEvent(new Event('erp-preferences-changed'));
+    dispatchPreferencesChanged();
   }, []);
 
   const saveWorkspaceMode = useCallback(async (mode: WorkspaceMode) => {
@@ -352,7 +390,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(key, JSON.stringify(saved));
     setAppearancePreview(null);
     applyOrganizationDisplay(saved);
-    window.dispatchEvent(new Event('erp-preferences-changed'));
+    dispatchPreferencesChanged();
   }, []);
 
   const value = useMemo(

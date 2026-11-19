@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   AlertCircle,
@@ -122,7 +122,7 @@ export function CompanyInformationPage() {
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (type: 'success' | 'error', text: string) => {
+  const showToast = useCallback((type: 'success' | 'error', text: string) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
@@ -132,7 +132,7 @@ export function CompanyInformationPage() {
     timerRef.current = setTimeout(() => {
       setToast(null);
     }, 4000);
-  };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -142,10 +142,13 @@ export function CompanyInformationPage() {
     };
   }, []);
 
-  const fetchCompanyData = async () => {
+  const companyRequestIdRef = useRef(0);
+  const fetchCompanyData = useCallback(async () => {
+    const requestId = ++companyRequestIdRef.current;
+    const resolvedOrgId = getCurrentOrganizationId();
+    const isCurrentRequest = () => requestId === companyRequestIdRef.current
+      && getCurrentOrganizationId() === resolvedOrgId;
     try {
-      const resolvedOrgId = getCurrentOrganizationId();
-
       if (!resolvedOrgId) {
         throw new Error('سازمان فعال در نشست کاربر پیدا نشد.');
       }
@@ -154,6 +157,7 @@ export function CompanyInformationPage() {
         settingsApi.getOrganization(resolvedOrgId),
         settingsApi.getOrganizationAccess(resolvedOrgId),
       ]);
+      if (!isCurrentRequest()) return;
       setOrgId(resolvedOrgId);
       setCanEdit(access.canEdit);
 
@@ -184,6 +188,7 @@ export function CompanyInformationPage() {
         setFormData(formatted);
       }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       const status = (error as { status?: number })?.status;
       showToast(
         'error',
@@ -194,13 +199,20 @@ export function CompanyInformationPage() {
           : 'دریافت اطلاعات سازمان با خطا مواجه شد. لطفاً دوباره تلاش کنید.',
       );
     } finally {
-      setLoading(false);
+      if (requestId === companyRequestIdRef.current) setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    void Promise.resolve().then(fetchCompanyData);
-  }, []);
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) void fetchCompanyData();
+    });
+    return () => {
+      active = false;
+      companyRequestIdRef.current += 1;
+    };
+  }, [fetchCompanyData]);
 
   const handleChange = (
     event: React.ChangeEvent<

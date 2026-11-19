@@ -111,7 +111,7 @@ export function TopHeader({
     setHeaderSearchOpen(Boolean(query.trim()));
     if (!query.trim()) setHeaderSearchLoading(false);
   };
-  const isMissionModeVisible = (_mode: MissionEntryMode) => shellVisibility.headerControls?.missionTools !== false;
+  const isMissionModeVisible = () => shellVisibility.headerControls?.missionTools !== false;
 
   useEffect(() => {
     let active = true;
@@ -580,7 +580,7 @@ export function TopHeader({
                 <span className="min-w-0 truncate px-2 py-1 text-xs font-semibold text-[var(--muted-foreground)]">{[user?.firstName,user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}</span>
                 <button type="button" onClick={() => { setMobileToolsOpen(false); setMobileTool(null); void handleSignOut(); }} className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400"><LogOut size={14}/>{message('sidebarSignOut')}</button>
               </div>}
-              {mobileTool === 'mission' && <div className="grid gap-1">{([['form',FilePlus2,'missionModeForm'],['command',SquareTerminal,'missionModeCommand'],['ai',Bot,'missionModeAI']] as const).filter(([mode])=>isMissionModeVisible(mode)).map(([mode,Icon,label])=><button key={mode} type="button" onClick={()=>{setMobileToolsOpen(false);setMobileTool(null);onSelectMissionMode?.(mode);}} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-start text-sm ${activeMissionMode===mode?'bg-[var(--primary-soft)] text-[var(--primary)]':'text-foreground hover:bg-[var(--primary-soft)]'}`}><Icon size={16}/>{message(label)}</button>)}</div>}
+              {mobileTool === 'mission' && <div className="grid gap-1">{([['form',FilePlus2,'missionModeForm'],['command',SquareTerminal,'missionModeCommand'],['ai',Bot,'missionModeAI']] as const).filter(() => isMissionModeVisible()).map(([mode,Icon,label])=><button key={mode} type="button" onClick={()=>{setMobileToolsOpen(false);setMobileTool(null);onSelectMissionMode?.(mode);}} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-start text-sm ${activeMissionMode===mode?'bg-[var(--primary-soft)] text-[var(--primary)]':'text-foreground hover:bg-[var(--primary-soft)]'}`}><Icon size={16}/>{message(label)}</button>)}</div>}
             </div>}
           </div>}
         </div>

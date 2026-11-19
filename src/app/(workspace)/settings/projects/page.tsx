@@ -187,7 +187,7 @@ export default function ProjectsSettingsPage() {
         )}
       </section>
 
-      {formOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !formBusy) setFormOpen(false); }}>
+      {formOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !formBusy) setFormOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="project-form-title" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl sm:p-6">
           <header className="mb-5 flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderKanban size={19}/></span><div><h2 id="project-form-title" className="font-bold">{t(editing ? 'projectsEdit' : 'projectsNew')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('projectsDescription')}</p></div></div><button type="button" disabled={formBusy} onClick={() => setFormOpen(false)} aria-label={t('projectsCancel')} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><X size={17}/></button></header>
           <form onSubmit={(event) => void saveProject(event)} className="space-y-4">

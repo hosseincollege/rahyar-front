@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, RefreshCw, Users } from 'lucide-react';
 import { getLocaleDirection, usePreferences } from '@/components/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
@@ -12,22 +12,47 @@ export function VisitorStatsOverview() {
   const [stats, setStats] = useState<VisitorStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const mountedRef = useRef(false);
+  const requestInFlightRef = useRef(false);
+  const hasStatsRef = useRef(false);
+  const lastRequestFailedRef = useRef(false);
 
   const load = useCallback(async () => {
-    setFailed(false);
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+    queueMicrotask(() => {
+      if (!mountedRef.current) return;
+      setFailed(false);
+      setLoading(!hasStatsRef.current || lastRequestFailedRef.current);
+    });
     try {
-      setStats(await visitorStatsApi.get());
+      const nextStats = await visitorStatsApi.get();
+      if (mountedRef.current) {
+        hasStatsRef.current = true;
+        lastRequestFailedRef.current = false;
+        setStats(nextStats);
+      }
     } catch {
-      setFailed(true);
+      if (mountedRef.current) {
+        lastRequestFailedRef.current = true;
+        setFailed(true);
+      }
     } finally {
-      setLoading(false);
+      requestInFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    mountedRef.current = true;
+    queueMicrotask(() => {
+      if (mountedRef.current) void load();
+    });
     const interval = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      mountedRef.current = false;
+      window.clearInterval(interval);
+    };
   }, [load]);
 
   const items = [

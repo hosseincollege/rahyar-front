@@ -17,6 +17,17 @@ const accentOptions = [
   { id: 'violet', light: '#a78bfa', dark: '#8b5cf6', label: 'بنفش' },
 ] as const;
 
+function toAppearanceDraft(appearance: SaveOrganizationAppearance): SaveOrganizationAppearance {
+  return {
+    accentPreset: appearance.accentPreset,
+    accentLightColor: appearance.accentLightColor,
+    accentDarkColor: appearance.accentDarkColor,
+    backgroundStyle: 'GRAY',
+    timezone: 'Asia/Tehran',
+    calendar: 'persian',
+  };
+}
+
 export function GeneralAppearanceSettings() {
   const {
     locale,
@@ -25,14 +36,13 @@ export function GeneralAppearanceSettings() {
     previewOrganizationAppearance,
     saveOrganizationAppearance,
   } = usePreferences();
-  const [draft, setDraft] = useState<SaveOrganizationAppearance>({
-    accentPreset: organizationAppearance.accentPreset,
-    accentLightColor: organizationAppearance.accentLightColor,
-    accentDarkColor: organizationAppearance.accentDarkColor,
-    backgroundStyle: 'GRAY',
-    timezone: 'Asia/Tehran',
-    calendar: 'persian',
-  });
+  const [draftState, setDraftState] = useState(() => ({
+    source: organizationAppearance,
+    value: toAppearanceDraft(organizationAppearance),
+  }));
+  const draft = draftState.source === organizationAppearance
+    ? draftState.value
+    : toAppearanceDraft(organizationAppearance);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [canEditLogo, setCanEditLogo] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -41,16 +51,9 @@ export function GeneralAppearanceSettings() {
   const inputRef = useRef<HTMLInputElement>(null);
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
 
-  useEffect(() => {
-    setDraft({
-      accentPreset: organizationAppearance.accentPreset,
-      accentLightColor: organizationAppearance.accentLightColor,
-      accentDarkColor: organizationAppearance.accentDarkColor,
-      backgroundStyle: 'GRAY',
-      timezone: 'Asia/Tehran',
-      calendar: 'persian',
-    });
-  }, [organizationAppearance]);
+  const updateDraft = (update: (current: SaveOrganizationAppearance) => SaveOrganizationAppearance) => {
+    setDraftState({ source: organizationAppearance, value: update(draft) });
+  };
 
   useEffect(() => {
     const organizationId = getCurrentOrganizationId();
@@ -141,10 +144,10 @@ export function GeneralAppearanceSettings() {
         <fieldset disabled={!canEditOrganizationAppearance} className="mt-4 flex flex-wrap gap-2.5 disabled:opacity-60">
           {accentOptions.map((option) => {
             const selected = draft.accentPreset === option.id;
-            return <button key={option.id} type="button" aria-pressed={selected} onClick={() => setDraft((current) => ({ ...current, accentPreset: option.id, accentLightColor: option.light, accentDarkColor: option.dark }))} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition ${selected ? 'border-primary bg-primary/10 ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}><span className="size-4 rounded-full border border-black/10" style={{ backgroundColor: option.dark }} />{option.label}{selected && <Check size={15} className="text-primary" />}</button>;
+            return <button key={option.id} type="button" aria-pressed={selected} onClick={() => updateDraft((current) => ({ ...current, accentPreset: option.id, accentLightColor: option.light, accentDarkColor: option.dark }))} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition ${selected ? 'border-primary bg-primary/10 ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}`}><span className="size-4 rounded-full border border-black/10" style={{ backgroundColor: option.dark }} />{option.label}{selected && <Check size={15} className="text-primary" />}</button>;
           })}
           <label className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold ${draft.accentPreset === 'custom' ? 'border-primary bg-primary/10 ring-2 ring-primary/20' : 'border-border'}`}>
-            <input type="color" aria-label="رنگ دلخواه" value={draft.accentLightColor} onChange={(event) => setDraft((current) => ({ ...current, accentPreset: 'custom', accentLightColor: event.target.value as `#${string}`, accentDarkColor: event.target.value as `#${string}` }))} className="size-6 cursor-pointer rounded-full border-0 bg-transparent p-0" />
+            <input type="color" aria-label="رنگ دلخواه" value={draft.accentLightColor} onChange={(event) => updateDraft((current) => ({ ...current, accentPreset: 'custom', accentLightColor: event.target.value as `#${string}`, accentDarkColor: event.target.value as `#${string}` }))} className="size-6 cursor-pointer rounded-full border-0 bg-transparent p-0" />
             رنگ دلخواه
           </label>
         </fieldset>

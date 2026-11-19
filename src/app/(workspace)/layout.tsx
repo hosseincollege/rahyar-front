@@ -21,7 +21,8 @@ type WorkspaceLayoutProps = {
 }
 
 const PUBLIC_PATHS = new Set(['/', '/login', '/register'])
-const GUEST_MODE_STORAGE_KEY = 'erp-pro-guest-mode'
+const GUEST_MODE_STORAGE_KEY = 'rahyar-guest-mode'
+const LEGACY_GUEST_MODE_STORAGE_KEY = 'erp-pro-guest-mode'
 
 export default function WorkspaceLayout({
   children,
@@ -51,7 +52,8 @@ export default function WorkspaceLayout({
       }
 
       const guestMode =
-        window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === 'true'
+        (window.localStorage.getItem(GUEST_MODE_STORAGE_KEY)
+          ?? window.localStorage.getItem(LEGACY_GUEST_MODE_STORAGE_KEY)) === 'true'
 
       const authenticated = isUserAuthenticated()
       const currentUser = getCurrentUser()
@@ -101,6 +103,7 @@ export default function WorkspaceLayout({
     function handleStorageChanged(event: StorageEvent) {
       if (
         event.key === GUEST_MODE_STORAGE_KEY ||
+        event.key === LEGACY_GUEST_MODE_STORAGE_KEY ||
         event.key === null
       ) {
         setIsCheckingAuth(true)

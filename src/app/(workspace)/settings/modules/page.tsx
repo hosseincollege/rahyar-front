@@ -41,10 +41,14 @@ export default function ModuleSettingsPage() {
   const hasUnsavedChanges = JSON.stringify(visibility) !== JSON.stringify(savedVisibility);
 
   useEffect(() => {
-    const current = readShellVisibility(isReducedEdition);
-    setVisibility(current);
-    setSavedVisibility(current);
-    if (new URLSearchParams(window.location.search).get('tab') === 'header') setActiveTab('header');
+    let active = true;
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (requestedTab === 'header') {
+      queueMicrotask(() => {
+        if (active) setActiveTab('header');
+      });
+    }
+    return () => { active = false; };
   }, []);
 
   const markEdited = () => { setSaveError(''); setSaveSucceeded(false); };
