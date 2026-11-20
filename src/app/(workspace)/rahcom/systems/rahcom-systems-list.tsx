@@ -521,7 +521,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   }))).sort((left, right) => left.axisName.localeCompare(right.axisName, locale, { numeric: true, sensitivity: 'base' }) || left.system.systemCode.localeCompare(right.system.systemCode, 'en', { numeric: true, sensitivity: 'base' })), [groups, locale]);
   const systemRows = allSystemRows;
   return (
-    <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 min-w-0 max-w-full flex-col gap-3 overflow-hidden">
+    <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden">
       <RahcomToolbar className="rahcom-mobile-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
         <RahcomHeaderDate compact loadMarkedDates={loadTrafficDatesForCalendar} />
         <RahcomTableCount label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`}><MapPinned size={16} className="text-primary" />{numberFormatter.format(systems.length)}</RahcomTableCount>
@@ -567,7 +567,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       {error ? <div role="alert" className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
       {!loading && !error && !anyRows ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
 
-      {systemRows.length > 0 && <RahcomTableFrame className="rahcom-systems-table-frame rahcom-traffic-table-frame w-fit max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full max-w-full">
+      {systemRows.length > 0 && <RahcomTableFrame className="rahcom-systems-table-frame rahcom-traffic-table-frame w-full min-w-0 max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full min-w-0 max-w-full">
           <DataTable className="rahcom-sticky-table rahcom-systems-table w-[101.5rem] table-fixed border-separate border-spacing-0 text-sm">
             <colgroup><col style={{ width: '4rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '20rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '18rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '15rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '6rem' }} /></colgroup>
             <thead className="text-xs text-muted-foreground"><tr>
