@@ -230,7 +230,10 @@ export function TopHeader({
     let active = true;
     const timer = window.setTimeout(() => {
       setHeaderSearchLoading(true);
-      void rahcomApi.searchSystems(headerSearchProvince, query)
+      // The search endpoint may return a capped suggestion list. Fetch the
+      // selected province's complete system set, then filter it locally so
+      // the header never drops matches after an arbitrary result limit.
+      void rahcomApi.systems(headerSearchProvince === 'all' ? undefined : headerSearchProvince)
         .then((items) => {
           if (!active) return;
           setHeaderSearchResults(searchRahcomSystems(items, query, locale));
@@ -332,7 +335,7 @@ export function TopHeader({
   };
 
   const renderHeaderSystemSuggestions = (mobile = false) => headerSearchOpen && headerSearchQuery.trim() ? (
-    <div role="listbox" aria-label={message('headerSearch')} aria-live="polite" dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`${mobile ? 'relative mt-2 w-full' : 'absolute end-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)]'} z-[120] overflow-hidden rounded-xl border border-[var(--border)] text-[var(--foreground)] shadow-2xl`}>
+    <div role="listbox" aria-label={message('headerSearch')} aria-live="polite" dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`${mobile ? 'relative mt-2 w-full' : 'absolute end-0 top-full mt-2 w-80 max-w-[calc(100vw-1.5rem)]'} z-[120] max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain rounded-xl border border-[var(--border)] text-[var(--foreground)] shadow-2xl`}>
       {headerSearchLoading ? <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground"><span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />{message('headerSearch')}</div> : null}
       {headerSearchError ? <p role="alert" className="px-3 py-3 text-sm text-muted-foreground">{message('rahcomSystemsLoadError')}</p> : null}
       {!headerSearchLoading && !headerSearchError && headerSearchResults.length === 0 ? <p className="px-3 py-3 text-sm text-muted-foreground">{message('searchNoResults')}</p> : null}
@@ -575,7 +578,7 @@ export function TopHeader({
         </button>
         </div>
 
-        <div ref={mobileToolsRef} className="pointer-events-auto absolute inset-y-0 left-3 z-20 flex items-center gap-0.5 max-sm:left-1 lg:hidden">
+        <div ref={mobileToolsRef} className="pointer-events-auto absolute inset-y-0 left-3 z-20 flex items-center gap-0.5 max-sm:left-1 xl:hidden">
           <div className="relative flex h-9 w-9 shrink-0 items-center justify-center max-sm:h-8 max-sm:w-8">
             <button type="button" onClick={() => { setMobileSearchExpanded((expanded) => !expanded); setMobileToolsOpen(false); setMobileTool(null); setHeaderSearchOpen(Boolean(headerSearchQuery.trim())); }} aria-label={message('headerSearch')} title={message('headerSearch')} aria-expanded={mobileSearchExpanded} style={mobileSearchExpanded ? { backgroundColor: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] max-sm:h-8 max-sm:w-8"><Search size={18}/></button>
             {mobileSearchExpanded && <div className="absolute -left-10 top-[calc(100%+0.5rem)] z-[130] w-[min(18rem,calc(100vw-2rem))]">
@@ -604,7 +607,7 @@ export function TopHeader({
         </div>
 
         {/* کپسول حساب کاربری در سوی مقابل کنترل‌ها */}
-        <div className="pointer-events-none order-2 hidden shrink-0 items-center gap-1.5 lg:flex">
+        <div className="pointer-events-none order-2 hidden shrink-0 items-center gap-1.5 xl:flex">
         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5" dir="ltr">
         {shellVisibility.headerControls?.accountSwitcher !== false && <div className="hidden md:block">
           <HeaderAccountSwitcher userId={user?.id} />
@@ -616,7 +619,7 @@ export function TopHeader({
           aria-label={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
           title={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
           aria-pressed={toolbarLabelsEnabled}
-          className={`pointer-events-auto flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
+          className={`pointer-events-auto order-1 flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
         >
           <CircleHelp size={18} aria-hidden="true" />
         </button>
@@ -748,7 +751,7 @@ export function TopHeader({
         </Link>
       </div>
 
-      <div className="pointer-events-none absolute end-5 top-1/2 hidden -translate-y-1/2 flex-row-reverse items-center gap-2 lg:flex">
+      <div className="pointer-events-none absolute end-5 top-1/2 hidden -translate-y-1/2 flex-row-reverse items-center gap-2 xl:flex">
         {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div className="pointer-events-auto relative shrink-0">
           <button type="button" onClick={cycleMissionMode} title={`${message('missionShortcutTitle')} · ${message(activeMissionMode === 'form' ? 'missionModeForm' : activeMissionMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} aria-label={`${message('missionShortcutTitle')} · ${message(activeMissionMode === 'form' ? 'missionModeForm' : activeMissionMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">
             {activeMissionMode === 'form' ? <FilePlus2 size={17}/> : activeMissionMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}

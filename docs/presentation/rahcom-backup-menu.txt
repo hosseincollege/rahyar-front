@@ -1,0 +1,3 @@
+Rahcom backup menu
+
+The backup menu remains open when the user clicks elsewhere and closes only when the backup icon is clicked again. Its state is saved per user in Rahyar preferences, so it is restored when the user returns to the page or signs in from another browser.

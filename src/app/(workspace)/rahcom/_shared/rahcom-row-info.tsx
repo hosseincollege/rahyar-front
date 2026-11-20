@@ -2,14 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { Check, ClipboardList, Copy, Info, MapPin, Maximize2, Minimize2, Pencil, X, Zap } from 'lucide-react';
+import { Check, ClipboardList, Copy, Info, MapPin, MapPinned, Maximize2, Minimize2, Pencil, X, Zap } from 'lucide-react';
 import { hasRahcomCoordinates, iranProvinces, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { formatRahcomCoordinates } from '@/lib/api/rahcom/rahcom-api';
 import { rahcomLongOutageReasonLabel } from '@/lib/api/rahcom/solar-status';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
 import { RahcomCopyPreview } from '@/app/(workspace)/rahcom/_shared/rahcom-copy-preview';
-import { RahcomMainWindow } from '@/components/rahcom/main-window';
-import { RahcomInformation } from '@/components/rahcom/information';
+import { RahcomInformation, RahcomInformationWindow } from '@/components/rahcom/information';
 import { RahcomInformationDetails, type RahcomInformationSection } from '@/components/rahcom/information-details';
 import { RahcomElectricity } from '@/components/rahcom/electricity';
 import { RahcomSite } from '@/components/rahcom/site';
@@ -205,14 +204,14 @@ export function RahcomRowInfoHost() {
   };
   return createPortal(<>
   <div className="fixed inset-0 z-[1000] bg-transparent" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <RahcomMainWindow expanded={expanded} title={canonicalTitle} position={popup.position} bounds={contentBounds}>
+    <RahcomInformationWindow expanded={expanded} title={canonicalTitle} position={popup.position} bounds={contentBounds}>
       <div className={`rahcom-system-popup${expanded ? ' rahcom-system-popup-expanded' : ''}`}>
         {popup.kind === 'site' ? <RahcomSite title={canonicalTitle} code={canonicalCode} fields={visibleFields} copiedCode={codeCopied} onCopyCode={() => void copyCode()} /> : <RahcomInformation title={canonicalTitle} code={canonicalCode} fields={visibleFields} copiedCode={codeCopied} onCopyCode={() => void copyCode()} axis={popup.system ? { name: popup.system.announcedAxis ?? '', code: popup.system.axisCode ?? undefined } : undefined} />}
         <div className={`rahcom-popup-actions${expanded ? ' rahcom-popup-actions-expanded' : ''}`}>
-          {popup.system && <button type="button" data-popup-action="electricity" aria-expanded={panel === 'electricity'} onClick={() => setPanel((current) => current === 'electricity' ? null : 'electricity')} aria-label="اطلاعات برق" title="اطلاعات برق"><Zap size={16} /></button>}
+          <button type="button" className="danger" onClick={close} aria-label="بستن" title="بستن"><X size={16} /></button>
           {popup.onEdit && <button type="button" onClick={() => { const edit = popup.onEdit; close(); edit?.(); }} aria-label="ویرایش رکورد" title="ویرایش رکورد"><Pencil size={16} /></button>}
           {!popup.system && <button type="button" data-popup-action="expand" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)} aria-label={expanded ? 'کوچک‌کردن پنجره' : 'نمایش جزئیات'} title={expanded ? 'کوچک‌کردن پنجره' : 'نمایش جزئیات'}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
-          <button type="button" className="danger" onClick={close} aria-label="بستن" title="بستن"><X size={16} /></button>
+          {popup.system && <button type="button" data-popup-action="electricity" aria-expanded={panel === 'electricity'} onClick={() => setPanel((current) => current === 'electricity' ? null : 'electricity')} aria-label="اطلاعات برق" title="اطلاعات برق"><Zap size={16} /></button>}
           <button type="button" onClick={() => void copyAll()} aria-label="کپی اطلاعات" title="کپی اطلاعات">{copied ? <Check size={16} /> : <Copy size={16} />}</button>
           {popup.system && hasRahcomCoordinates(popup.system) && <button type="button" data-popup-action="route" aria-expanded={panel === 'location'} onClick={() => setPanel((current) => current === 'location' ? null : 'location')} aria-label="مسیریابی و مختصات" title="مسیریابی و مختصات"><MapPin size={16} /></button>}
           {popup.system && <button type="button" data-popup-action="history" aria-expanded={panel === 'history'} onClick={() => setPanel((current) => current === 'history' ? null : 'history')} aria-label="تاریخچه مراجعات" title="تاریخچه مراجعات"><ClipboardList size={16} /></button>}
@@ -221,12 +220,12 @@ export function RahcomRowInfoHost() {
         {panel === 'electricity' && <RahcomElectricity details={electricityDetails} copiedKey={electricityCopiedKey} onCopy={copyElectricityDetail} />}
         {expanded && <RahcomInformationDetails sections={expandedSections} />}
         {panel === 'location' && popup.system && hasRahcomCoordinates(popup.system) && <div className="mt-1 flex min-h-9 items-center gap-1.5 text-xs">
-          {coordinates && <><bdi dir="ltr" className="min-w-0 shrink-0 text-end text-foreground">{coordinates}</bdi><button type="button" onClick={() => { void navigator.clipboard.writeText(coordinates).then(() => { setCoordinatesCopied(true); window.setTimeout(() => setCoordinatesCopied(false), 900); }); }} className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground hover:border-primary hover:text-primary" aria-label="کپی مختصات" title="کپی مختصات">{coordinatesCopied ? <Check size={15} /> : <Copy size={15} />}</button><a href={googleMapsUrl()} target="_blank" rel="noreferrer" className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background font-bold text-base text-[#4285f4] hover:border-primary hover:bg-muted" aria-label="Google Maps" title="Google Maps">G</a></>}
+          {coordinates && <><bdi dir="ltr" className="min-w-0 shrink-0 text-end text-foreground">{coordinates}</bdi><button type="button" onClick={() => { void navigator.clipboard.writeText(coordinates).then(() => { setCoordinatesCopied(true); window.setTimeout(() => setCoordinatesCopied(false), 900); }); }} className="rahcom-popup-icon-button rounded-md" aria-label="کپی مختصات" title="کپی مختصات">{coordinatesCopied ? <Check size={16} /> : <Copy size={16} />}</button><a href={googleMapsUrl()} target="_blank" rel="noreferrer" className="rahcom-popup-icon-button rounded-md font-bold text-base text-[#4285f4] hover:bg-muted" aria-label="Google Maps" title="Google Maps">G</a><button type="button" onClick={() => { if (!popup.system) return; window.sessionStorage.setItem('rahyar-rahcom-focus-system', popup.system.id); close(); window.location.assign('/rahcom/map'); }} className="rahcom-popup-icon-button rounded-md" aria-label="نمایش سامانه روی نقشه" title="نمایش روی نقشه"><MapPinned size={16} /></button></>}
           {!coordinates && <span className="px-2 py-1 text-muted-foreground">مختصات برای این سامانه ثبت نشده است.</span>}
         </div>}
         {panel === 'history' && <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-background p-2">{popup.system ? <RahcomSystemHistory system={popup.system} /> : <span className="text-xs text-muted-foreground">سامانهٔ متناظر پیدا نشد.</span>}</div>}
       </div>
-    </RahcomMainWindow>
+    </RahcomInformationWindow>
   </div>
   <RahcomCopyPreview open={Boolean(copyPreview)} title={uiMessage(locale, 'rahcomCopy')} text={copyPreview} locale={locale} onClose={() => setCopyPreview('')} />
   </>, portalRoot);

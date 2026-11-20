@@ -31,10 +31,10 @@ function validWorkbook(bytes: Buffer) {
   if (!sheet) return false;
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '', blankrows: false });
   const headers = (rows[0] ?? []).map((value) => String(value).trim());
-  return headers.length === expectedHeaders.length
+  return (headers.length === expectedHeaders.length || (headers.length === expectedHeaders.length + 1 && headers[expectedHeaders.length] === 'نوع سایت'))
     && expectedHeaders.every((header, index) => headers[index] === header)
     && rows.length <= 10002
-    && rows.slice(1).every((row) => row.length <= expectedHeaders.length && String(row[3] ?? '').trim() === 'اصفهان');
+    && rows.slice(1).every((row) => row.length <= headers.length && String(row[3] ?? '').trim() === 'اصفهان');
 }
 
 export async function GET(request: NextRequest) {

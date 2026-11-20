@@ -10,6 +10,7 @@ export type UserPreferences = {
   lightBrightness: BrightnessPreferences['light'];
   darkBrightness: BrightnessPreferences['dark'];
   workspaceMode: 'FORM' | 'COMMAND' | 'AI';
+  rahcomBackupActionsOpen: boolean;
 };
 
 export type SaveUserPreferences = {
@@ -57,6 +58,10 @@ export const preferencesApi = {
 
   saveWorkspaceMode(workspaceMode: 'FORM' | 'COMMAND' | 'AI'): Promise<{ workspaceMode: 'FORM' | 'COMMAND' | 'AI' }> {
     return apiClient.put('/auth/preferences/workspace-mode', { workspaceMode });
+  },
+
+  saveRahcomBackupActionsOpen(open: boolean): Promise<{ rahcomBackupActionsOpen: boolean }> {
+    return apiClient.put('/auth/preferences/rahcom-backup-actions', { open });
   },
 
   async getOrganizationAppearance(): Promise<OrganizationAppearance> {

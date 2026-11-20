@@ -779,6 +779,18 @@ html.dark .erp-app-shell[data-dark-contrast="strong"] {
 .rahcom-table-scroll {
   scrollbar-color: var(--border-strong, var(--border)) var(--gray-sidebar-secondary, var(--background));
   scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+
+/* Long tables (such as Solar snapshots) keep their own vertical scroll area. */
+.rahcom-table-frame--bounded {
+  max-height: calc(100dvh - 18rem);
+}
+
+@media (max-width: 767px) {
+  .rahcom-table-frame--bounded {
+    max-height: calc(100dvh - 15rem);
+  }
 }
 
 .rahcom-table-scroll::-webkit-scrollbar {
@@ -806,6 +818,13 @@ html.dark .erp-app-shell[data-dark-contrast="strong"] {
   align-items: center;
 }
 
+html[data-toolbar-labels="true"] .rahcom-toolbar {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
 .rahcom-toolbar > button,
 .rahcom-toolbar > label,
 .rahcom-toolbar > [role="group"] {
@@ -817,6 +836,17 @@ html.dark .erp-app-shell[data-dark-contrast="strong"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.rahcom-toolbar .rahcom-toolbar-option-label {
+  display: none;
+}
+
+html[data-toolbar-labels="true"] .rahcom-toolbar .rahcom-toolbar-option-label {
+  display: inline;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> svg:only-child),
@@ -835,7 +865,7 @@ html[data-toolbar-labels="true"] .rahcom-toolbar [role="group"] > button[title]:
 html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> svg:only-child)::after,
 html[data-toolbar-labels="true"] .rahcom-toolbar button[title]:has(> span[aria-hidden="true"]:only-child)::after,
 html[data-toolbar-labels="true"] .rahcom-toolbar [role="group"] > button[title]:has(> svg:only-child)::after {
-  content: attr(title);
+  content: attr(data-toolbar-label);
   white-space: nowrap;
   font-size: 0.75rem;
   font-weight: 500;
@@ -851,9 +881,12 @@ html[data-toolbar-labels="true"] .rahcom-toolbar [role="group"] > button[title]:
 }
 
 html[data-toolbar-labels="true"] .rahcom-toolbar label[data-toolbar-label] {
+  display: inline-flex;
   width: auto;
   min-width: 36px;
+  align-items: center;
   justify-content: center;
+  flex-direction: row;
   gap: 7px;
   padding-inline: 12px;
 }
@@ -1373,10 +1406,11 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   justify-content: flex-start;
 }
 
-.rahcom-popup-code-copy {
+.rahcom-popup-icon-button {
   display: inline-grid;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2rem;
+  height: 2rem;
+  min-height: 2rem;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid var(--border);
@@ -1384,12 +1418,25 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   background: var(--background);
   color: var(--muted-foreground);
   cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background-color .15s ease;
 }
 
-.rahcom-popup-code-copy:hover {
+.rahcom-popup-icon-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.rahcom-popup-icon-button:hover {
   border-color: var(--primary);
   color: var(--primary);
 }
+
+.rahcom-popup-icon-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.rahcom-popup-code-copy { vertical-align: middle; }
 
 .rahcom-popup-data {
   display: grid;
@@ -1613,4 +1660,20 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 .rahcom-popup-edit-fields textarea {
   min-height: 5rem;
   resize: vertical;
+}
+.rahcom-systems-table[data-wrap-long-text='true'] tbody td:nth-child(4),
+.rahcom-systems-table[data-wrap-long-text='true'] tbody td:nth-child(5),
+.rahcom-systems-table[data-wrap-long-text='true'] tbody td:nth-child(6),
+.rahcom-systems-table[data-wrap-long-text='true'] tbody td:nth-child(7),
+.rahcom-systems-table[data-wrap-long-text='true'] tbody td:nth-child(10) {
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.rahcom-systems-table[data-wrap-long-text='true'] tbody td:nth-child(5) .truncate {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }

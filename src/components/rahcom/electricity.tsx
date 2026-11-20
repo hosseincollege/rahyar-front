@@ -16,7 +16,7 @@ export function RahcomElectricity({ details, copiedKey, onCopy }: RahcomElectric
       const copyKey = `${detail.label}:${detail.value}`;
       return <div key={`${copyKey}:${index}`} className="flex min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
         <div className="min-w-0"><span className="block text-[11px] text-muted-foreground">{detail.label}</span><bdi dir="ltr" className="block break-all text-sm text-foreground">{detail.value}</bdi></div>
-        <button type="button" onClick={() => onCopy(detail)} className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground hover:border-primary hover:text-primary" aria-label={`کپی ${detail.label}`} title={copiedKey === copyKey ? 'کپی شد' : `کپی ${detail.label}`}>{copiedKey === copyKey ? <Check size={15} /> : <Copy size={15} />}</button>
+        <button type="button" onClick={() => onCopy(detail)} className="rahcom-popup-icon-button rounded-md" aria-label={`کپی ${detail.label}`} title={copiedKey === copyKey ? 'کپی شد' : `کپی ${detail.label}`}>{copiedKey === copyKey ? <Check size={16} /> : <Copy size={16} />}</button>
       </div>;
     }) : <span className="px-2 py-1 text-xs text-muted-foreground">اطلاعات برق برای این سامانه ثبت نشده است.</span>}
   </div>;

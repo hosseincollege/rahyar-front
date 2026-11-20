@@ -13,6 +13,7 @@ import { getAccessToken } from '@/lib/api-client';
 import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
+import { useBackupActionsPreference } from '@/components/rahcom/use-backup-actions-preference';
 
 type BillWorkbook = { headers: string[]; rows: string[][] };
 type ExternalSystemType = 'USO' | 'RAHCOM' | 'VSAT';
@@ -100,24 +101,7 @@ export function RahcomBillIdentifiers() {
   const [importBusy, setImportBusy] = useState(false);
   const [operationError, setOperationError] = useState('');
   const uploadInputRef = useRef<HTMLInputElement>(null);
-  const backupActionsRef = useRef<HTMLDivElement>(null);
-  const [backupActionsOpen, setBackupActionsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!backupActionsOpen) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!backupActionsRef.current?.contains(event.target as Node)) setBackupActionsOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setBackupActionsOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutsidePointer);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePointer);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [backupActionsOpen]);
+  const { open: backupActionsOpen, toggle: toggleBackupActions } = useBackupActionsPreference();
 
   useEffect(() => {
     let active = true;
@@ -202,7 +186,7 @@ export function RahcomBillIdentifiers() {
     }
     if (columnIndex === systemCodeIndex) return splitSystemCodes(row[columnIndex]).map((code) => {
       const external = parseExternalSystem(code);
-      return external ? `${external.type} - ${external.code}` : code;
+      return external ? external.code : code;
     }).join('\n');
     if (columnIndex === registeredDateIndex && /^\d{4}-\d{2}-\d{2}$/.test(row[columnIndex] ?? '')) {
       const date = new Date(`${row[columnIndex]}T12:00:00Z`);
@@ -500,8 +484,8 @@ export function RahcomBillIdentifiers() {
         <Search aria-hidden="true" size={17} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiMessage(locale, 'headerSearch')} aria-label={uiMessage(locale, 'rahcomBillIdentifiersSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
       </label>
-      {canManageBillIdentifiers && <div ref={backupActionsRef} className="flex shrink-0 items-center gap-2">
-        <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="bill-backup-actions" onClick={() => setBackupActionsOpen((open) => !open)} aria-label="همگام‌سازی ابری" title="همگام‌سازی ابری" style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
+      {canManageBillIdentifiers && <div className="flex shrink-0 items-center gap-2">
+        <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="bill-backup-actions" onClick={toggleBackupActions} aria-label="همگام‌سازی ابری" title="همگام‌سازی ابری" style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
         {backupActionsOpen && <div id="bill-backup-actions" className="flex items-center gap-2">
           <button type="button" onClick={() => void saveBackup()} disabled={backupBusy || loading || !workbook?.headers.length} aria-label={uiMessage(locale, 'rahcomSaveSystemsBackup')} title={uiMessage(locale, 'rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}</button>
           <button type="button" onClick={() => void restoreBillBackup()} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>

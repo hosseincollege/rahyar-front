@@ -4,7 +4,7 @@ import { RahcomToolbar } from '@/components/rahcom/toolbar';
 import { RahcomTableCount, RahcomTableFrame } from '@/components/rahcom/table';
 import { DataTable } from '@/components/ui/data-table';
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { ArchiveRestore, Download, LoaderCircle, Save, Search, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/providers/preferences-provider';
@@ -12,14 +12,30 @@ import { getAccessToken } from '@/lib/api-client';
 import { iranProvinces, rahcomApi } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomInfoHeader, RahcomRowInfo, RahcomSiteIcon } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
+import { useBackupActionsPreference } from '@/components/rahcom/use-backup-actions-preference';
 
 type WorkbookSheet = { name: string; rows: string[][] };
 type BillWorkbook = { headers: string[]; rows: string[][] };
+type SiteType = string;
+const siteTypeHeader = '\u0646\u0648\u0639 \u0633\u0627\u06cc\u062a';
+const siteTypeStorageKey = 'rahcom-site-types-v2';
+const siteTypeKey = (province: string, row: string[]) => `${province}:${normalize(row[1] || row[2] || row[0] || '')}`;
+const withSiteTypes = (sheet: WorkbookSheet, province: string, values: Record<string, SiteType>) => {
+  const rows = sheet.rows.map((row) => [...row]);
+  if (!rows.length) return rows;
+  let typeIndex = rows[0].findIndex((header) => normalize(header) === normalize(siteTypeHeader));
+  if (typeIndex < 0) { typeIndex = rows[0].length; rows[0].push(siteTypeHeader); }
+  rows.slice(1).forEach((row) => { row[typeIndex] = values[siteTypeKey(province, row)] || 'USO'; });
+  return rows;
+};
 const normalize = (value: string) => value.trim().normalize('NFKC').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c\u200f]/g, '').toLocaleLowerCase();
 
 export function RahcomSitesList({ selectedProvince = 'all', canManage = false }: { selectedProvince?: string; canManage?: boolean }) {
   const { locale } = usePreferences();
   const [sitesData, setSitesData] = useState<{ province: string; sheets: WorkbookSheet[] } | null>(null);
+  const [siteTypes, setSiteTypes] = useState<Record<string, SiteType>>({});
+  const [siteTypesReady, setSiteTypesReady] = useState(false);
+  const [editingSiteTypeKey, setEditingSiteTypeKey] = useState<string | null>(null);
   const [billWorkbook, setBillWorkbook] = useState<BillWorkbook | null>(null);
   const [loadErrorState, setLoadErrorState] = useState<{ province: string; message: string } | null>(null);
   const sheets = useMemo(() => sitesData?.province === selectedProvince ? sitesData.sheets : [], [selectedProvince, sitesData]);
@@ -27,9 +43,8 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
   const loadError = loadErrorState?.province === selectedProvince ? loadErrorState.message : '';
   const [query, setQuery] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
-  const [backupActionsOpen, setBackupActionsOpen] = useState(false);
+  const { open: backupActionsOpen, toggle: toggleBackupActions } = useBackupActionsPreference();
   const [operationError, setOperationError] = useState('');
-  const backupActionsRef = useRef<HTMLDivElement>(null);
   const deferredQuery = useDeferredValue(query);
   const activeSheet = sheets[0];
   const headers = activeSheet?.rows[0] ?? [];
@@ -48,6 +63,19 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
   }, [deferredQuery, provinceLabel, selectedProvince, sheets]);
   const isPersian = locale === 'fa';
   const numberFormat = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  useEffect(() => {
+    const savedTypes: Record<string, SiteType> = {};
+    try {
+      const parsed = JSON.parse(localStorage.getItem(siteTypeStorageKey) || '{}') as Record<string, unknown>;
+      for (const [key, value] of Object.entries(parsed)) if (typeof value === 'string' && value.trim().length <= 40) savedTypes[key] = value.trim();
+    } catch { /* Start with no saved site types when storage is unavailable. */ }
+    queueMicrotask(() => {
+      setSiteTypes(savedTypes);
+      setSiteTypesReady(true);
+    });
+  }, []);
+  useEffect(() => { if (siteTypesReady) localStorage.setItem(siteTypeStorageKey, JSON.stringify(siteTypes)); }, [siteTypes, siteTypesReady]);
+  const visibleHeaders = headers.map((header, index) => ({ header, index })).filter(({ header }) => normalize(header) !== normalize(siteTypeHeader));
   const billIdsBySite = useMemo(() => {
     const result = new Map<string, string[]>();
     if (!billWorkbook) return result;
@@ -73,22 +101,6 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
   }, [billWorkbook]);
 
   useEffect(() => {
-    if (!backupActionsOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!backupActionsRef.current?.contains(event.target as Node)) setBackupActionsOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setBackupActionsOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [backupActionsOpen]);
-
-  useEffect(() => {
     let active = true;
     void rahcomApi.sites(selectedProvince).then((result) => {
       if (!active) return;
@@ -104,7 +116,10 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
   useEffect(() => {
     let active = true;
     const token = getAccessToken();
-    if (!token || selectedProvince !== 'isfahan') { setBillWorkbook(null); return; }
+    if (!token || selectedProvince !== 'isfahan') {
+      queueMicrotask(() => { if (active) setBillWorkbook(null); });
+      return () => { active = false; };
+    }
     void fetch('/api/rahcom/bill-identifiers', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error('Bill list unavailable');
@@ -118,7 +133,7 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
   const downloadWorkbook = () => {
     const workbook = XLSX.utils.book_new();
     for (const sheet of sheets) {
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name.slice(0, 31));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(withSiteTypes(sheet, selectedProvince, siteTypes)), sheet.name.slice(0, 31));
     }
     XLSX.writeFile(workbook, 'uso-sites.xlsx');
   };
@@ -131,7 +146,7 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
     setOperationError('');
     try {
       const workbook = XLSX.utils.book_new();
-      for (const sheet of sheets) XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name.slice(0, 31));
+      for (const sheet of sheets) XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(withSiteTypes(sheet, selectedProvince, siteTypes)), sheet.name.slice(0, 31));
       const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
       const response = await fetch('/api/provinces/isfahan/sites', {
         method: 'PUT',
@@ -162,10 +177,19 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
         rows: XLSX.utils.sheet_to_json<string[]>(workbook.Sheets[name], { header: 1, raw: false, defval: '', blankrows: false }),
       }));
       if (!restoredSheets.length || !restoredSheets[0].rows.length) throw new Error(uiMessage(locale, 'rahcomSystemsLoadError'));
+      const restoredTypes = { ...siteTypes };
+      for (const sheet of restoredSheets) {
+        const typeIndex = sheet.rows[0]?.findIndex((header) => normalize(header) === normalize(siteTypeHeader)) ?? -1;
+        if (typeIndex < 0) continue;
+        for (const row of sheet.rows.slice(1)) {
+          const value = row[typeIndex];
+          if (typeof value === 'string' && value.trim().length <= 40) restoredTypes[siteTypeKey('isfahan', row)] = value.trim();
+        }
+      }
+      setSiteTypes(restoredTypes);
       setSitesData({ province: 'isfahan', sheets: restoredSheets });
       setLoadErrorState(null);
       setQuery('');
-      setBackupActionsOpen(false);
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : uiMessage(locale, 'rahcomSystemsLoadError'));
     } finally {
@@ -186,8 +210,8 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
       <button type="button" onClick={downloadWorkbook} disabled={loading || sheets.length === 0} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50" aria-label={isPersian ? 'دانلود فایل اکسل سایت‌ها' : 'Download sites workbook'} title={isPersian ? 'دانلود اکسل استان‌های مجاز' : 'Download workbook for accessible provinces'}>
         <Download size={16} aria-hidden="true" />
       </button>
-      {canManage && <div ref={backupActionsRef} className="flex shrink-0 items-center gap-2">
-        <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="sites-backup-actions" onClick={() => setBackupActionsOpen((open) => !open)} aria-label={uiMessage(locale, 'rahcomSaveSitesBackup')} title={uiMessage(locale, 'rahcomSaveSitesBackup')} style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: 'url(/cloud-sync-exact.svg)', WebkitMaskImage: 'url(/cloud-sync-exact.svg)', maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }} /></button>
+      {canManage && <div className="flex shrink-0 items-center gap-2">
+        <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="sites-backup-actions" onClick={toggleBackupActions} aria-label={uiMessage(locale, 'rahcomSaveSitesBackup')} data-toolbar-label={locale.startsWith('fa') ? 'پشتیبان‌گیری' : 'Backup'} title={uiMessage(locale, 'rahcomSaveSitesBackup')} style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: 'url(/cloud-sync-exact.svg)', WebkitMaskImage: 'url(/cloud-sync-exact.svg)', maskSize: 'contain', WebkitMaskSize: 'contain', maskRepeat: 'no-repeat', WebkitMaskRepeat: 'no-repeat', maskPosition: 'center', WebkitMaskPosition: 'center' }} /></button>
         {backupActionsOpen && <div id="sites-backup-actions" className="flex items-center gap-2">
           <button type="button" onClick={() => void saveSitesBackup()} disabled={backupBusy || loading || selectedProvince !== 'isfahan' || sheets.length === 0} aria-label={uiMessage(locale, 'rahcomSaveSitesBackup')} title={uiMessage(locale, 'rahcomSaveSitesBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} aria-hidden="true" />}</button>
           <button type="button" onClick={() => void restoreSitesBackup()} disabled={backupBusy || loading || selectedProvince !== 'isfahan'} aria-label={uiMessage(locale, 'rahcomRestoreSitesBackup')} title={uiMessage(locale, 'rahcomRestoreSitesBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} aria-hidden="true" />}</button>
@@ -198,12 +222,13 @@ export function RahcomSitesList({ selectedProvince = 'all', canManage = false }:
     <RahcomTableFrame className="flex-1">
       {loading ? <p role="status" className="p-5 text-sm text-muted-foreground">{isPersian ? 'در حال بارگذاری فهرست سایت‌ها…' : 'Loading sites…'}</p> : loadError ? <p role="alert" className="p-5 text-sm text-destructive">{loadError}</p> : headers.length > 0 ? <DataTable className="rahcom-sticky-table w-max min-w-full border-separate border-spacing-0 text-sm">
         <thead className="sticky top-0 z-10 bg-card text-muted-foreground">
-          <tr><th scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-center font-semibold">{uiMessage(locale, 'rahcomRowNumber')}</th><th scope="col" className="h-10 w-9 border-b border-border bg-card px-1 text-center font-semibold"><RahcomInfoHeader icon="tower" /></th>{headers.map((header, index) => <th key={`${index}:${header}`} scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-start font-semibold">{header || (isPersian ? 'ستون' : 'Column')}</th>)}<th scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-start font-semibold">{isPersian ? 'شناسه قبض برق' : 'Electricity bill IDs'}</th></tr>
+          <tr><th scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-center font-semibold">{uiMessage(locale, 'rahcomRowNumber')}</th><th scope="col" className="h-10 w-9 border-b border-border bg-card px-1 text-center font-semibold"><RahcomInfoHeader icon="tower" /></th><th scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-start font-semibold">{siteTypeHeader}</th>{visibleHeaders.map(({ header, index }) => <th key={`${index}:${header}`} scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-start font-semibold">{header || (isPersian ? 'ستون' : 'Column')}</th>)}<th scope="col" className="h-10 whitespace-nowrap border-b border-border bg-card px-3 text-start font-semibold">{isPersian ? 'شناسه قبض برق' : 'Electricity bill IDs'}</th></tr>
         </thead>
-        <tbody>{filteredRows.map((row, rowIndex) => <tr key={rowIndex} className="h-9 text-foreground hover:bg-muted/40"><td className="h-9 whitespace-nowrap border-b border-border/70 px-3 text-center tabular-nums">{numberFormat.format(rowIndex + 1)}</td><td className="h-9 w-9 border-b border-border/70 px-1 text-center"><RahcomRowInfo icon="tower" kind="site" title={row[0] || row[1] || (isPersian ? 'سایت' : 'Site')} systemCode={row[1] || row[2] || ''} fields={headers.map((header, columnIndex) => ({ label: header || (isPersian ? 'ستون' : 'Column'), value: row[columnIndex] ?? '' }))} /></td>
-          {headers.map((_, columnIndex) => <td key={columnIndex} className="h-9 max-w-72 truncate whitespace-nowrap border-b border-border/70 px-3">{row[columnIndex] || '—'}</td>)}
+        <tbody>{filteredRows.map((row, rowIndex) => { const key = siteTypeKey(selectedProvince, row); const siteType = siteTypes[key] || 'USO'; return <tr key={rowIndex} className="h-9 text-foreground hover:bg-muted/40"><td className="h-9 whitespace-nowrap border-b border-border/70 px-3 text-center tabular-nums">{numberFormat.format(rowIndex + 1)}</td><td className="h-9 w-9 border-b border-border/70 px-1 text-center"><RahcomRowInfo icon="tower" kind="site" title={row[0] || row[1] || (isPersian ? 'سایت' : 'Site')} systemCode={row[1] || row[2] || ''} fields={visibleHeaders.map(({ header, index }) => ({ label: header || (isPersian ? 'ستون' : 'Column'), value: row[index] ?? '' }))} onEdit={canManage ? () => setEditingSiteTypeKey(key) : undefined} /></td>
+          <td className="h-9 whitespace-nowrap border-b border-border/70 px-3">{canManage && editingSiteTypeKey === key ? <input autoFocus type="text" aria-label={`${siteTypeHeader}: ${row[0] || row[1] || ''}`} value={siteType} maxLength={40} onChange={(event) => setSiteTypes((current) => ({ ...current, [key]: event.target.value }))} onBlur={() => setEditingSiteTypeKey(null)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); setEditingSiteTypeKey(null); } }} className="h-7 w-24 rounded-md border border-border bg-background px-2 text-foreground outline-none focus:border-primary" /> : siteType}</td>
+          {visibleHeaders.map(({ index }) => <td key={index} className="h-9 max-w-72 truncate whitespace-nowrap border-b border-border/70 px-3">{row[index] || '—'}</td>)}
           <td dir="ltr" className="h-9 max-w-72 border-b border-border/70 px-3">{(billIdsBySite.get(normalize(row[0] ?? '')) ?? billIdsBySite.get(normalize(row[1] ?? '')) ?? []).join(', ') || '—'}</td>
-        </tr>)}</tbody>
+        </tr>; })}</tbody>
       </DataTable> : <p className="p-5 text-sm text-muted-foreground">{isPersian ? 'این برگه داده‌ای برای نمایش ندارد.' : 'This sheet has no data to display.'}</p>}
       {filteredRows.length === 0 && headers.length > 0 && <p className="p-5 text-sm text-muted-foreground">{isPersian ? 'موردی پیدا نشد.' : 'No matching rows found.'}</p>}
     </RahcomTableFrame>

@@ -1,7 +1,8 @@
 'use client';
 
-import { RahcomToolbar } from '@/components/rahcom/toolbar';
-import { ClipboardList, Copy, Download, Layers, LocateFixed, MapPin, Plus, Route, Scan, Search, Sun, Ticket, Trash2, TriangleAlert, Upload, WrapText, X } from 'lucide-react';
+import { RahcomLocationIcon, RahcomTagIcon, RahcomToolbar, RahcomToolbarOption, RahcomWrapTextButton } from '@/components/rahcom/toolbar';
+import { animateRahcomTableChange } from '@/components/rahcom/table';
+import { CircleOff, ClipboardList, Combine, Copy, Download, Layers, LocateFixed, Plus, Route, Scan, Search, SquaresIntersect, Sun, Ticket, Trash2, Upload, X } from 'lucide-react';
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
@@ -28,6 +29,17 @@ import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
 import { useRahcomDate } from './rahcom-date';
 
 export type RahcomSection = 'map' | 'actions' | 'systems' | 'sites' | 'daily-traffic' | 'solar-daily' | 'aggregate' | 'tickets';
+
+const TicketsHeadingCopyButton = memo(function TicketsHeadingCopyButton({ locale, date, province }: { locale: Parameters<typeof uiMessage>[0]; date: string; province: string }) {
+  const [open, setOpen] = useState(false);
+  const provinceLabel = iranProvinces.find(([id]) => id === province)?.[1] ?? province;
+  const title = uiMessage(locale, 'rahcomTickets');
+  const text = `${title}\n${formatJalaliDate(date)}\n${uiMessage(locale, 'rahcomProvince')}: ${provinceLabel}`;
+  return <>
+    <button type="button" onClick={() => setOpen(true)} aria-label={locale === 'fa' ? 'عنوان' : 'Heading'} data-toolbar-label={locale === 'fa' ? 'عنوان' : 'Heading'} title={uiMessage(locale, 'rahcomCopyDateProvince')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Copy size={16} /></button>
+    <RahcomCopyPreview open={open} title={title} text={text} locale={locale} onClose={() => setOpen(false)} />
+  </>;
+});
 
 const MapSearchCapsule = memo(function MapSearchCapsule({ locale, initialQuery, onQueryChange }: { locale: Parameters<typeof uiMessage>[0]; initialQuery: string; onQueryChange: (query: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +161,7 @@ function MapSystemsCapsule({ systemsCount, details, locale }: { systemsCount: nu
   }, [open, details.length]);
 
   const content = <span className="inline-flex h-full shrink-0 items-center overflow-hidden rounded-full border border-border bg-background text-sm text-foreground">
-    <span className="inline-flex h-full items-center gap-1.5 px-3"><MapPin size={16} style={{ color: 'var(--primary)' }} /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(systemsCount)}</strong></span>
+    <span className="inline-flex h-full items-center gap-1.5 px-3"><RahcomLocationIcon size={16} style={{ color: 'var(--primary)' }} /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(systemsCount)}</strong></span>
     {details.length > 0 && <span className="inline-flex h-full items-center border-s border-amber-500/40 bg-amber-500/10 px-2 text-amber-600"><strong className="tabular-nums">+{new Intl.NumberFormat(locale).format(details.length)}</strong></span>}
   </span>;
 
@@ -283,10 +295,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     const text = `solar\n${formatJalaliDate(date ?? tehranDateKey())}\n${captureTime}`;
     setCopyPreview({ title: uiMessage(locale, 'solarCopySelection'), text });
   };
-  const openTicketsHeadingPreview = () => {
-    const provinceName = iranProvinces.find(([id]) => id === province)?.[1] ?? province;
-    setCopyPreview({ title: uiMessage(locale, 'rahcomTickets'), text: `${uiMessage(locale, 'rahcomTickets')}\n${formatJalaliDate(date ?? tehranDateKey())}\n${uiMessage(locale, 'rahcomProvince')}: ${provinceName}` });
-  };
   async function deleteSolarSnapshot(snapshot: RahcomSolarSnapshot) {
     if (!canManageRahcom || deletingSolarSnapshotId) return;
     const ordinal = new Intl.NumberFormat(locale).format(rahcomSolarSnapshotNumber(snapshot, snapshotsForDate));
@@ -381,27 +389,28 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
           {section === 'solar-daily' && <button type="button" onClick={openSolarHeadingPreview} disabled={!selectedSolarSnapshot} aria-label={uiMessage(locale, 'solarCopySelection')} title={uiMessage(locale, 'solarCopySelection')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"><Copy size={16} /></button>}
           {section === 'solar-daily' && solarSnapshotDeleteError && <span role="alert" className="max-w-56 truncate text-xs text-destructive" title={solarSnapshotDeleteError}>{solarSnapshotDeleteError}</span>}
           {['solar-daily', 'tickets', 'aggregate'].includes(section) && <RahcomCountCapsule count={sectionSystemsCount} />}
+          {section === 'aggregate' && <button type="button" onClick={() => window.dispatchEvent(new Event('rahcom:aggregate-download'))} aria-label={uiMessage(locale, 'solarDownloadExcel')} data-toolbar-label={locale === 'fa' ? 'Ø¯Ø§Ù†Ù„ÙˆØ¯' : 'Download'} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} aria-hidden="true" /></button>}
           {section === 'solar-daily' && <button type="button" aria-pressed={solarFormOpen} onClick={() => setSolarFormOpen((open) => !open)} aria-label={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} title={uiMessage(locale, solarFormOpen ? 'solarCloseForm' : 'solarAddSnapshot')} style={solarFormOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${solarFormOpen ? '' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}>{solarFormOpen ? <X size={17} /> : <Plus size={17} />}</button>}
           {section === 'tickets' && canManageRahcom && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-upload-click'))} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Upload size={17} /></button>}
-          {section === 'tickets' && <button type="button" aria-pressed={ticketsWrapLongText} onClick={() => setTicketsWrapLongText((enabled) => !enabled)} aria-label={uiMessage(locale, ticketsWrapLongText ? 'rahcomKeepTableTextSingleLine' : 'rahcomWrapLongTableText')} title={uiMessage(locale, ticketsWrapLongText ? 'rahcomKeepTableTextSingleLine' : 'rahcomWrapLongTableText')} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${ticketsWrapLongText ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}><WrapText size={17} aria-hidden="true" /></button>}
+          {section === 'tickets' && <RahcomWrapTextButton pressed={ticketsWrapLongText} onPressedChange={() => setTicketsWrapLongText((enabled) => !enabled)} wrapLabel={uiMessage(locale, 'rahcomWrapLongTableText')} singleLineLabel={uiMessage(locale, 'rahcomKeepTableTextSingleLine')} />}
           {section === 'tickets' && <button type="button" onClick={() => window.dispatchEvent(new Event('rahyar:tickets-download-click'))} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} /></button>}
-          {section === 'tickets' && <button type="button" onClick={openTicketsHeadingPreview} aria-label={uiMessage(locale, 'rahcomCopyDateProvince')} title={uiMessage(locale, 'rahcomCopyDateProvince')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Copy size={16} /></button>}
+          {section === 'tickets' && <TicketsHeadingCopyButton locale={locale} date={date ?? tehranDateKey()} province={province} />}
           {section === 'aggregate' && <>
-            <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>
+            <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => animateRahcomTableChange(() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); })} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><RahcomTagIcon className="size-5" holeFill={showMapIncidents ? 'var(--primary)' : 'var(--background)'} /></button>
             <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateOperation')}>
-              <button type="button" aria-pressed={aggregateSetOperation === 'union'} onClick={() => updateAggregateSetOperation('union')} className={`inline-flex h-full items-center justify-center px-3 transition-colors ${aggregateSetOperation === 'union' ? 'text-primary' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, 'rahcomAggregateUnion')}</button>
-              <button type="button" aria-pressed={aggregateSetOperation === 'intersection'} onClick={() => updateAggregateSetOperation('intersection')} className={`inline-flex h-full items-center justify-center border-s border-border px-3 transition-colors ${aggregateSetOperation === 'intersection' ? 'text-primary' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, 'rahcomAggregateIntersection')}</button>
+              <RahcomToolbarOption icon={Combine} label={uiMessage(locale, 'rahcomAggregateUnion')} pressed={aggregateSetOperation === 'union'} onClick={() => animateRahcomTableChange(() => updateAggregateSetOperation('union'))} />
+              <RahcomToolbarOption icon={SquaresIntersect} label={uiMessage(locale, 'rahcomAggregateIntersection')} pressed={aggregateSetOperation === 'intersection'} onClick={() => animateRahcomTableChange(() => updateAggregateSetOperation('intersection'))} className="border-s border-border" />
             </div>
             <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateList')}>
               {([
-                ['traffic', locale === 'fa' ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : uiMessage(locale, 'rahcomDailyTraffic')],
-                ['road', uiMessage(locale, 'rahcomRoadList')],
-                ['tickets', uiMessage(locale, 'rahcomTickets')],
-                ['solar', uiMessage(locale, 'rahcomSolarDaily')],
-              ] as const).map(([source, label], index) => <button key={source} type="button" aria-pressed={aggregateSources[source]} onClick={() => setAggregateSources((current) => ({ ...current, [source]: !current[source] }))} className={`inline-flex h-full items-center justify-center px-3 transition-colors ${index ? 'border-s border-border ' : ''}${aggregateSources[source] ? 'text-primary' : 'text-muted-foreground hover:bg-muted'}`}>{label}</button>)}
+                ['traffic', locale === 'fa' ? '\u0628\u062f\u0648\u0646 \u062a\u0631\u062f\u062f' : uiMessage(locale, 'rahcomDailyTraffic'), CircleOff],
+                ['road', uiMessage(locale, 'rahcomRoadList'), Route],
+                ['tickets', uiMessage(locale, 'rahcomTickets'), Ticket],
+                ['solar', uiMessage(locale, 'rahcomSolarDaily'), Sun],
+              ] as const).map(([source, label, Icon], index) => <RahcomToolbarOption key={source} icon={Icon} label={label} pressed={aggregateSources[source]} onClick={() => animateRahcomTableChange(() => setAggregateSources((current) => ({ ...current, [source]: !current[source] })))} className={index ? 'border-s border-border' : ''} />)}
             </div>
           </>}
-          {section === 'map' && <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} /></button>}
+          {section === 'map' && <button type="button" aria-pressed={showMapIncidents} aria-label={uiMessage(locale, 'rahcomIncidentFilter')} title={uiMessage(locale, 'rahcomIncidentFilter')} onClick={() => animateRahcomTableChange(() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); })} style={showMapIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showMapIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><RahcomTagIcon className="size-5" holeFill={showMapIncidents ? 'var(--primary)' : 'var(--background)'} /></button>}
           {section === 'map' && (mapLocationError || mapSystemsError) && <div className="flex h-9 shrink-0 items-center gap-2">
             {mapLocationError && <span role="alert" className="whitespace-nowrap text-xs text-destructive">{uiMessage(locale, 'rahcomLocationUnavailable')}</span>}
             {mapSystemsError && <span role="alert" className="whitespace-nowrap text-xs text-destructive">{mapSystemsError}</span>}
@@ -414,15 +423,25 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
               window.localStorage.setItem('rahyar-rahcom-focus-province', String(enabled));
             }} style={focusProvince ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${focusProvince ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Scan size={17} /></button>}
           <button type="button" onClick={() => { setMapLocationError(false); locateMeAction.current?.(); }} disabled={!canLocateMe || mapLocating} aria-label={uiMessage(locale, 'rahcomLocateMe')} title={uiMessage(locale, 'rahcomLocateMe')} className="inline-grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50">{mapLocating ? <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <LocateFixed size={16} />}</button>
-          <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateOperation')}>
-            <button type="button" aria-pressed={aggregateSetOperation === 'union'} onClick={() => updateAggregateSetOperation('union')} className={`inline-flex h-full items-center justify-center px-3 transition-colors ${aggregateSetOperation === 'union' ? 'text-primary' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, 'rahcomAggregateUnion')}</button>
-            <button type="button" aria-pressed={aggregateSetOperation === 'intersection'} onClick={() => updateAggregateSetOperation('intersection')} className={`inline-flex h-full items-center justify-center border-s border-border px-3 transition-colors ${aggregateSetOperation === 'intersection' ? 'text-primary' : 'text-muted-foreground hover:bg-muted'}`}>{uiMessage(locale, 'rahcomAggregateIntersection')}</button>
-          </div>
           <label className="sr-only" htmlFor="rahcom-map-filter-source">{uiMessage(locale, 'rahcomMapFilterSource')}</label>
           <select id="rahcom-map-filter-source" value={mapFilterSource} onChange={(event) => setMapFilterSource(event.target.value as typeof mapFilterSource)} aria-label={uiMessage(locale, 'rahcomMapFilterSource')} title={uiMessage(locale, 'rahcomMapFilterSource')} className="rahcom-capsule-select h-9 max-w-36 shrink rounded-full border border-border bg-background px-2 text-xs text-foreground max-sm:w-28 max-sm:max-w-28">
             {(['solar', 'traffic', 'road-list', 'tickets', 'aggregate'] as const).map((source) => <option key={source} value={source}>{mapFilterSourceLabels[source]}</option>)}
           </select>
           <button type="button" aria-pressed={mapSourceFilterActive} aria-label={`${uiMessage(locale, 'rahcomMapShowSource')}: ${mapFilterSourceLabels[mapFilterSource]}`} title={`${uiMessage(locale, 'rahcomMapShowSource')}: ${mapFilterSourceLabels[mapFilterSource]}`} disabled={mapFilterSource === 'solar' && !(solarSnapshotAvailable === true && selectedSolarSnapshot)} onClick={() => setMapSourceFilterActive((enabled) => !enabled)} style={mapSourceFilterActive ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${mapSourceFilterActive ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><MapFilterIcon size={18} /></button>
+          {mapFilterSource === 'aggregate' && <>
+            <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateOperation')}>
+              <RahcomToolbarOption icon={Combine} label={uiMessage(locale, 'rahcomAggregateUnion')} pressed={aggregateSetOperation === 'union'} onClick={() => animateRahcomTableChange(() => updateAggregateSetOperation('union'))} />
+              <RahcomToolbarOption icon={SquaresIntersect} label={uiMessage(locale, 'rahcomAggregateIntersection')} pressed={aggregateSetOperation === 'intersection'} onClick={() => animateRahcomTableChange(() => updateAggregateSetOperation('intersection'))} className="border-s border-border" />
+            </div>
+            <div className="inline-flex h-9 shrink-0 overflow-hidden rounded-full border border-border bg-background text-sm" role="group" aria-label={uiMessage(locale, 'rahcomAggregateList')}>
+              {([
+                ['traffic', mapFilterSourceLabels.traffic, CircleOff],
+                ['road', uiMessage(locale, 'rahcomRoadList'), Route],
+                ['tickets', uiMessage(locale, 'rahcomTickets'), Ticket],
+                ['solar', uiMessage(locale, 'rahcomSolarDaily'), Sun],
+              ] as const).map(([source, label, Icon], index) => <RahcomToolbarOption key={source} icon={Icon} label={label} pressed={aggregateSources[source]} onClick={() => animateRahcomTableChange(() => setAggregateSources((current) => ({ ...current, [source]: !current[source] })))} className={index ? 'border-s border-border' : ''} />)}
+            </div>
+          </>}
           {(solarSnapshotAvailable === false || solarSnapshotAvailable === true && !selectedSolarSnapshot) && <span role="status" className="inline-flex h-9 shrink-0 items-center whitespace-nowrap text-xs text-muted-foreground">{uiMessage(locale, 'rahcomSolarTodaySnapshotMissing')}</span>}
         </div>}
         {section === 'solar-daily' && <div id="rahcom-solar-table-controls" className="contents" />}
@@ -448,7 +467,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       ) : section === 'sites' ? (
           <RahcomSitesList selectedProvince={province} canManage={canManageRahcom} />
       ) : section === 'solar-daily' ? (
-        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} snapshotRevision={solarSnapshotRevision} />
+        <RahcomSolarDaily formOpen={solarFormOpen} onFormOpenChange={setSolarFormOpen} selectedProvince={province} canManage={canManageRahcom} selectedSnapshotId={renderedSolarSnapshotId} onSnapshotSelect={setSelectedSolarSnapshotId} onSolarSnapshotsChange={handleSolarSnapshots} onSystemCountChange={handleSectionSystemsCount} showIncidents={showMapIncidents} onToggleIncidents={() => { const enabled = !showMapIncidents; setShowMapIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); }} snapshotRevision={solarSnapshotRevision} />
       ) : section === 'aggregate' ? (
         <RahcomAggregateList onSystemCountChange={handleSectionSystemsCount} selectedProvince={province} showIncidents={showMapIncidents} setOperation={aggregateSetOperation} sources={aggregateSources} />
       ) : section === 'tickets' ? (

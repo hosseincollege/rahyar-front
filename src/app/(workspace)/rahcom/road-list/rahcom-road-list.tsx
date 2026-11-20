@@ -39,6 +39,80 @@ const defaultRoadListPromptBody = `از تصویر پیوست‌شده، جدو�
 - عنوان ستون محور را دقیقاً «محور ایستگاه» بگذار.`;
 const buildRoadListFilename = (jalaliDate: string) => `road-list-${jalaliDate.replaceAll('/', '-')}.xlsx`;
 const buildRoadListImagePrompt = (jalaliDate: string, body: string) => `${body.trim()}\n\nنام فایل خروجی: ${buildRoadListFilename(jalaliDate)}`;
+function RoadListPromptControl({ locale, canManage, selectedDate }: { locale: string; canManage: boolean; selectedDate: string }) {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [body, setBody] = useState(defaultRoadListPromptBody);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [copyState, setCopyState] = useState<'copied' | 'failed' | null>(null);
+  const promptText = buildRoadListImagePrompt(formatJalaliDate(selectedDate), body);
+  const promptApiPath = () => {
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) throw new Error('شناسهٔ سازمان در دسترس نیست.');
+    return `/api/rahcom/road-list-prompt?organizationId=${encodeURIComponent(organizationId)}`;
+  };
+  const extractBody = (savedText: string) => {
+    const sections = savedText.trim().split(/\n\s*\n/).filter((section) => !/road-list-.*\.xlsx/i.test(section));
+    const markerIndex = sections.findIndex((section) => section.includes('قواعد استخراج:'));
+    if (markerIndex >= 0) {
+      const editableSections = sections.slice(0, markerIndex + 1);
+      if (!editableSections.slice(0, markerIndex).join('\n\n').trim()) editableSections.unshift('از تصویر پیوست‌شده، جدول راهداری را استخراج کن و فایل اکسل را تحویل بده.');
+      editableSections.push(...sections.slice(markerIndex + 1));
+      return editableSections.join('\n\n').trim();
+    }
+    return sections.join('\n\n').trim() || defaultRoadListPromptBody;
+  };
+  const openPrompt = () => {
+    setBody(defaultRoadListPromptBody);
+    setOpen(true);
+    setEditing(false);
+    setError('');
+    setSaved(false);
+    setCopyState(null);
+    setBusy(true);
+    let request: Promise<{ prompt: string | null }>;
+    try { request = apiClient.get<{ prompt: string | null }>(promptApiPath()); }
+    catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'بارگذاری پرامپت ذخیره‌شده انجام نشد.');
+      setBusy(false);
+      return;
+    }
+    void request
+      .then((result) => { if (result.prompt) setBody(extractBody(result.prompt)); })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'بارگذاری پرامپت ذخیره‌شده انجام نشد.'))
+      .finally(() => setBusy(false));
+  };
+  const copyPrompt = async () => {
+    try { await navigator.clipboard.writeText(promptText); setCopyState('copied'); window.setTimeout(() => setCopyState(null), 1800); }
+    catch { setCopyState('failed'); }
+  };
+  const savePrompt = async () => {
+    setBusy(true); setError('');
+    try { await apiClient.put<{ saved: boolean }>(promptApiPath(), { prompt: body }); setEditing(false); setSaved(true); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'ذخیرهٔ پرامپت انجام نشد.'); }
+    finally { setBusy(false); }
+  };
+  return <>
+    <button type="button" onClick={openPrompt} aria-label={locale === 'fa' ? 'پرامپت' : 'Prompt'} data-toolbar-label={locale === 'fa' ? 'پرامپت' : 'Prompt'} title={locale === 'fa' ? 'پرامپت' : 'Prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><ClipboardCopy size={17} aria-hidden="true" /></button>
+    {open && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[1001] flex items-center justify-center bg-transparent p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <section role="dialog" aria-modal="true" aria-label={locale === 'fa' ? 'پرامپت استخراج تصویر راهداری' : 'Road list image extraction prompt'} style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="flex max-h-[min(86vh,54rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border text-foreground shadow-2xl">
+        <header dir="rtl" className="flex shrink-0 items-center justify-start gap-3 border-b border-border px-4 py-3 sm:px-5"><div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={() => setOpen(false)} aria-label={locale === 'fa' ? 'بستن' : 'Close'} title={locale === 'fa' ? 'بستن' : 'Close'} className="grid size-9 place-items-center rounded-lg border border-border bg-background text-destructive hover:border-destructive hover:bg-destructive/10"><X size={17}/></button>
+          <button type="button" disabled={busy || !promptText.trim()} onClick={() => void copyPrompt()} aria-label={locale === 'fa' ? 'کپی پرامپت' : 'Copy prompt'} title={locale === 'fa' ? 'کپی پرامپت' : 'Copy prompt'} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{copyState === 'copied' ? <Check size={16}/> : <ClipboardCopy size={16}/>}<span>{locale === 'fa' ? 'کپی متن' : 'Copy text'}</span></button>
+          {canManage && <button type="button" disabled={busy} onClick={() => { setEditing((value) => !value); setError(''); setSaved(false); }} aria-label={editing ? (locale === 'fa' ? 'پایان ویرایش' : 'Stop editing') : (locale === 'fa' ? 'ویرایش پرامپت' : 'Edit prompt')} title={editing ? (locale === 'fa' ? 'پایان ویرایش' : 'Stop editing') : (locale === 'fa' ? 'ویرایش پرامپت' : 'Edit prompt')} className="grid size-9 place-items-center rounded-lg border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{editing ? <Check size={16}/> : <Pencil size={16}/>}</button>}
+        </div></header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          {editing ? <div className="space-y-3"><textarea autoFocus dir="auto" value={body} onChange={(event) => { setBody(event.target.value); setSaved(false); }} className="min-h-[42vh] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground outline-none focus:border-primary"/><div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"><LockKeyhole size={15} aria-hidden="true"/><code dir="ltr" className="truncate font-mono">{buildRoadListFilename(formatJalaliDate(selectedDate))}</code></div></div> : <pre dir="auto" className="min-h-[50vh] whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground">{promptText}</pre>}
+          {busy && <div role="status" className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle size={15} className="animate-spin"/>{locale === 'fa' ? 'در حال بارگذاری…' : 'Loading…'}</div>}
+          {error && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}{saved && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'پرامپت در فایل پروژه ذخیره شد.' : 'Prompt saved to the project file.'}</p>}{copyState === 'copied' && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'متن پرامپت کپی شد.' : 'Prompt copied.'}</p>}{copyState === 'failed' && <p role="alert" className="mt-3 text-sm text-destructive">{locale === 'fa' ? 'کپی انجام نشد.' : 'Copy failed.'}</p>}
+        </div>
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">{editing && canManage && <button type="button" disabled={busy || !body.trim()} onClick={() => void savePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{busy ? <LoaderCircle size={16} className="animate-spin"/> : <Save size={16}/>}<span>{locale === 'fa' ? 'ذخیره در پروژه' : 'Save to project'}</span></button>}</footer>
+      </section>
+    </div>, document.body) : null}
+  </>;
+}
 const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
   .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\u200c\s_\-./()]/g, '');
 const isRoadListAxisHeader = (value: string) => normalizeHeader(value).includes('\u0645\u062d\u0648\u0631') || normalizeHeader(value).includes('axis');
@@ -129,13 +203,6 @@ export function RahcomRoadList() {
   const [page, setPage] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [roadListPromptCopyState, setRoadListPromptCopyState] = useState<'copied' | 'failed' | null>(null);
-  const [roadListPromptOpen, setRoadListPromptOpen] = useState(false);
-  const [roadListPromptEditing, setRoadListPromptEditing] = useState(false);
-  const [roadListPromptBody, setRoadListPromptBody] = useState(defaultRoadListPromptBody);
-  const [roadListPromptBusy, setRoadListPromptBusy] = useState(false);
-  const [roadListPromptError, setRoadListPromptError] = useState('');
-  const [roadListPromptSaved, setRoadListPromptSaved] = useState(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -452,64 +519,6 @@ export function RahcomRoadList() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Road list');
     XLSX.writeFile(workbook, `road-list-${province}-${selectedDate}.xlsx`);
   };
-  const promptApiPath = () => {
-    const organizationId = getCurrentOrganizationId();
-    if (!organizationId) throw new Error('شناسهٔ سازمان در دسترس نیست.');
-    return `/api/rahcom/road-list-prompt?organizationId=${encodeURIComponent(organizationId)}`;
-  };
-  const roadListPromptText = buildRoadListImagePrompt(formatJalaliDate(selectedDate), roadListPromptBody);
-  const extractRoadListPromptBody = (savedText: string) => {
-    const text = savedText.trim();
-    if (!text) return defaultRoadListPromptBody;
-    const sections = text.split(/\n\s*\n/).filter((section) => !/road-list-.*\.xlsx/i.test(section));
-    const markerIndex = sections.findIndex((section) => section.includes('قواعد استخراج:'));
-    if (markerIndex >= 0) {
-      const editableSections = sections.slice(0, markerIndex + 1);
-      if (!editableSections.slice(0, markerIndex).join('\n\n').trim()) editableSections.unshift('از تصویر پیوست‌شده، جدول راهداری را استخراج کن و فایل اکسل را تحویل بده.');
-      editableSections.push(...sections.slice(markerIndex + 1));
-      return editableSections.join('\n\n').trim();
-    }
-    return sections.join('\n\n').trim() || defaultRoadListPromptBody;
-  };
-  const openRoadListImagePrompt = async () => {
-    setRoadListPromptBody(defaultRoadListPromptBody);
-    setRoadListPromptOpen(true);
-    setRoadListPromptEditing(false);
-    setRoadListPromptError('');
-    setRoadListPromptSaved(false);
-    setRoadListPromptCopyState(null);
-    setRoadListPromptBusy(true);
-    try {
-      const saved = await apiClient.get<{ prompt: string | null }>(promptApiPath());
-      if (saved.prompt) setRoadListPromptBody(extractRoadListPromptBody(saved.prompt));
-    } catch (reason) {
-      setRoadListPromptError(reason instanceof Error ? reason.message : 'بارگذاری پرامپت ذخیره‌شده انجام نشد.');
-    } finally {
-      setRoadListPromptBusy(false);
-    }
-  };
-  const copyRoadListImagePrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(roadListPromptText);
-      setRoadListPromptCopyState('copied');
-      window.setTimeout(() => setRoadListPromptCopyState(null), 1800);
-    } catch {
-      setRoadListPromptCopyState('failed');
-    }
-  };
-  const saveRoadListImagePrompt = async () => {
-    setRoadListPromptBusy(true);
-    setRoadListPromptError('');
-    try {
-      await apiClient.put<{ saved: boolean }>(promptApiPath(), { prompt: roadListPromptBody });
-      setRoadListPromptEditing(false);
-      setRoadListPromptSaved(true);
-    } catch (reason) {
-      setRoadListPromptError(reason instanceof Error ? reason.message : 'ذخیرهٔ پرامپت انجام نشد.');
-    } finally {
-      setRoadListPromptBusy(false);
-    }
-  };
   if (loading && canView === null) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</main>;
   if (!canView) return <main dir={getLocaleDirection(locale)} className="mx-auto w-full max-w-none rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</main>;
 
@@ -521,7 +530,7 @@ export function RahcomRoadList() {
       <div className="flex flex-nowrap items-center gap-2">
         <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><TriangleAlert size={16} aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
-        <button type="button" onClick={() => void openRoadListImagePrompt()} aria-label={locale === 'fa' ? 'نمایش پرامپت راهداری' : 'View road list prompt'} title={locale === 'fa' ? 'نمایش و ویرایش پرامپت' : 'View and edit prompt'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><ClipboardCopy size={17} aria-hidden="true" /></button>
+        <RoadListPromptControl locale={locale} canManage={canManage} selectedDate={selectedDate} />
         {canManage && <label data-toolbar-label={busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')} aria-label={t('rahcomRoadListChooseFile')} title={busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')} className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
           {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <FileUp size={16} aria-hidden="true" />}
           <span className="sr-only">{busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')}</span>
@@ -569,32 +578,6 @@ export function RahcomRoadList() {
         <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} aria-label={t('rahcomRoadListNextPage')} className="grid size-8 place-items-center rounded-full border border-border text-foreground disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft size={16} /></button>
       </div>}
     </section>}
-    {roadListPromptOpen && typeof document !== 'undefined' ? createPortal(<div className="fixed inset-0 z-[1001] flex items-center justify-center bg-transparent p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !roadListPromptBusy) setRoadListPromptOpen(false); }}>
-      <section role="dialog" aria-modal="true" aria-label={locale === 'fa' ? 'پرامپت استخراج تصویر راهداری' : 'Road list image extraction prompt'} style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="flex max-h-[min(86vh,54rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border text-foreground shadow-2xl">
-        <header dir="rtl" className="flex shrink-0 items-center justify-start gap-3 border-b border-border px-4 py-3 sm:px-5">
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button type="button" disabled={roadListPromptBusy} onClick={() => setRoadListPromptOpen(false)} aria-label={locale === 'fa' ? 'بستن' : 'Close'} title={locale === 'fa' ? 'بستن' : 'Close'} className="grid size-9 place-items-center rounded-lg border border-border bg-background text-destructive hover:border-destructive hover:bg-destructive/10 disabled:opacity-50"><X size={17}/></button>
-            <button type="button" disabled={roadListPromptBusy || !roadListPromptText.trim()} onClick={() => void copyRoadListImagePrompt()} aria-label={locale === 'fa' ? 'کپی پرامپت' : 'Copy prompt'} title={locale === 'fa' ? 'کپی پرامپت' : 'Copy prompt'} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{roadListPromptCopyState === 'copied' ? <Check size={16}/> : <ClipboardCopy size={16}/>}<span>{locale === 'fa' ? 'کپی متن' : 'Copy text'}</span></button>
-            {canManage && <button type="button" disabled={roadListPromptBusy} onClick={() => { setRoadListPromptEditing((editing) => !editing); setRoadListPromptError(''); setRoadListPromptSaved(false); }} aria-label={roadListPromptEditing ? (locale === 'fa' ? 'پایان ویرایش' : 'Stop editing') : (locale === 'fa' ? 'ویرایش پرامپت' : 'Edit prompt')} title={roadListPromptEditing ? (locale === 'fa' ? 'پایان ویرایش' : 'Stop editing') : (locale === 'fa' ? 'ویرایش پرامپت' : 'Edit prompt')} className="grid size-9 place-items-center rounded-lg border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:opacity-50">{roadListPromptEditing ? <Check size={16}/> : <Pencil size={16}/>}</button>}
-          </div>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          {roadListPromptBusy && !roadListPromptBody ? <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><LoaderCircle size={17} className="animate-spin"/>{locale === 'fa' ? 'در حال بارگذاری…' : 'Loading…'}</div> : roadListPromptEditing
-            ? <div className="space-y-3">
-              <textarea autoFocus dir="auto" value={roadListPromptBody} onChange={(event) => { setRoadListPromptBody(event.target.value); setRoadListPromptSaved(false); }} className="min-h-[42vh] w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground outline-none focus:border-primary" />
-              <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"><LockKeyhole size={15} aria-hidden="true" /><code dir="ltr" className="truncate font-mono">{buildRoadListFilename(formatJalaliDate(selectedDate))}</code></div>
-            </div>
-            : <pre dir="auto" className="min-h-[50vh] whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-4 text-sm leading-7 text-foreground">{roadListPromptText}</pre>}
-          {roadListPromptError && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{roadListPromptError}</p>}
-          {roadListPromptSaved && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'پرامپت در فایل پروژه ذخیره شد.' : 'Prompt saved to the project file.'}</p>}
-          {roadListPromptCopyState === 'copied' && <p role="status" className="mt-3 text-sm text-primary">{locale === 'fa' ? 'متن پرامپت کپی شد.' : 'Prompt copied.'}</p>}
-          {roadListPromptCopyState === 'failed' && <p role="alert" className="mt-3 text-sm text-destructive">{locale === 'fa' ? 'کپی انجام نشد.' : 'Copy failed.'}</p>}
-        </div>
-        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">
-          {roadListPromptEditing && canManage && <button type="button" disabled={roadListPromptBusy || !roadListPromptBody.trim()} onClick={() => void saveRoadListImagePrompt()} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">{roadListPromptBusy ? <LoaderCircle size={16} className="animate-spin"/> : <Save size={16}/>}<span>{locale === 'fa' ? 'ذخیره در پروژه' : 'Save to project'}</span></button>}
 
-        </footer>
-      </section>
-    </div>, document.body) : null}
   </main>;
 }

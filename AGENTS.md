@@ -103,7 +103,7 @@ Whenever assigned a task:
 - Inspect this repository Git status and diffs before editing; preserve unrelated work. Do not edit ERP unless cross-product work is explicitly requested.
 - Preserve Rahyar organization identity as رهیار and administrator-customized organization details and logo.
 - Keep global search in the authenticated top header between assistant/action icons and centered company identity; keep it out of Tools tabs and usable on narrow screens.
-- Top-header Rahcom system search must use the selected province and show every matching system returned by the API. Do not impose an arbitrary fixed suggestion cap (such as eight); if a real technical constraint ever requires limiting results, provide explicit pagination or load-more and explain the constraint.
+- Top-header Rahcom system search must use the selected province and show every matching system. Do not impose or rely on an arbitrary fixed suggestion cap (such as eight); filter the complete selected-province systems list when the search endpoint is capped. If a real technical constraint ever requires limiting results, provide explicit pagination or load-more and explain the constraint.
 - Bill identifier assignments support only Rahcom, USO, and VSAT families. Do not add other system families to the UI, API, validation, or documentation.
 - The user will move project folders. Do not move or rename directories.
 

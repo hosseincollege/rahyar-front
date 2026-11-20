@@ -13,6 +13,7 @@ import { uiMessage } from '@/lib/ui-messages';
 import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 import { RahcomRecordSummary } from '@/app/(workspace)/rahcom/_shared/rahcom-record-summary';
 import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
+import { RahcomDialog } from '@/components/rahcom/rahcom-dialog';
 import { rahcomLongOutageReasonLabel, rahcomSystemHasLongOutage, tehranDateKey } from '@/lib/api/rahcom/solar-status';
 
 type ImportedNocTicket = Omit<RahcomImportedTicket, 'id' | 'sourceFileName' | 'importedAt' | 'listDate' | 'description'> & { description?: string };
@@ -280,12 +281,8 @@ export function RahcomTickets({ onSystemCountChange, wrapLongText = false }: { o
         })}</tbody>
       </DataTable></div>
     </div> : importedTickets && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomTicketsEmpty')}</p>}
-    {descriptionTicket && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-transparent p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingDescriptionId) setDescriptionTicketId(null); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="rahcom-ticket-description-title" style={{ width: 'fit-content', minWidth: 'min(20rem, calc(100vw - 2rem))', maxWidth: 'min(42rem, calc(100vw - 2rem))', opacity: 1, backdropFilter: 'none' }} className="rahcom-ticket-description-dialog relative z-[101] rounded-2xl border border-border bg-card p-3 shadow-xl sm:p-4">
-        <header className="mb-2 flex items-center justify-between gap-3 border-b border-border pb-2">
-          <h2 id="rahcom-ticket-description-title" className="font-semibold">{uiMessage(locale, 'rahcomTicketDescription')}</h2>
-          <button type="button" disabled={Boolean(savingDescriptionId)} onClick={() => setDescriptionTicketId(null)} aria-label={uiMessage(locale, 'missionClose')} title={uiMessage(locale, 'missionClose')} className="grid size-8 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground disabled:opacity-50"><X size={16} /></button>
-        </header>
+    <RahcomDialog open={Boolean(descriptionTicket)} title={uiMessage(locale, 'rahcomTicketDescription')} onClose={() => { if (!savingDescriptionId) setDescriptionTicketId(null); }} width="max-w-2xl">
+      {descriptionTicket && <>
         {editingDescription ? <div className="grid gap-3">
           <textarea autoFocus rows={6} maxLength={10000} value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} aria-label={uiMessage(locale, 'rahcomTicketDescription')} className="max-h-[55vh] min-h-32 w-full resize-y rounded-xl border border-border bg-background p-3 text-start text-sm leading-6 outline-none focus:border-primary" />
           <div className="flex items-center gap-2">
@@ -299,7 +296,7 @@ export function RahcomTickets({ onSystemCountChange, wrapLongText = false }: { o
             <button type="button" onClick={() => setDescriptionTicketId(null)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-sm text-foreground">{uiMessage(locale, 'missionClose')}</button>
           </footer>
         </>}
-      </section>
-    </div>}
+      </>}
+    </RahcomDialog>
   </section>;
 }

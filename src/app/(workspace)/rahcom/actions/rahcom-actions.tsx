@@ -2,7 +2,7 @@
 
 import { RahcomToolbar } from '@/components/rahcom/toolbar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Clock3, LoaderCircle, Trash2 } from 'lucide-react';
+import { ChevronDown, Clock3, LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
@@ -18,6 +18,7 @@ export function RahcomActions({ canManage = false, canRecord = false, selectedPr
   const t = (key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key);
   const { date } = useRahcomDate();
   const [items, setItems] = useState<RahcomActivity[]>([]);
+  const [addGeneralRequest, setAddGeneralRequest] = useState(0);
   const [activityProvinceState, setActivityProvinceState] = useState({
     selection: selectedProvince,
     province: selectedProvince === 'all' ? 'isfahan' : selectedProvince,
@@ -64,10 +65,11 @@ async function remove(id: string) { if (!window.confirm(t('rahcomDeleteConfirm')
         <RahcomHeaderDate compact loadMarkedDates={loadMarkedDates} />
         <div id="rahcom-actions-count" className="inline-flex h-9 shrink-0 items-center rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground" aria-live="polite" />
         <div id="rahcom-actions-search" className="relative w-44 shrink-0" />
+        {canRecord && <button type="button" onClick={() => setAddGeneralRequest((value) => value + 1)} aria-label={locale === 'fa' ? 'افزودن مورد عمومی' : 'Add general item'} title={locale === 'fa' ? 'افزودن مورد عمومی' : 'Add general item'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
       </RahcomToolbar>
       {selectedProvince === 'all' && <label className="mb-4 grid max-w-sm gap-1 text-xs text-muted-foreground">{t('rahcomProvince')}<select value={activityProvince} onChange={(e) => setActivityProvinceState({ selection: selectedProvince, province: e.target.value })} className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground">{iranProvinces.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>}
       {visibleItems.length > 0 && date && <RahcomRecordSummary locale={locale} source={t('rahcomActions')} recordDate={date} count={visibleItems.length} savedAt={latestActivityAt} />}
-      {canRecord && <RahcomDailyWorkflow key={`${date ?? ''}:${activityProvince}`} date={date} province={activityProvince} items={items} onSaved={load} />}
+      {canRecord && <RahcomDailyWorkflow key={`${date ?? ''}:${activityProvince}`} date={date} province={activityProvince} items={items} onSaved={load} addGeneralRequest={addGeneralRequest} />}
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     </div>
     <div className="overflow-hidden">

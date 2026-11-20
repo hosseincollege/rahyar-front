@@ -1,8 +1,10 @@
 'use client';
 
-import { DataTable } from '@/components/ui/data-table';
+import { RahcomTable, RahcomTableFrame } from '@/components/rahcom/table';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomImportedTicket, type RahcomRoadListSnapshot, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -33,6 +35,7 @@ function ticketDisplayTitle(ticket: RahcomImportedTicket) {
 type AggregateSources = { traffic: boolean; road: boolean; solar: boolean; tickets: boolean };
 
 export function RahcomAggregateList({ onSystemCountChange, selectedProvince, showIncidents, setOperation, sources }: { onSystemCountChange: (count: number) => void; selectedProvince: string; showIncidents: boolean; setOperation: 'union' | 'intersection'; sources: AggregateSources }) {
+  const tableRef = useRef<HTMLTableElement>(null);
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
   const [systems, setSystems] = useState<RahcomSystem[]>([]);
@@ -134,11 +137,11 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
     const ticketCountByCode = new Map<string, number>();
     const ticketTitlesByCode = new Map<string, string[]>();
     for (const ticket of tickets) {
-      const code = resolveKey(ticket.systemCode || '', ticket.province);
+      const code = resolveKey(ticket.system?.systemCode || ticket.systemCode || '', ticket.system?.province ?? ticket.province);
       if (code && systemByCode.has(code)) {
         ticketCountByCode.set(code, (ticketCountByCode.get(code) ?? 0) + 1);
         const titles = ticketTitlesByCode.get(code) ?? [];
-        const title = ticketDisplayTitle(ticket).trim();
+        const title = (ticketDisplayTitle(ticket) || ticket.type || ticket.summary || '').trim();
         if (title && !titles.includes(title)) titles.push(title);
         ticketTitlesByCode.set(code, titles);
       }
@@ -214,11 +217,22 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
 
   const tableColumnCount = 7 + Number(showIncidents) + Number(sources.traffic) + Number(sources.road) + Number(sources.solar) + Number(sources.tickets);
   useEffect(() => { onSystemCountChange(rows.length); }, [onSystemCountChange, rows.length]);
+  useEffect(() => {
+    const handleDownload = () => {
+      if (!tableRef.current) return;
+      const exportTable = tableRef.current.cloneNode(true) as HTMLTableElement;
+      exportTable.querySelectorAll('tr').forEach((row) => row.cells.item(1)?.remove());
+      const workbook = XLSX.utils.table_to_book(exportTable, { sheet: 'Aggregate' });
+      XLSX.writeFile(workbook, `rahcom-aggregate-${date ?? tehranDateKey()}.xlsx`);
+    };
+    window.addEventListener('rahcom:aggregate-download', handleDownload);
+    return () => window.removeEventListener('rahcom:aggregate-download', handleDownload);
+  }, [date]);
   const errorMessage = error ? error instanceof Error && error.message ? error.message : t('rahcomHistoryLoadError') : '';
-  return <section dir="auto" className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+  return <section dir="auto" className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
     {errorMessage && <p role="alert" className="shrink-0 text-sm text-destructive">{errorMessage}</p>}
-    <div className="rahcom-table-scroll rahcom-traffic-table-frame min-h-0 overflow-auto rounded-2xl border border-border bg-card">
-      <DataTable className="rahcom-sticky-table rahcom-aggregate-table w-full min-w-max text-sm">
+    <RahcomTableFrame className="min-h-0 min-w-0 max-w-full flex-1">
+      <RahcomTable ref={tableRef} className="rahcom-sticky-table rahcom-aggregate-table w-full min-w-max text-sm">
         <thead className="bg-muted/50"><tr>
           <th className="p-3 text-start">{t('rahcomRowNumber')}</th>
           <th className="w-9 px-1 py-2 text-center"><RahcomInfoHeader /></th>
@@ -228,7 +242,7 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
           {showIncidents && <th className="p-3 text-start">{t('rahcomIncidentFilter')}</th>}
           {sources.traffic && <th className="p-3 text-start">{locale === 'fa' ? '\u062a\u0631\u062f\u062f \u0644\u062d\u0638\u0647\u0627\u06cc CRM' : t('rahcomDailyTraffic')}</th>}
           {sources.road && <th className="p-3 text-start">{t('rahcomRoadList')}</th>}
-          {sources.tickets && <th className="p-3 text-start">{t('rahcomTicketTitle')}</th>}
+          {sources.tickets && <th className="p-3 text-start">{locale === 'fa' ? 'تیکت' : 'Ticket'}</th>}
           {sources.solar && <th className="p-3 text-start">{t('rahcomSystemSolar')}</th>}
           <th className="p-3 text-start">{t('rahcomAxisCode')}</th>
           <th className="p-3 text-start">{t('rahcomAxisName')}</th>
@@ -262,7 +276,7 @@ export function RahcomAggregateList({ onSystemCountChange, selectedProvince, sho
                 <td className="p-3">{row.axisName || '\u2014'}</td>
               </tr>)}
         </tbody>
-      </DataTable>
-    </div>
+      </RahcomTable>
+    </RahcomTableFrame>
   </section>;
 }

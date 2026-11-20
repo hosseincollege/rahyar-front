@@ -1,22 +1,24 @@
 'use client';
 
-import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { RahcomLocationIcon, RahcomToolbar, RahcomWrapTextButton } from '@/components/rahcom/toolbar';
 import { RahcomTableCount, RahcomTableFrame } from '@/components/rahcom/table';
 import { DataTable } from '@/components/ui/data-table';
 
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { ArchiveRestore, Check, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, MapPinned, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
+import { ArchiveRestore, Check, ClipboardCheck, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/providers/preferences-provider';
 import { getAccessToken } from '@/lib/api-client';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
-import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
-import { formatRahcomCoordinates, hasRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
-import { normalizeRahcomSystemCode, rahcomLongOutageReasonLabel, rahcomProvinceFromLabel, rahcomSystemHasLongOutage } from '@/lib/api/rahcom/solar-status';
+import { formatRahcomCoordinates, hasRahcomCoordinates, iranProvinces, rahcomApi, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
+import { isRahcomIncidentValue, normalizeRahcomSystemCode, rahcomLongOutageReasonLabel, rahcomProvinceFromLabel, rahcomSystemHasLongOutage } from '@/lib/api/rahcom/solar-status';
 import { uiMessage } from '@/lib/ui-messages';
 import { RahcomInfoHeader, RahcomRowInfo, type RahcomElectricityDetail } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { normalizeRahcomSystemSearchText } from '@/lib/rahcom-system-search';
+import { useBackupActionsPreference } from '@/components/rahcom/use-backup-actions-preference';
+import { RahcomHeaderDate } from '@/app/(workspace)/rahcom/_shared/rahcom-header-date';
+import { useRahcomDate } from '@/app/(workspace)/rahcom/_shared/rahcom-date';
 
 function provinceName(provinceId: string) {
   return iranProvinces.find(([id]) => id === provinceId)?.[1] ?? provinceId;
@@ -59,6 +61,7 @@ function routeUrl(provider: 'google' | 'neshan' | 'balad', system: RahcomSystem)
 
 export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' }: { canManage?: boolean; selectedProvince?: string }) {
   const { locale } = usePreferences();
+  const { date } = useRahcomDate();
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const [systemsState, setSystemsState] = useState<{ province: string; rows: RahcomSystem[] } | null>(null);
   const systems = useMemo(
@@ -70,6 +73,9 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const loading = !systemsRequestFinished || systemsState?.province !== selectedProvince;
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [reviewOnly, setReviewOnly] = useState(false);
+  const [wrapLongText, setWrapLongText] = useState(false);
+  const [trafficSnapshotState, setTrafficSnapshotState] = useState<{ province: string; date: string | null; snapshot: RahcomTrafficSnapshot | null } | null>(null);
   const [searchDraft, setSearchDraft] = useState('');
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
   const [systemPopupPosition, setSystemPopupPosition] = useState<{ top: number; left: number; maxWidth: number; maxHeight: number } | null>(null);
@@ -80,11 +86,9 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const [copiedKey, setCopiedKey] = useState('');
   const copyResetTimer = useRef<number | null>(null);
   const [systemsRevision, setSystemsRevision] = useState(0);
-  const [editMode, setEditMode] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
-  const [backupActionsOpen, setBackupActionsOpen] = useState(false);
-  const backupActionsRef = useRef<HTMLDivElement>(null);
+  const { open: backupActionsOpen, toggle: toggleBackupActions } = useBackupActionsPreference();
   const [newSystemOpen, setNewSystemOpen] = useState(false);
   const [newSystemBusy, setNewSystemBusy] = useState(false);
   const [newSystemForm, setNewSystemForm] = useState({ systemName: '', systemCode: '', axisCode: '', announcedAxis: '', latitude: '', longitude: '', electricityBillId: '' });
@@ -92,26 +96,9 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const [newSystemPosition, setNewSystemPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const t = useCallback((key: Parameters<typeof uiMessage>[1]) => uiMessage(locale, key), [locale]);
   const canEditSystems = canManage;
-  const loadTrafficDatesForCalendar = useCallback((from: string, to: string) => rahcomApi.trafficSnapshotDates(selectedProvince, from, to), [selectedProvince]);
   const billIdentifierWorkbook = billIdentifierWorkbookState?.province === selectedProvince
     ? billIdentifierWorkbookState.workbook
     : null;
-
-  useEffect(() => {
-    if (!backupActionsOpen) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!backupActionsRef.current?.contains(event.target as Node)) setBackupActionsOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setBackupActionsOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutsidePointer);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutsidePointer);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [backupActionsOpen]);
 
   useEffect(() => {
     const onSearch = (event: Event) => {
@@ -157,6 +144,51 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       .finally(() => { if (active) setSystemsRequestFinished(true); });
     return () => { active = false; };
   }, [selectedProvince, systemsRevision, t]);
+
+  useEffect(() => {
+    let active = true;
+    void rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined)
+      .then((snapshot) => { if (active) setTrafficSnapshotState({ province: selectedProvince, date: date ?? null, snapshot }); })
+      .catch(() => { if (active) setTrafficSnapshotState({ province: selectedProvince, date: date ?? null, snapshot: null }); });
+    const onTrafficChanged = () => {
+      void rahcomApi.trafficSnapshot(selectedProvince, date ?? undefined)
+        .then((snapshot) => { if (active) setTrafficSnapshotState({ province: selectedProvince, date: date ?? null, snapshot }); })
+        .catch(() => { if (active) setTrafficSnapshotState({ province: selectedProvince, date: date ?? null, snapshot: null }); });
+    };
+    window.addEventListener('rahyar:traffic-snapshot-changed', onTrafficChanged);
+    return () => { active = false; window.removeEventListener('rahyar:traffic-snapshot-changed', onTrafficChanged); };
+  }, [date, selectedProvince]);
+
+  const trafficSnapshot = trafficSnapshotState?.province === selectedProvince && trafficSnapshotState.date === (date ?? null)
+    ? trafficSnapshotState.snapshot
+    : null;
+  const trafficDetailsBySystem = useMemo(() => {
+    const details = new Map<string, { tags: string[]; theftDamage: string[] }>();
+    if (!trafficSnapshot) return details;
+    const normalizeHeader = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
+      .replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/[\s\u200c_\-./()]/g, '');
+    const headers = trafficSnapshot.headers.map(normalizeHeader);
+    const codeIndex = headers.findIndex((header) => header.includes(normalizeHeader('کد سامانه')) || header.includes('systemcode') || header === 'code');
+    if (codeIndex < 0) return details;
+    const tagIndexes = headers.flatMap((header, index) => header.includes(normalizeHeader('برچسب')) || header.includes('label') || header.includes(normalizeHeader('قطعیزمانبر')) || header.includes('longoutage') ? [index] : []);
+    const incidentIndexes = headers.flatMap((header, index) => ['سرقت', 'تخریب', 'theft', 'damage'].some((term) => header.includes(normalizeHeader(term))) ? [index] : []);
+    for (const row of trafficSnapshot.rows) {
+      const key = normalizeRahcomSystemCode(row[codeIndex] ?? '');
+      if (!key) continue;
+      const value = details.get(key) ?? { tags: [], theftDamage: [] };
+      for (const index of tagIndexes) {
+        const text = String(row[index] ?? '').trim();
+        if (isRahcomIncidentValue(text) && !value.tags.includes(text)) value.tags.push(text);
+      }
+      for (const index of incidentIndexes) {
+        if (!isRahcomIncidentValue(row[index] ?? '')) continue;
+        const label = trafficSnapshot.headers[index]?.trim() || '';
+        if (label && !value.theftDamage.includes(label)) value.theftDamage.push(label);
+      }
+      details.set(key, value);
+    }
+    return details;
+  }, [trafficSnapshot]);
 
   useEffect(() => {
     let active = true;
@@ -519,19 +551,25 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     stationName: system.stationName ?? '',
     aggregationCode: system.aggregationCode ?? '',
   }))).sort((left, right) => left.axisName.localeCompare(right.axisName, locale, { numeric: true, sensitivity: 'base' }) || left.system.systemCode.localeCompare(right.system.systemCode, 'en', { numeric: true, sensitivity: 'base' })), [groups, locale]);
-  const systemRows = allSystemRows;
+  const systemRows = reviewOnly
+    ? allSystemRows.filter(({ system }) => {
+      const trafficDetails = trafficDetailsBySystem.get(normalizeRahcomSystemCode(system.systemCode));
+      return rahcomSystemHasLongOutage(system) || Boolean(system.incidentType) || Boolean(trafficDetails?.tags.length || trafficDetails?.theftDamage.length);
+    })
+    : allSystemRows;
   return (
     <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden">
       <RahcomToolbar className="rahcom-mobile-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
-        <RahcomHeaderDate compact loadMarkedDates={loadTrafficDatesForCalendar} />
-        <RahcomTableCount label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`}><MapPinned size={16} className="text-primary" />{numberFormatter.format(systems.length)}</RahcomTableCount>
+        <RahcomHeaderDate compact />
+        <RahcomTableCount label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`}><RahcomLocationIcon size={16} className="text-primary" />{numberFormatter.format(systems.length)}</RahcomTableCount>
         <SystemsSearchInput value={searchDraft} onChange={(value) => { setSearchDraft(value); startTransition(() => setQuery(value)); }} placeholder={t('rahcomSearchSystems')} clearLabel={t('searchClear')} />
+        <button type="button" aria-pressed={reviewOnly} aria-label={locale.startsWith('fa') ? 'بازبینی موارد' : 'Review flagged systems'} data-toolbar-label={locale.startsWith('fa') ? 'بازبینی' : 'Review'} title={locale.startsWith('fa') ? 'نمایش موارد دارای برچسب یا سرقت و تخریب' : 'Show labeled or theft and damage records'} onClick={() => setReviewOnly((value) => !value)} style={reviewOnly ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${reviewOnly ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><ClipboardCheck size={17} aria-hidden="true" /></button>
         {canManage && selectedProvince !== 'all' && <button type="button" onClick={openAddSystem} aria-label={t('rahcomAddSystem')} title={t('rahcomAddSystem')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={17} aria-hidden="true" /></button>}
-        {canEditSystems && <button type="button" aria-pressed={editMode} onClick={() => setEditMode((enabled) => !enabled)} aria-label={t('rahcomEditSystem')} title={t('rahcomEditSystem')} style={editMode ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${editMode ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><Pencil size={16} /></button>}
         <label aria-label={t('rahcomUploadExcel')} title={t('rahcomUploadExcel')} className={`grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted ${uploadBusy ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} aria-hidden="true" />}<input type="file" accept=".xlsx,.xls" disabled={uploadBusy} className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void uploadSystemsFile(file); }} /></label>
+        <RahcomWrapTextButton pressed={wrapLongText} onPressedChange={() => setWrapLongText((value) => !value)} wrapLabel={t('rahcomWrapLongTableText')} singleLineLabel={t('rahcomKeepTableTextSingleLine')} />
         <button type="button" onClick={downloadSystems} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:bg-muted"><Download size={17} aria-hidden="true" /></button>
-        <div ref={backupActionsRef} className="flex shrink-0 items-center gap-2">
-          <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="systems-backup-actions" onClick={() => setBackupActionsOpen((open) => !open)} aria-label={t('rahcomSaveSystemsBackup')} title={t('rahcomSaveSystemsBackup')} style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="systems-backup-actions" onClick={toggleBackupActions} aria-label={t('rahcomSaveSystemsBackup')} data-toolbar-label={locale.startsWith('fa') ? 'پشتیبان‌گیری' : 'Backup'} title={t('rahcomSaveSystemsBackup')} style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
           {backupActionsOpen && <div id="systems-backup-actions" className="flex items-center gap-2">
             <button type="button" onClick={() => void saveSystemsBackup()} disabled={backupBusy || loading || systems.length === 0 || selectedProvince !== 'isfahan'} aria-label={t('rahcomSaveSystemsBackup')} title={t('rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} aria-hidden="true" />}</button>
             <button type="button" onClick={() => void restoreSystemsBackup()} disabled={uploadBusy || loading || (selectedProvince !== 'isfahan' && selectedProvince !== 'all')} aria-label={t('rahcomRestoreSystemsBackup')} title={t('rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary disabled:cursor-wait disabled:opacity-50">{uploadBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} aria-hidden="true" />}</button>
@@ -561,23 +599,22 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
           </div>
         </section>
       </div>, document.body)}
-      {canEditSystems && editMode && selectedProvince !== 'all' && <div className="space-y-3 rounded-xl border border-border bg-card p-3"><button type="button" onClick={async () => { if (window.confirm(t('rahcomDeleteProvinceConfirm'))) { await rahcomApi.deleteSystems({ province: selectedProvince }); setSystemsRevision((value) => value + 1); } }} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs text-destructive">{t('rahcomDeleteProvinceSystems')}</button></div>}
-
       {loading ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsLoading')}</div> : null}
       {error ? <div role="alert" className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
       {!loading && !error && !anyRows ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
 
-      {systemRows.length > 0 && <RahcomTableFrame className="rahcom-systems-table-frame rahcom-traffic-table-frame w-full min-w-0 max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full min-w-0 max-w-full">
-          <DataTable className="rahcom-sticky-table rahcom-systems-table w-[101.5rem] table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup><col style={{ width: '4rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '20rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '18rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '15rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '6rem' }} /></colgroup>
+      {(systemRows.length > 0 || reviewOnly) && <RahcomTableFrame className="rahcom-systems-table-frame rahcom-traffic-table-frame w-full min-w-0 max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full min-w-0 max-w-full">
+          <DataTable data-wrap-long-text={wrapLongText ? 'true' : undefined} className="rahcom-sticky-table rahcom-systems-table w-[107rem] table-fixed border-separate border-spacing-0 text-sm">
+            <colgroup><col style={{ width: '4rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '20rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '18rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '15rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '6rem' }} /></colgroup>
             <thead className="text-xs text-muted-foreground"><tr>
               <th scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{t('rahcomRowNumber')}</th><th scope="col" className="sticky top-0 z-30 border-b border-border bg-card p-1 text-center"><RahcomInfoHeader /></th>
-              {[t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomIncidentFilter'), t('rahcomStationName'), t('rahcomAggregationCode'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomProvince'), t('rahcomBillId')].map((heading) => <th key={heading} scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}
+              {[t('rahcomSystemCode'), t('rahcomSystemName'), t('rahcomIncidentFilter')].map((heading) => <th key={heading} scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}<th scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{locale.startsWith('fa') ? 'سرقت و تخریب' : 'Theft & damage'}</th>{[t('rahcomStationName'), t('rahcomAggregationCode'), t('rahcomAxisCode'), t('rahcomAxisName'), t('rahcomProvince'), t('rahcomBillId')].map((heading) => <th key={heading} scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{heading}</th>)}
             </tr></thead>
-            <tbody>{systemRows.map(({ system, axisCode, axisName, stationName, aggregationCode }, rowIndex) => {
+            <tbody>{systemRows.length === 0 ? <tr><td colSpan={12} className="border-b border-border/70 p-5 text-center text-sm text-muted-foreground">{locale.startsWith('fa') ? 'موردی برای بازبینی در این تاریخ پیدا نشد.' : 'No review items were found for this date.'}</td></tr> : systemRows.map(({ system, axisCode, axisName, stationName, aggregationCode }, rowIndex) => {
+              const trafficDetails = trafficDetailsBySystem.get(normalizeRahcomSystemCode(system.systemCode));
               const displayedOutageReason = rahcomSystemHasLongOutage(system)
                 ? outageReasonLabel(system.longOutageReason) || system.longOutageDetails || '\u062f\u0644\u06cc\u0644 \u0645\u0634\u062e\u0635 \u0646\u0634\u062f\u0647'
-                : '';
+                : trafficDetails?.tags.join('\u060c ') || '';
               const coordinatesKey = `${system.id}:coordinates`;
               return (
                 <tr
@@ -645,6 +682,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                       <span className="truncate">{displayedOutageReason || '—'}</span>
                     </div>
                   </td>
+                  <td className="border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{trafficDetails?.theftDamage.join('، ') || '—'}</td>
                   <td className="overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle text-foreground">{stationName || '—'}</td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-foreground">{aggregationCode || '—'}</td>
                   <td dir="ltr" className="whitespace-nowrap border-b border-border/70 px-3 py-2 text-center align-middle font-mono text-foreground">{axisCode || '—'}</td>

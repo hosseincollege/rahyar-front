@@ -1,0 +1,9 @@
+Rahcom backup menu preference
+
+The backup action menu on the Bill Identifiers, Systems, and Sites pages stays open when the user clicks elsewhere or presses Escape. The backup icon itself toggles the menu. Saving or restoring data does not close it.
+
+The open/closed state is a per-user preference stored in the Rahyar user_preferences table as rahcomBackupActionsOpen. The frontend reads it through GET /auth/preferences and updates it through PUT /auth/preferences/rahcom-backup-actions. The update endpoint is protected by JwtAuthGuard.
+
+Schema and migration: rahyar-back/prisma/schema/auth-user.prisma and rahyar-back/prisma/migrations/20261120100000_add_rahcom_backup_actions_preference/migration.sql. Apply that migration before running the updated API against a database that does not yet have the column.
+
+Frontend implementation: rahyar-front/src/components/rahcom/use-backup-actions-preference.ts and the page components under src/app/(workspace)/rahcom/{bill-identifiers,systems,sites}.
