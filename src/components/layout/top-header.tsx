@@ -576,6 +576,16 @@ export function TopHeader({
         >
           {themeIcon}
         </button>
+        <button
+          type="button"
+          onClick={toggleToolbarLabels}
+          aria-label={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
+          title={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
+          aria-pressed={toolbarLabelsEnabled}
+          className={`pointer-events-auto flex h-9 w-9 max-sm:h-8 max-sm:w-8 shrink-0 items-center justify-center rounded-xl border transition-colors min-[1200px]:hidden ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
+        >
+          <CircleHelp size={18} aria-hidden="true" />
+        </button>
         </div>
 
 
@@ -664,7 +674,7 @@ export function TopHeader({
         </div>
       </div>
 
-        <div ref={mobileToolsRef} className={`pointer-events-auto absolute inset-y-0 z-20 flex items-center gap-0.5 min-[1200px]:hidden ${direction === 'rtl' ? 'left-3 max-sm:left-1' : 'right-3 max-sm:right-1'}`}>
+        <div ref={mobileToolsRef} className={`pointer-events-auto absolute inset-y-0 z-20 flex items-center gap-0.5 min-[1200px]:hidden ${direction === 'rtl' ? 'left-3' : 'right-3'}`}>
           <div className="relative flex h-9 w-9 shrink-0 items-center justify-center max-sm:h-8 max-sm:w-8">
             <button type="button" onClick={() => { setMobileSearchExpanded((expanded) => !expanded); setMobileToolsOpen(false); setMobileTool(null); setHeaderSearchOpen(Boolean(headerSearchQuery.trim())); }} aria-label={message('headerSearch')} title={message('headerSearch')} aria-expanded={mobileSearchExpanded} style={mobileSearchExpanded ? { backgroundColor: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' } : undefined} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] max-sm:h-8 max-sm:w-8"><Search size={18}/></button>
             {mobileSearchExpanded && <div className="absolute -left-10 top-[calc(100%+0.5rem)] z-[130] w-[min(18rem,calc(100vw-2rem))]">
@@ -703,13 +713,13 @@ export function TopHeader({
           href="/rahcom"
           aria-label={message('dashboard')}
           dir="ltr"
-          className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-xl sm:h-12 sm:w-12"
+          className="pointer-events-auto relative flex h-10 w-max items-center justify-center gap-2 rounded-xl sm:h-12"
         >
           <span
-            className="absolute right-[calc(100%+0.75rem)] top-1/2 hidden w-max max-w-[min(24vw,15rem)] -translate-y-1/2 truncate text-left font-black tracking-tight text-[var(--foreground)] sm:block"
-            style={{ fontSize: english ? '0.8rem' : '0.95rem' }}
+            className="hidden max-w-[min(24vw,15rem)] flex-col items-center text-center sm:flex font-black tracking-tight text-[var(--foreground)]"
           >
-            {organizationBranding?.name || 'رهیار'}
+            <span dir="auto" className="w-full truncate" style={{ fontSize: english ? '0.8rem' : '0.95rem' }}>{organizationBranding?.name || 'رهیار'}</span>
+            <span dir="ltr" className="text-[11px] font-bold tracking-wide text-primary">Rahyar</span>
           </span>
 
           <div
@@ -746,10 +756,6 @@ export function TopHeader({
               />
             )}
           </div>
-
-          <span dir="rtl" className="absolute left-[calc(100%+0.75rem)] top-1/2 hidden -translate-y-1/2 text-[11px] font-bold tracking-wide text-primary sm:block">
-            Rahyar
-          </span>
         </Link>
       </div>
 

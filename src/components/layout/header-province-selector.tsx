@@ -148,7 +148,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
     );
   }
   if (!access?.canSwitchProvince) {
-    return <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] sm:max-w-52 sm:px-3 sm:text-sm"><MapPinned size={17} aria-hidden="true" /><span className="truncate">{selectedProvinceName}</span></div>;
+    return <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] sm:max-w-52 sm:px-3"><MapPinned size={17} aria-hidden="true" /><span className="truncate text-sm">{selectedProvinceName}</span></div>;
   }
   if (embedded) {
     return (
@@ -164,9 +164,9 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   }
   return (
     <div ref={dropdownRef} dir={getLocaleDirection(locale)} className="pointer-events-auto relative shrink-0">
-      <button type="button" onClick={() => { if (!open) setProvinceSaveFailed(false); setOpen((value) => !value); }} aria-label={`${label}: ${selectedProvinceName}`} aria-haspopup="menu" aria-expanded={open} aria-controls="header-province-selector-menu" title={`${label}: ${selectedProvinceName}`} className={`flex h-9 max-w-44 items-center justify-center gap-2 rounded-xl border px-2 text-xs text-[var(--foreground)] transition-colors sm:max-w-52 sm:px-3 sm:text-sm ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
+      <button type="button" onClick={() => { if (!open) setProvinceSaveFailed(false); setOpen((value) => !value); }} aria-label={`${label}: ${selectedProvinceName}`} aria-haspopup="menu" aria-expanded={open} aria-controls="header-province-selector-menu" title={`${label}: ${selectedProvinceName}`} className={`flex h-9 max-w-44 items-center justify-center gap-2 rounded-xl border px-2 text-xs text-[var(--foreground)] transition-colors sm:max-w-52 sm:px-3 ${open ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] hover:bg-[var(--primary-soft)]'}`}>
         <MapPinned size={17} aria-hidden="true" />
-        <span className="truncate">{selectedProvinceName}</span>
+        <span className="truncate text-sm">{selectedProvinceName}</span>
       </button>
       {open && <div id="header-province-selector-menu" role="menu" style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className={`absolute ${getLocaleDirection(locale) === 'rtl' ? 'end-0' : 'start-0'} top-full z-[110] mt-2 max-h-[min(65vh,24rem)] w-[min(11rem,calc(100vw-1rem))] space-y-0.5 overflow-y-auto rounded-xl border border-[var(--border)] p-1 shadow-xl`}>
         {provinceSaveFailed && <p role="alert" className="px-2 py-1 text-xs text-red-500">{uiMessage(locale, 'rahcomProvinceSaveFailed')}</p>}
