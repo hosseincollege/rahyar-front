@@ -330,14 +330,14 @@ export function Sidebar({
                   relative flex w-full items-center rounded-xl p-2.5 text-start transition-all duration-200 cursor-pointer
                   ${
                     isSelected
-                      ? 'sidebar-module-selected bg-[var(--primary)] font-medium shadow-lg shadow-[var(--primary)]/20'
+                      ? 'sidebar-module-selected sidebar-primary-module-selected bg-[var(--primary)] font-medium shadow-lg shadow-[var(--primary)]/20'
                       : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'
                   }
                   text-sm
                     ${isMainCollapsed ? 'justify-center' : 'justify-start gap-2'}
                 `}
               >
-                <Icon size={20} className="shrink-0" style={item.id === 'rahcom' ? { transform: 'scaleX(-1)' } : undefined} />
+                <Icon size={20} className="shrink-0" style={item.id === 'rahcom' ? { transform: 'scaleX(-1)', ...(isSelected ? { color: 'var(--primary-foreground)' } : {}) } : undefined} />
                 {!isMainCollapsed && (
                   <>
                     <span className="hidden shrink-0 text-xs font-medium tabular-nums text-current md:inline" dir="ltr">{index + 1}</span>

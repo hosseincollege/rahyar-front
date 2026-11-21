@@ -201,26 +201,6 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
     overscroll-behavior-x: contain;
   }
 
-  /* Keep the wide systems table within the mobile viewport. Its height cap
-     comes from .rahcom-traffic-table-frame so rows scroll inside the table. */
-  .rahcom-systems-table-frame {
-    box-sizing: border-box;
-    width: 100%;
-    min-height: 0;
-    min-width: 0;
-    max-width: 100%;
-    contain: inline-size;
-  }
-
-  .rahcom-systems-table-frame > .rahcom-table-scroll {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    overflow: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-  }
 }
 
 @media (max-width: 639px) {
@@ -904,6 +884,16 @@ html[data-toolbar-labels="true"] .rahcom-toolbar label[data-toolbar-label]::afte
 
 html.dark .erp-app-shell .sidebar-module-selected {
   color: #fff !important;
+}
+
+html.dark .erp-app-shell .sidebar-primary-module-selected {
+  color: var(--primary-foreground) !important;
+}
+
+.erp-app-shell button:is([aria-pressed="true"], [aria-expanded="true"]):has(> svg:only-child) {
+  border-color: var(--primary);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
 }
 
 html:not([data-locale="fa"]) body {
@@ -1611,8 +1601,8 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   cursor: pointer;
 }
 
-.rahcom-popup-actions button[data-popup-action="route"][aria-expanded="true"],
-.rahcom-popup-actions > a[data-popup-action="route"][aria-expanded="true"] {
+.rahcom-popup-actions button[data-popup-action][aria-expanded="true"],
+.rahcom-popup-actions > a[data-popup-action][aria-expanded="true"] {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--primary-foreground);

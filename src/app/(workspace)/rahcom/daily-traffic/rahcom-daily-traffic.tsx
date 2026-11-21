@@ -1,12 +1,12 @@
 'use client';
 
-import { RahcomTagIcon, RahcomToolbar } from '@/components/rahcom/toolbar';
+import { RahcomToolbar } from '@/components/rahcom/toolbar';
 import { animateRahcomTableChange } from '@/components/rahcom/table';
 import { DataTable } from '@/components/ui/data-table';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { CircleOff, LoaderCircle } from 'lucide-react';
+import { CircleOff, ListFilter, LoaderCircle } from 'lucide-react';
 import { usePreferences } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { iranProvinces, rahcomApi, type RahcomSolarSnapshot, type RahcomSystem, type RahcomTrafficSnapshot } from '@/lib/api/rahcom/rahcom-api';
@@ -363,7 +363,7 @@ export function RahcomDailyTraffic({ provinceFilter, solarSnapshotPicker }: { pr
         {solarSnapshotPicker}
         <RahcomCountCapsule count={filteredSystemCount} />
         <div className="flex flex-nowrap items-center gap-1.5">
-          <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => animateRahcomTableChange(() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); })} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><RahcomTagIcon className="size-5" holeFill={showIncidents ? 'var(--primary)' : 'var(--background)'} /></button>
+          <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => animateRahcomTableChange(() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); })} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><ListFilter size={18} aria-hidden="true" /></button>
           <button type="button" aria-pressed={trafficFilters.includes('no-traffic')} aria-label={t('rahcomTrafficNoRealtimeTraffic')} title={t('rahcomTrafficNoRealtimeTraffic')} onClick={() => toggleTrafficFilter('no-traffic')} style={trafficFilters.includes('no-traffic') ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 place-items-center rounded-full border transition-colors ${trafficFilters.includes('no-traffic') ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><CircleOff size={16} /></button>
         </div>
         <RahcomTrafficUpload />

@@ -7,7 +7,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { ArchiveRestore, Check, ClipboardCheck, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, LoaderCircle, MapPin, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
+import { ArchiveRestore, Check, ClipboardCheck, ClipboardCopy, ClipboardList, Copy, Download, ExternalLink, FilePenLine, LoaderCircle, MapPin, Pencil, Plus, Save, Search, Trash2, Upload, X } from 'lucide-react';
 import { usePreferences } from '@/components/providers/preferences-provider';
 import { getAccessToken } from '@/lib/api-client';
 import { RahcomSystemHistory } from '@/app/(workspace)/rahcom/_shared/rahcom-system-history';
@@ -603,8 +603,8 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       {error ? <div role="alert" className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-300">{error}</div> : null}
       {!loading && !error && !anyRows ? <div className="shrink-0 rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('rahcomSystemsEmpty')}</div> : null}
 
-      {(systemRows.length > 0 || reviewOnly) && <RahcomTableFrame className="rahcom-systems-table-frame rahcom-traffic-table-frame w-full min-w-0 max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full min-w-0 max-w-full">
-          <DataTable data-wrap-long-text={wrapLongText ? 'true' : undefined} className="rahcom-sticky-table rahcom-systems-table w-[107rem] table-fixed border-separate border-spacing-0 text-sm">
+      {(systemRows.length > 0 || reviewOnly) && <RahcomTableFrame className="rahcom-traffic-table-frame w-full min-w-0 max-w-full shadow-sm" viewportClassName="rahcom-contained-table-scroll w-full min-w-0 max-w-full">
+          <DataTable data-wrap-long-text={wrapLongText ? 'true' : undefined} className="rahcom-sticky-table rahcom-systems-table w-full min-w-max table-fixed border-separate border-spacing-0 text-sm">
             <colgroup><col style={{ width: '4rem' }} /><col style={{ width: '2.5rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '20rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '8rem' }} /><col style={{ width: '18rem' }} /><col style={{ width: '7rem' }} /><col style={{ width: '5rem' }} /><col style={{ width: '15rem' }} /><col style={{ width: '9rem' }} /><col style={{ width: '6rem' }} /></colgroup>
             <thead className="text-xs text-muted-foreground"><tr>
               <th scope="col" style={{ backgroundColor: 'var(--card)', opacity: 1 }} className="sticky top-0 z-30 whitespace-nowrap border-b border-border bg-card px-3 py-2.5 text-center align-middle font-semibold">{t('rahcomRowNumber')}</th><th scope="col" className="sticky top-0 z-30 border-b border-border bg-card p-1 text-center"><RahcomInfoHeader /></th>
@@ -663,7 +663,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                             <button type="button" onClick={() => void copyValue(`details-${system.id}`, `${t('rahcomSystemCode')}: ${system.systemCode}\n${t('rahcomSystemName')}: ${system.systemName}\n${t('rahcomAxis')}: ${axisName || '—'}${axisCode ? ` / ${axisCode}` : ''}`)} title={copiedKey === `details-${system.id}` ? t('rahcomCopied') : t('rahcomCopy')} aria-label={t('rahcomCopy')}>{copiedKey === `details-${system.id}` ? <Check size={16}/> : <ClipboardCopy size={16}/>}</button>
                             {hasRahcomCoordinates(system) && <button type="button" data-popup-action="route" aria-expanded={systemPopupPanel === 'location'} onClick={() => setSystemPopupPanel((panel) => panel === 'location' ? null : 'location')} title={t('rahcomRoute')} aria-label={t('rahcomRoute')}><MapPin size={16}/></button>}
                             {!system.id.startsWith('traffic-') && <button type="button" data-popup-action="history" aria-expanded={systemPopupPanel === 'history'} onClick={() => setSystemPopupPanel((panel) => panel === 'history' ? null : 'history')} title={t('rahcomHistory')} aria-label={t('rahcomHistory')}><ClipboardList size={16}/></button>}
-                            {canEditSystems && <button type="button" data-popup-action="edit" onClick={() => startEdit(system)} title={t('rahcomEditSystem')} aria-label={t('rahcomEditSystem')}><Pencil size={16}/></button>}
+                            {canEditSystems && <button type="button" data-popup-action="edit" onClick={() => startEdit(system)} title={t('rahcomEditSystem')} aria-label={t('rahcomEditSystem')}><FilePenLine size={16}/></button>}
                           </div>
                           {systemPopupPanel === 'location' && hasRahcomCoordinates(system) && <div className="mt-1 grid gap-1.5 rounded-lg border border-border bg-background p-2 text-xs">
                             <button type="button" onClick={() => void copyValue(coordinatesKey, formatRahcomCoordinates(system.latitude, system.longitude))} className="flex min-h-9 items-center gap-2 rounded-md px-2 text-start text-foreground hover:bg-muted">{copiedKey === coordinatesKey ? <Check size={15}/> : <MapPin size={15}/>} {copiedKey === coordinatesKey ? t('rahcomCopied') : t('rahcomCopyCoordinates')}</button>

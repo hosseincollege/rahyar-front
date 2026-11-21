@@ -156,7 +156,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
         <span className="sr-only">{label}</span>
         <select aria-label={label} value={province} onChange={(event) => selectProvince(event.target.value)} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-8 max-w-full rounded-lg border border-[var(--border)] px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--primary)] sm:h-9 sm:max-w-44 sm:rounded-xl sm:px-3 sm:text-sm">
           <option value="all">{uiMessage(locale, 'rahcomAllProvinces')}</option>
-          {sortedOffices.map(({ id, name }, index) => <option key={id} value={id}>{numberFormat.format(index + 1)} ? {name}</option>)}
+          {sortedOffices.map(({ id, name }, index) => <option key={id} value={id}>{numberFormat.format(index + 1)} {name}</option>)}
         </select>
         {provinceSaveFailed && <span role="alert" className="mt-1 block max-w-44 text-xs text-red-500">{uiMessage(locale, 'rahcomProvinceSaveFailed')}</span>}
       </label>
@@ -174,7 +174,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
           <span className="min-w-0 truncate">{allProvincesLabel}</span>{province === 'all' && <Check size={16} className="shrink-0" aria-hidden="true" />}
         </button>
         {sortedOffices.map(({ id, name }, index) => <button key={id} type="button" role="menuitemradio" aria-checked={province === id} onClick={() => selectProvince(id)} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-start text-sm transition-colors ${province === id ? 'bg-[var(--primary-soft)] font-semibold text-[var(--primary)]' : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)]'}`}>
-          <span className="flex min-w-0 flex-1 items-center gap-1"><span className="shrink-0 tabular-nums text-xs text-[var(--muted-foreground)]">{numberFormat.format(index + 1)} ?</span><span className="truncate">{name}</span></span>{province === id && <Check size={16} className="shrink-0" aria-hidden="true" />}
+          <span className="flex min-w-0 flex-1 items-center gap-1"><span className="shrink-0 tabular-nums text-xs text-[var(--muted-foreground)]">{numberFormat.format(index + 1)}</span><span className="truncate">{name}</span></span>{province === id && <Check size={16} className="shrink-0" aria-hidden="true" />}
         </button>)}
       </div>}
     </div>
