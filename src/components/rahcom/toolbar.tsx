@@ -88,6 +88,20 @@ export function RahcomLocationIcon({ size = 16, ...props }: SVGProps<SVGSVGEleme
   return <MapPin size={size} aria-hidden="true" {...props} />;
 }
 
+/**
+ * Minimal two-document icon reserved for the Systems page Compare control.
+ * Keep this separate from RahcomTagIcon; do not redraw or repurpose it without
+ * an explicit user request for the Compare control.
+ */
+export function RahcomCompareIcon({ width = 21, height = 21, ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" width={width} height={height} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <rect x="1.75" y="4.25" width="8.5" height="14" rx="1.5" />
+      <rect x="13.75" y="4.25" width="8.5" height="14" rx="1.5" />
+    </svg>
+  );
+}
+
 /** Shared toolbar control for toggling long table text between wrapped and single-line display. */
 export function RahcomWrapTextButton({ pressed, onPressedChange, wrapLabel, singleLineLabel }: { pressed: boolean; onPressedChange: () => void; wrapLabel: string; singleLineLabel: string }) {
   const label = pressed ? singleLineLabel : wrapLabel;
@@ -123,10 +137,12 @@ export function RahcomToolbarOption({ icon: Icon, label, pressed, onClick, class
 }
 
 /** Shared tag silhouette for toolbar filters across Rahcom pages. */
-export function RahcomTagIcon({ holeFill = 'var(--background)', ...props }: RahcomTagIconProps) {
+export function RahcomTagIcon({ holeFill = 'var(--background)', width = 21, height = 21, ...props }: RahcomTagIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
+      width={width}
+      height={height}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"

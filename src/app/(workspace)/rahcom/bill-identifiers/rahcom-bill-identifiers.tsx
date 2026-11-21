@@ -10,7 +10,7 @@ import { ArchiveRestore, Download, LoaderCircle, Plus, Save, Search, Trash2, Upl
 import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 
 import { getAccessToken } from '@/lib/api-client';
-import { rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
+import { iranProvinces, rahcomApi, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { uiMessage } from '@/lib/ui-messages';
 import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { useBackupActionsPreference } from '@/components/rahcom/use-backup-actions-preference';
@@ -60,6 +60,18 @@ const normalizeBillIdentifier = (value: string) => value.normalize('NFKC')
     const code = digit.charCodeAt(0);
     return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
   }).replace(/\s/g, '');
+const isfahanProvinceName = iranProvinces.find(([province]) => province === 'isfahan')?.[1] ?? '\u0627\u0635\u0641\u0647\u0627\u0646';
+const withIsfahanProvince = (headers: string[], rows: string[][]) => {
+  const provinceIndex = headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('\u0627\u0633\u062a\u0627\u0646'));
+  const columnIndex = provinceIndex >= 0 ? provinceIndex : headers.length;
+  const nextHeaders = provinceIndex >= 0 ? [...headers] : [...headers, '\u0627\u0633\u062a\u0627\u0646'];
+  const nextRows = rows.map((row) => {
+    const nextRow = Array.from({ length: nextHeaders.length }, (_, index) => row[index] ?? '');
+    nextRow[columnIndex] = isfahanProvinceName;
+    return nextRow;
+  });
+  return { headers: nextHeaders, rows: nextRows };
+};
 const normalizeSearchText = (value: string) => value.trim().normalize('NFKC').toLocaleLowerCase('fa')
   .replace(/[\u06f0-\u06f9\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) >= 0x06f0 ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660))
   .replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/[\s\u200c\u200f\-–—،,.\/]+/g, '');
@@ -157,7 +169,9 @@ export function RahcomBillIdentifiers() {
   const latestBillMessageIndex = useMemo(() => workbook?.headers.findIndex((header) => [normalizeBillHeader('\u0648\u0636\u0639\u06cc\u062a \u0628\u0631\u0631\u0633\u06cc'), normalizeBillHeader('\u0622\u062e\u0631\u06cc\u0646 \u067e\u06cc\u0627\u0645\u06a9 \u0642\u0628\u0636')].includes(normalizeBillHeader(header))) ?? -1, [workbook]);
   const displayColumnLabel = (header: string, index: number) => index === latestBillMessageIndex
     ? locale === 'fa' ? '\u0622\u062e\u0631\u06cc\u0646 \u067e\u06cc\u0627\u0645\u06a9 \u0642\u0628\u0636' : 'Latest bill SMS'
-    : header;
+    : normalizeBillHeader(header) === normalizeBillHeader('\u0627\u0633\u062a\u0627\u0646')
+      ? uiMessage(locale, 'rahcomProvince')
+      : header;
   const systemNameByCode = useMemo(() => new Map(systems.map((system) => [
     system.systemCode.normalize('NFKC').trim().toUpperCase(), system.systemName,
   ])), [systems]);
@@ -175,6 +189,7 @@ export function RahcomBillIdentifiers() {
     return canUseAssignmentFamily(remainingFamilies, assignmentFamily({ type: nextType, code: '', name: '' }));
   };
   const getCellValue = useCallback((row: string[], columnIndex: number) => {
+    if (columnIndex === -4) return isfahanProvinceName;
     if (columnIndex === -3) {
       const families = [...new Set(splitSystemCodes(systemCodeIndex >= 0 ? row[systemCodeIndex] : undefined)
         .map((code) => parseExternalSystem(code)?.type ?? 'RAHCOM'))];
@@ -200,7 +215,8 @@ export function RahcomBillIdentifiers() {
     const normalizedQuery = normalizeSearchText(query);
     if (!normalizedQuery) return allRows;
     return allRows.filter((row) => row.some((value) => normalizeSearchText(value).includes(normalizedQuery))
-      || normalizeSearchText(getCellValue(row, -1)).includes(normalizedQuery));
+      || normalizeSearchText(getCellValue(row, -1)).includes(normalizedQuery)
+      || normalizeSearchText(getCellValue(row, -4)).includes(normalizedQuery));
   }, [getCellValue, query, workbook]);
   const displayColumns = useMemo(() => {
     if (!workbook) return [];
@@ -210,6 +226,7 @@ export function RahcomBillIdentifiers() {
       ['آدرس انشعاب'],
       ['منطقه امور', 'منطقه / امور'],
       ['نام مشترک'],
+      ['استان'],
       ['وضعیت بررسی'],
       ['تاریخ ثبت'],
     ].map((aliases) => aliases.map(normalizeBillHeader));
@@ -227,6 +244,15 @@ export function RahcomBillIdentifiers() {
     const computerPassword = computerPasswordIndex >= 0 ? { index: computerPasswordIndex, header: workbook.headers[computerPasswordIndex] } : undefined;
     const meterBodyIndex = workbook.headers.findIndex((header) => normalizeBillHeader(header) === normalizeBillHeader('\u0634\u0645\u0627\u0631\u0647 \u0628\u062f\u0646\u0647 \u06a9\u0646\u062a\u0648\u0631'));
     const meterBody = meterBodyIndex >= 0 ? { index: meterBodyIndex, header: workbook.headers[meterBodyIndex] } : undefined;
+    const remainingColumns = dataColumns.filter((column) => column !== systemCode && column !== billId && column !== meterBody);
+    const subscriberNamePosition = remainingColumns.findIndex(({ header }) => normalizeBillHeader(header) === normalizeBillHeader('\u0646\u0627\u0645 \u0645\u0634\u062a\u0631\u06a9'));
+    const provinceColumn = { index: -4, header: uiMessage(locale, 'rahcomProvince') };
+    const hasProvinceColumn = remainingColumns.some(({ header }) => normalizeBillHeader(header) === normalizeBillHeader('استان'));
+    const columnsWithProvince = hasProvinceColumn
+      ? remainingColumns
+      : subscriberNamePosition < 0
+        ? [...remainingColumns, provinceColumn]
+        : [...remainingColumns.slice(0, subscriberNamePosition + 1), provinceColumn, ...remainingColumns.slice(subscriberNamePosition + 1)];
     return [
       ...(rowNumber >= 0 ? [{ index: rowNumber, header: workbook.headers[rowNumber] }] : []),
       { index: -2, header: '\u0639\u0645\u0644\u06cc\u0627\u062a' },
@@ -236,7 +262,7 @@ export function RahcomBillIdentifiers() {
       ...(billId ? [billId] : []),
       ...(computerPassword ? [computerPassword] : []),
       ...(meterBody ? [meterBody] : []),
-      ...dataColumns.filter((column) => column !== systemCode && column !== billId && column !== meterBody),
+      ...columnsWithProvince,
     ];
   }, [latestBillMessageIndex, locale, systemCodeIndex, workbook]);
   const editableAddColumns = useMemo(() => displayColumns.filter((column) =>
@@ -365,7 +391,8 @@ export function RahcomBillIdentifiers() {
     setBackupBusy(true);
     try {
       const backup = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(backup, XLSX.utils.aoa_to_sheet([workbook.headers, ...workbook.rows]), 'Bill identifiers');
+      const backupWorkbook = withIsfahanProvince(workbook.headers, workbook.rows);
+      XLSX.utils.book_append_sheet(backup, XLSX.utils.aoa_to_sheet([backupWorkbook.headers, ...backupWorkbook.rows]), 'Bill identifiers');
       const token = getAccessToken();
       if (!token) throw new Error('unauthorized');
       const bytes = XLSX.write(backup, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
@@ -404,9 +431,10 @@ export function RahcomBillIdentifiers() {
       }
       const token = getAccessToken();
       if (!token) throw new Error('unauthorized');
-      const response = await fetch('/api/rahcom/bill-identifiers', { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ headers, rows }) });
+      const normalizedWorkbook = withIsfahanProvince(headers, rows);
+      const response = await fetch('/api/rahcom/bill-identifiers', { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(normalizedWorkbook) });
       if (!response.ok) throw new Error(response.status === 409 ? 'duplicate_bill_identifier' : 'import_failed');
-      setWorkbook({ headers, rows });
+      setWorkbook(normalizedWorkbook);
       setLoadFailed(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';

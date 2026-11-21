@@ -21,7 +21,7 @@ export type { RahcomElectricityDetail } from '@/components/rahcom/electricity';
 export type { RahcomInfoField } from '@/components/rahcom/information';
 
 type PopupPosition = { top: number; left: number; maxWidth: number; maxHeight: number };
-type RowInfoPopup = { title: string; systemCode: string; fields: RahcomInfoField[]; position: PopupPosition; trigger: HTMLButtonElement; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[]; previewBeforeCopy?: boolean; kind?: 'site' };
+type RowInfoPopup = { title: string; systemCode: string; fields: RahcomInfoField[]; position: PopupPosition; trigger: HTMLButtonElement; system?: RahcomSystem | null; onEdit?: () => void; onSaveEdit?: (value: string) => void; editValue?: string; electricityDetails?: RahcomElectricityDetail[]; previewBeforeCopy?: boolean; kind?: 'site' };
 
 function getWorkspaceMainBounds() {
   const workspaceMain = document.querySelector<HTMLElement>('[data-workspace-main]');
@@ -30,7 +30,7 @@ function getWorkspaceMainBounds() {
   return pageMain?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
 }
 
-export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trigger?: HTMLElement | null, point?: { x: number; y: number }, systemCode = '', system?: RahcomSystem | null, onEdit?: () => void, electricityDetails?: RahcomElectricityDetail[], previewBeforeCopy = false, kind?: 'site') {
+export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trigger?: HTMLElement | null, point?: { x: number; y: number }, systemCode = '', system?: RahcomSystem | null, onEdit?: () => void, electricityDetails?: RahcomElectricityDetail[], previewBeforeCopy = false, kind?: 'site', editValue?: string, onSaveEdit?: (value: string) => void) {
   const resolvedCode = systemCode || fields.find((field) => /system\s*code|کد\s*(?:سامانه|ایستگاه)/i.test(field.label))?.value || '';
   const resolvedTitle = fields.find((field) => /system\s*name|systemname|نام\s*(?:سامانه|ایستگاه)|nome.*sistema|nom.*système|nombre.*sistema|назван.*систем|系统名称|システム名|اسم النظام/i.test(field.label) && field.value.trim())?.value || title;
   const systemFields = fields.filter((field) => field.value.trim() !== '' && field.value !== resolvedCode && field.value !== resolvedTitle && /axis|محور|استان|province|província|provincia|провинц|محافظة|المحافظ|ولاية|จังหวัด|省/i.test(field.label));
@@ -46,7 +46,7 @@ export function openRahcomRowInfo(title: string, fields: RahcomInfoField[], trig
   document.querySelector<HTMLButtonElement>('[data-rahcom-info-trigger][aria-expanded="true"]')?.setAttribute('aria-expanded', 'false');
   popupTrigger.setAttribute('data-rahcom-info-trigger', '');
   popupTrigger.setAttribute('aria-expanded', 'true');
-  window.dispatchEvent(new CustomEvent<RowInfoPopup>('rahyar:row-info-open', { detail: { title: resolvedTitle, systemCode: resolvedCode, fields: system ? systemFields : fields, system, onEdit, electricityDetails, previewBeforeCopy, kind, position: { top, left, maxWidth, maxHeight }, trigger: popupTrigger } }));
+  window.dispatchEvent(new CustomEvent<RowInfoPopup>('rahyar:row-info-open', { detail: { title: resolvedTitle, systemCode: resolvedCode, fields: system ? systemFields : fields, system, onEdit, onSaveEdit, editValue, electricityDetails, previewBeforeCopy, kind, position: { top, left, maxWidth, maxHeight }, trigger: popupTrigger } }));
 }
 
 export function RahcomSiteIcon({ size = 17 }: { size?: number }) {
@@ -57,10 +57,10 @@ export function RahcomInfoHeader({ icon = 'info' }: { icon?: 'info' | 'tower' })
   return <span role="img" aria-label={'\u0627\u0637\u0644\u0627\u0639\u0627\u062a \u0631\u062f\u06cc\u0641'} className="inline-grid size-5 place-items-center text-muted-foreground">{icon === 'tower' ? <RahcomSiteIcon size={15} /> : <Info size={15} />}</span>;
 }
 
-export function RahcomRowInfo({ title, systemCode = '', fields, system, onEdit, electricityDetails, previewBeforeCopy = false, icon = 'info', kind }: { title: string; systemCode?: string; fields: RahcomInfoField[]; system?: RahcomSystem | null; onEdit?: () => void; electricityDetails?: RahcomElectricityDetail[]; previewBeforeCopy?: boolean; icon?: 'info' | 'tower'; kind?: 'site' }) {
+export function RahcomRowInfo({ title, systemCode = '', fields, system, onEdit, onSaveEdit, editValue, electricityDetails, previewBeforeCopy = false, icon = 'info', kind }: { title: string; systemCode?: string; fields: RahcomInfoField[]; system?: RahcomSystem | null; onEdit?: () => void; onSaveEdit?: (value: string) => void; editValue?: string; electricityDetails?: RahcomElectricityDetail[]; previewBeforeCopy?: boolean; icon?: 'info' | 'tower'; kind?: 'site' }) {
   return <button type="button" aria-label={`\u0627\u0637\u0644\u0627\u0639\u0627\u062a ${title}`} title={`\u0627\u0637\u0644\u0627\u0639\u0627\u062a ${title}`} aria-haspopup="dialog" aria-expanded="false" onClick={(event) => {
       event.stopPropagation();
-      openRahcomRowInfo(title, fields, event.currentTarget, { x: event.clientX, y: event.clientY }, system?.systemCode || systemCode, system, onEdit, electricityDetails, previewBeforeCopy, kind);
+      openRahcomRowInfo(title, fields, event.currentTarget, { x: event.clientX, y: event.clientY }, system?.systemCode || systemCode, system, onEdit, electricityDetails, previewBeforeCopy, kind, editValue, onSaveEdit);
     }} className="inline-grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:text-primary aria-expanded:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-rahcom-info-trigger>{icon === 'tower' ? <RahcomSiteIcon /> : <Info size={16} />}</button>;
 }
 
@@ -74,6 +74,8 @@ export function RahcomRowInfoHost() {
   const [electricityCopiedKey, setElectricityCopiedKey] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [panel, setPanel] = useState<'location' | 'history' | 'electricity' | null>(null);
+  const [editingSiteType, setEditingSiteType] = useState(false);
+  const [siteTypeDraft, setSiteTypeDraft] = useState('');
   const activeTrigger = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     const openPopup = (event: Event) => {
@@ -85,6 +87,8 @@ export function RahcomRowInfoHost() {
       setElectricityCopiedKey('');
       setExpanded(false);
       setPanel(null);
+      setEditingSiteType(false);
+      setSiteTypeDraft(nextPopup.editValue ?? '');
       flushSync(() => setPopup(nextPopup));
     };
     window.addEventListener('rahyar:row-info-open', openPopup);
@@ -100,6 +104,7 @@ export function RahcomRowInfoHost() {
     activeTrigger.current = null;
     popup?.trigger.setAttribute('aria-expanded', 'false');
     setPanel(null);
+    setEditingSiteType(false);
     flushSync(() => setPopup(null));
   };
   if (!popup || typeof document === 'undefined') return null;
@@ -110,6 +115,12 @@ export function RahcomRowInfoHost() {
     : popup.fields.filter((field) => field.value.trim() !== '');
   const canonicalCode = popup.system?.systemCode || popup.systemCode;
   const canonicalTitle = popup.system?.systemName || popup.title;
+  const saveSiteType = () => {
+    const value = siteTypeDraft.trim() || 'USO';
+    popup.onSaveEdit?.(value);
+    setPopup((current) => current ? { ...current, editValue: value } : current);
+    setEditingSiteType(false);
+  };
   const electricityDetails = [
     ...(popup.system?.electricityBillId ? [{ label: '\u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636 \u0628\u0631\u0642', value: popup.system.electricityBillId }] : []),
     ...(popup.electricityDetails ?? []),
@@ -207,9 +218,25 @@ export function RahcomRowInfoHost() {
     <RahcomInformationWindow expanded={expanded} title={canonicalTitle} position={popup.position} bounds={contentBounds}>
       <div className={`rahcom-system-popup${expanded ? ' rahcom-system-popup-expanded' : ''}`}>
         {popup.kind === 'site' ? <RahcomSite title={canonicalTitle} code={canonicalCode} fields={visibleFields} copiedCode={codeCopied} onCopyCode={() => void copyCode()} /> : <RahcomInformation title={canonicalTitle} code={canonicalCode} fields={visibleFields} copiedCode={codeCopied} onCopyCode={() => void copyCode()} axis={popup.system ? { name: popup.system.announcedAxis ?? '', code: popup.system.axisCode ?? undefined } : undefined} />}
+        {popup.kind === 'site' && editingSiteType && <div className="mt-2 grid gap-2 rounded-lg border border-border bg-background p-2">
+          <label htmlFor="rahcom-site-type-edit" className="text-xs font-medium text-muted-foreground">{'\u0646\u0648\u0639 \u0633\u0627\u06cc\u062a'}</label>
+          <input id="rahcom-site-type-edit" autoFocus type="text" maxLength={40} value={siteTypeDraft} onChange={(event) => setSiteTypeDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveSiteType(); } if (event.key === 'Escape') setEditingSiteType(false); }} className="h-9 rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary" />
+        </div>}
         <div className={`rahcom-popup-actions${expanded ? ' rahcom-popup-actions-expanded' : ''}`}>
           <button type="button" className="danger" onClick={close} aria-label="بستن" title="بستن"><X size={16} /></button>
-          {popup.onEdit && <button type="button" onClick={() => { const edit = popup.onEdit; close(); edit?.(); }} aria-label="ویرایش رکورد" title="ویرایش رکورد"><Pencil size={16} /></button>}
+          {editingSiteType && popup.onSaveEdit ? <>
+            <button type="button" onClick={saveSiteType} aria-label={uiMessage(locale, 'rahcomSave')} title={uiMessage(locale, 'rahcomSave')}><Check size={16} /></button>
+            <button type="button" onClick={() => setEditingSiteType(false)} aria-label={uiMessage(locale, 'rahcomCancel')} title={uiMessage(locale, 'rahcomCancel')}><X size={16} /></button>
+          </> : (popup.onEdit || popup.onSaveEdit) && <button type="button" onClick={() => {
+            if (popup.kind === 'site' && popup.onSaveEdit) {
+              setSiteTypeDraft(popup.editValue ?? 'USO');
+              setEditingSiteType(true);
+              return;
+            }
+            const edit = popup.onEdit;
+            close();
+            edit?.();
+          }} aria-label={uiMessage(locale, popup.kind === 'site' ? 'rahcomEditSiteType' : 'rahcomEditSystem')} title={uiMessage(locale, popup.kind === 'site' ? 'rahcomEditSiteType' : 'rahcomEditSystem')}><Pencil size={16} /></button>}
           {!popup.system && <button type="button" data-popup-action="expand" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)} aria-label={expanded ? 'کوچک‌کردن پنجره' : 'نمایش جزئیات'} title={expanded ? 'کوچک‌کردن پنجره' : 'نمایش جزئیات'}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
           {popup.system && <button type="button" data-popup-action="electricity" aria-expanded={panel === 'electricity'} onClick={() => setPanel((current) => current === 'electricity' ? null : 'electricity')} aria-label="اطلاعات برق" title="اطلاعات برق"><Zap size={16} /></button>}
           <button type="button" onClick={() => void copyAll()} aria-label="کپی اطلاعات" title="کپی اطلاعات">{copied ? <Check size={16} /> : <Copy size={16} />}</button>

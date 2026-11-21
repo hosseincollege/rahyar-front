@@ -58,6 +58,7 @@ const navigation: NavigationItem[] = [
       { titleKey: 'rahcomAggregateList', href: '/rahcom/aggregate' },
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
       { titleKey: 'rahcomBillIdentifiers', href: '/rahcom/bill-identifiers' },
+      { titleKey: 'rahcomInventory', href: '/rahcom/inventory' },
       { titleKey: 'rahcomSites', href: '/rahcom/sites' },
     ],
   },
@@ -470,3 +471,4 @@ export function Sidebar({
     </aside>
   );
 }
+

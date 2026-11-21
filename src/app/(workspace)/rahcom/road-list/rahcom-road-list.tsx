@@ -1,12 +1,12 @@
 'use client';
 
-import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { RahcomTagIcon, RahcomToolbar } from '@/components/rahcom/toolbar';
 import { DataTable } from '@/components/ui/data-table';
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, ListFilter, LoaderCircle, LockKeyhole, Pencil, Save, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ClipboardCopy, Download, FileUp, LoaderCircle, LockKeyhole, Pencil, Save, X } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 import { getCurrentOrganizationId } from '@/lib/api/shared/auth-api';
 import { settingsApi } from '@/lib/api/settings-api';
@@ -528,7 +528,7 @@ export function RahcomRoadList() {
       {solarSnapshots.length > 0 && <SolarSnapshotPicker snapshots={solarSnapshots} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManage} deletingId={deletingSolarSnapshotId} onDelete={(item) => void deleteSolarSnapshot(item)} />}
       <RahcomCountCapsule count={filteredRows.length} />
       <div className="flex flex-nowrap items-center gap-2">
-        <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><ListFilter size={16} aria-hidden="true" /></button>
+        <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => { const enabled = !showIncidents; setShowIncidents(enabled); window.localStorage.setItem('rahcom-show-incidents', String(enabled)); setPage(0); }} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><RahcomTagIcon aria-hidden="true" /></button>
         {snapshot && <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} aria-hidden="true" /></button>}
         <RoadListPromptControl locale={locale} canManage={canManage} selectedDate={selectedDate} />
         {canManage && <label data-toolbar-label={busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')} aria-label={t('rahcomRoadListChooseFile')} title={busy ? t('rahcomRoadListUploading') : t('rahcomRoadListChooseFile')} className={`relative inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm text-foreground transition hover:border-primary hover:text-primary ${busy || !province ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>

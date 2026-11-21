@@ -140,3 +140,9 @@ Whenever assigned a task:
 ## Visual left/right in RTL UI
 - Interpret left and right as the user's visible screen positions, never as JSX child order or RTL start/end. In RTL flex rows, child order may render opposite to LTR; inspect the actual container direction and reason from the rendered screen.
 - When a user specifies positions for TopHeader controls, write down the intended visual order (for example: logo on the right, stacked organization text on the left) and place controls accordingly. Confirm the final visual order before reporting.
+
+## Systems page Compare control invariant
+- On the Systems page, the control named **Compare** uses the shared `RahcomCompareIcon` from `src/components/rahcom/toolbar.tsx`, whose icon is two simple document outlines. Keep it distinct from `RahcomTagIcon` and other incident icons.
+- Preserve the Compare control's name, icon, and behavior unless the user explicitly asks to change that specific control. It filters Systems rows to systems carrying their label/incident data in the Systems database or matching theft/damage values in the imported traffic snapshot for the selected date.
+- The theft/damage column is visible only while Compare is active. Its heading comes from the selected day's traffic file, and each cell shows that system's matching traffic-row value; show an em dash when the selected date has no uploaded traffic file/value. The Systems label column continues to use the Systems database record.
+- The Systems table's station-name value comes from `RahcomSystem.stationName`; its heading is “Station Name in Systems” (localized as “نام ایستگاه در سامانه‌ها” in Persian). Do not switch either source without an explicit request.

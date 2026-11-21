@@ -27,7 +27,6 @@ import {
   FilePlus2,
   SquareTerminal,
   ChevronLeft,
-  CircleHelp,
   LogOut,
   Lock,
   Menu,
@@ -65,6 +64,15 @@ interface TopHeaderProps {
   onToggleNavigateOnClick?: () => void;
   onSelectMissionMode?: (mode: MissionEntryMode) => void;
   activeMissionMode?: MissionEntryMode;
+}
+
+function QuestionMarkIcon({ mirrored = false }: { mirrored?: boolean }) {
+  return (
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
+      <path d="M9.2 9a2.9 2.9 0 1 1 5.5 1.3c-.8 1.3-2.7 1.7-2.7 3.7" />
+      <path d="M12 17h.01" />
+    </svg>
+  );
 }
 
 export function TopHeader({
@@ -533,7 +541,7 @@ export function TopHeader({
                 rounded-xl transition-all duration-200
                 ${
                   !isCollapsed && isSidebarLocked
-                    ? 'border-2 border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm shadow-[var(--primary)]/20'
+                    ? 'border border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
                     : 'border border-[var(--border)] text-[var(--foreground)]'
                 }
               `}
@@ -584,7 +592,7 @@ export function TopHeader({
           aria-pressed={toolbarLabelsEnabled}
           className={`pointer-events-auto flex h-9 w-9 max-sm:h-8 max-sm:w-8 shrink-0 items-center justify-center rounded-xl border transition-colors min-[1200px]:hidden ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
         >
-          <CircleHelp size={18} aria-hidden="true" />
+          <QuestionMarkIcon mirrored={direction === 'rtl'} />
         </button>
         </div>
 
@@ -603,9 +611,9 @@ export function TopHeader({
           aria-label={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
           title={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
           aria-pressed={toolbarLabelsEnabled}
-          className={`pointer-events-auto order-1 flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
+          className={`pointer-events-auto order-1 flex size-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
         >
-          <CircleHelp size={18} aria-hidden="true" />
+          <QuestionMarkIcon mirrored={direction === 'rtl'} />
         </button>
         <div ref={accountMenuRef} dir={direction} className="pointer-events-none relative shrink-0">
           <button
@@ -619,7 +627,7 @@ export function TopHeader({
               pointer-events-auto flex size-10 cursor-pointer select-none items-center justify-center
               rounded-full border p-0 transition-all sm:h-10 sm:w-44 sm:justify-start
               sm:gap-2.5 sm:rounded-2xl sm:p-1.5 sm:pe-4 sm:ps-1.5
-              ${isAccountMenuOpen ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)]'}
+              ${isAccountMenuOpen ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--primary)] hover:bg-[var(--background)] hover:text-[var(--primary)]'}
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40
             `}
           >
@@ -765,8 +773,8 @@ export function TopHeader({
             {activeMissionMode === 'form' ? <FilePlus2 size={17}/> : activeMissionMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}
           </button>
         </div>}
-        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule pointer-events-auto relative flex min-w-0 rounded-full">
-          <input type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none placeholder:text-muted-foreground focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
+        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule rahcom-search-capsule--header pointer-events-auto relative flex min-w-0 rounded-full">
+          <input type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)] focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
           {headerSearchQuery && <button type="button" onClick={() => updateHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={15}/></button>}
           {renderHeaderSystemSuggestions()}
         </form>

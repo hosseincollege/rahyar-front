@@ -56,6 +56,7 @@ export type RahcomActivity = {
   accompaniedBy: string | null; handedOverTo: string | null; performedBy: string | null;
   system?: Pick<RahcomSystem, 'id' | 'systemName' | 'systemCode' | 'province'> | null;
 };
+export type RahcomInventoryEntry = { id: string; province: string; equipmentName: string; systemId: string | null; systemNameSnapshot: string; systemCodeSnapshot: string; usageDate: string; createdAt: string };
 export type RahcomSolarSnapshot = {
   id: string; province: string | null; capturedAt: string; createdAt: string; downText: string;
   unreachableText: string; equipmentColumns: string[];
@@ -104,6 +105,9 @@ export const rahcomApi = {
     const systems = await apiClient.get<RahcomSystem[]>(province ? `/rahcom/systems?province=${encodeURIComponent(province)}` : '/rahcom/systems');
     return filterExcludedIsfahanSystems(systems);
   },
+  inventory: (province?: string) => apiClient.get<RahcomInventoryEntry[]>(`/rahcom/inventory${province ? `?province=${encodeURIComponent(province)}` : ''}`),
+  createInventory: (data: { province: string; equipmentName: string; systemId: string; usageDate: string }) => apiClient.post<RahcomInventoryEntry>('/rahcom/inventory', data),
+  deleteInventory: (id: string) => apiClient.delete<{ deleted: boolean }>(`/rahcom/inventory/${encodeURIComponent(id)}`),
   searchSystems: async (province: string | undefined, query: string) => filterExcludedIsfahanSystems(
     await apiClient.get<RahcomSystem[]>(`/rahcom/systems/search?${new URLSearchParams({ ...(province ? { province } : {}), q: query })}`),
   ),

@@ -1,10 +1,10 @@
 'use client';
 
-import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { RahcomTagIcon, RahcomToolbar } from '@/components/rahcom/toolbar';
 import { animateRahcomTableChange, RahcomTable, RahcomTableFrame } from '@/components/rahcom/table';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Download, ListFilter, LoaderCircle, Save } from 'lucide-react';
+import { ClipboardList, Download, LoaderCircle, Save } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { usePreferences } from '@/components/providers/preferences-provider';
@@ -402,7 +402,7 @@ function StatusTable({ entries, columns, locale, selectedProvince, systems = [],
   };
   const toolbarControls = currentSnapshot && toolbarTarget ? createPortal(<RahcomToolbar className=" inline-flex shrink-0 items-center gap-2 text-sm">
     <button type="button" onClick={downloadExcel} aria-label={t('solarDownloadExcel')} title={t('solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground hover:border-primary hover:text-primary"><Download size={16} /></button>
-    <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => onToggleIncidents && animateRahcomTableChange(onToggleIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><ListFilter size={18} aria-hidden="true" /></button>
+    <button type="button" aria-pressed={showIncidents} aria-label={t('rahcomIncidentFilter')} title={t('rahcomIncidentFilter')} onClick={() => onToggleIncidents && animateRahcomTableChange(onToggleIncidents)} style={showIncidents ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${showIncidents ? '' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}><RahcomTagIcon aria-hidden="true" /></button>
   </RahcomToolbar>, toolbarTarget) : null;
   const columnCount = 10 + Number(showIncidents) + equipmentGroups.length;
   let nextRowNumber = 0;
