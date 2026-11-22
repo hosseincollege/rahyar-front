@@ -982,6 +982,8 @@ export type UiMessage =
   | "rahcomSystemsList"
   | "rahcomSites"
   | "rahcomSitesEmpty"
+  | "rahcomNoProvinceConfigured"
+  | "rahcomProvinceSelectionRequired"
   | "rahcomSitesSearch"
   | "rahcomSitesNoResults"
   | "rahcomInvoicesSearch"

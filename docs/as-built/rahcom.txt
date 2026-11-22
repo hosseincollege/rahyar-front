@@ -63,3 +63,6 @@ Rahcom Sites page: `/rahcom/sites` presents all seven sheets from the supplied U
 Shared toolbar date picker
 
 Rahcom toolbar date capsules use `src/app/(workspace)/rahcom/_shared/rahcom-header-date.tsx`. Month-calendar weekday headings show one localized character, while retaining the complete weekday in accessible labels and titles. The month picker is 360px wide on desktop and constrained to the viewport on mobile. The same initial-label rule is used in the week selector.
+
+Rahcom province prerequisite
+All Rahcom routes are gated by active organization provinces and the current user's eligibility, returned from /rahcom/me. The province list is derived from active organization branches mapped to supported province IDs. The user must either have a province assignment or explicitly select a province in the top header; the only configured province is never auto-selected and `all` does not satisfy the selection requirement. Rahcom data APIs enforce the same checks. Fixed Isfahan backup routes also verify Isfahan is configured before reading or writing workbook files.

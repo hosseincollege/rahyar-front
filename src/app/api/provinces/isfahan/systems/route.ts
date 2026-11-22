@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'unauthorized' }, { status: accessResponse.status === 401 ? 401 : 403 });
     }
 
-    const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null }; isAdmin?: boolean; province?: string | null };
+    const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null; provinces?: string[] }; isAdmin?: boolean; province?: string | null; provinces?: string[] };
     const access = accessPayload.data ?? accessPayload;
-    if (!access.isAdmin && access.province !== 'isfahan') {
+    if (!access.provinces?.includes('isfahan') || (!access.isAdmin && access.province !== 'isfahan')) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
@@ -144,9 +144,9 @@ export async function PUT(request: NextRequest) {
     if (!accessResponse.ok) {
       return NextResponse.json({ error: 'unauthorized' }, { status: accessResponse.status === 401 ? 401 : 403 });
     }
-    const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null }; isAdmin?: boolean; province?: string | null };
+    const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null; provinces?: string[] }; isAdmin?: boolean; province?: string | null; provinces?: string[] };
     const access = accessPayload.data ?? accessPayload;
-    if (!access.isAdmin && access.province !== 'isfahan') {
+    if (!access.provinces?.includes('isfahan') || (!access.isAdmin && access.province !== 'isfahan')) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

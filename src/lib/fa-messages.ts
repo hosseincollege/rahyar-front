@@ -825,6 +825,8 @@ const faMessages = {
   rahcomSystemsLoadError: "بارگذاری فهرست سامانه‌ها ناموفق بود.",
   rahcomSystemsEmpty: "سامانه‌ای برای این جست‌وجو پیدا نشد.",
   rahcomSitesEmpty: "هیچ رکوردی برای نمایش وجود ندارد.",
+  rahcomNoProvinceConfigured: "برای استفاده از رهکام، ابتدا دست‌کم یک استان را در تنظیمات ساختار سازمانی ایجاد کنید.",
+  rahcomProvinceSelectionRequired: "از سربرگ یک استان را انتخاب کنید یا از مدیر بخواهید شما را به یک استان تخصیص دهد.",
   rahcomCopy: "کپی",
   rahcomCopyCode: "کپی کد",
   rahcomCopyCoordinates: "کپی مختصات",

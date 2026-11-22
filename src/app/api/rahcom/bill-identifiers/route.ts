@@ -80,9 +80,9 @@ export async function PUT(request: NextRequest) {
         cache: 'no-store',
       });
       if (!accessResponse.ok) return jsonError(accessResponse.status === 401 ? 401 : 403, 'unauthorized');
-      const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null }; isAdmin?: boolean; province?: string | null };
+      const accessPayload = await accessResponse.json() as { data?: { isAdmin?: boolean; province?: string | null; provinces?: string[] }; isAdmin?: boolean; province?: string | null; provinces?: string[] };
       const access = accessPayload.data ?? accessPayload;
-      if (!access.isAdmin && access.province !== province) return jsonError(403, 'forbidden');
+      if (!access.provinces?.includes(province) || (!access.isAdmin && access.province !== province)) return jsonError(403, 'forbidden');
 
       const bytes = Buffer.from(await request.arrayBuffer());
       if (!bytes.length || bytes.length > 20 * 1024 * 1024) return jsonError(400, 'invalid_workbook');

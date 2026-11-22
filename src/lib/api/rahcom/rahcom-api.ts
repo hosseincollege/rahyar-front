@@ -77,7 +77,7 @@ export type RahcomImportedTicket = {
   system?: RahcomSystem | null;
 };
 export type RahcomMemberProvince = { id: string; userId: string; username: string; name: string; province: string | null };
-export type RahcomAccess = { memberId: string | null; province: string | null; selectedProvince: string | null; isAdmin: boolean; canSwitchProvince: boolean; canManageAssignments: boolean; canRecordActivities: boolean };
+export type RahcomAccess = { memberId: string | null; province: string | null; selectedProvince: string | null; isAdmin: boolean; canSwitchProvince: boolean; canManageAssignments: boolean; canRecordActivities: boolean; provinces: string[]; hasProvinceAccess: boolean };
 /** Coordinates copied for search or navigation: latitude first, ASCII comma, longitude. */
 export function formatRahcomCoordinates(latitude: number, longitude: number) {
   return `${latitude}, ${longitude}`;

@@ -93,13 +93,10 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
       const preferredProvince = isDemoUser ? 'isfahan' : rahcomAccess.canSwitchProvince ? rahcomAccess.selectedProvince : rahcomAccess.province;
       const initial = available.some(({ id }) => id === preferredProvince)
         ? preferredProvince!
-        : available.length === 1 ? available[0].id : 'all';
+        : 'all';
       setProvince(initial);
       window.localStorage.setItem(storageKey(userId), initial);
       window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: initial } }));
-      if (available.length > 0 && rahcomAccess.canSwitchProvince && rahcomAccess.memberId) {
-        void rahcomApi.setSelectedProvince(initial).catch(() => undefined);
-      }
       setLoaded(true);
     }).catch(() => {
       if (active) {
@@ -117,17 +114,18 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
 
   async function selectProvince(value: string) {
     if (!access?.canSwitchProvince) return;
-    if (value === province) { setOpen(false); return; }
+    const nextProvince = value === 'all' && access.province ? access.province : value;
+    if (nextProvince === province) { setOpen(false); return; }
     const previousProvince = province;
     const requestId = ++provinceRequest.current;
     setProvinceSaveFailed(false);
-    setProvince(value);
+    setProvince(nextProvince);
     setOpen(false);
-    window.localStorage.setItem(storageKey(userId), value);
-    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: value } }));
-    if (!access.memberId) return;
+    window.localStorage.setItem(storageKey(userId), nextProvince);
+    window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: nextProvince } }));
     try {
-      await rahcomApi.setSelectedProvince(value);
+      await rahcomApi.setSelectedProvince(nextProvince);
+      window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: nextProvince } }));
     } catch {
       if (requestId !== provinceRequest.current) return;
       setProvince(previousProvince);
@@ -150,7 +148,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
       </div>
     );
   }
-  if (!access?.canSwitchProvince) {
+  if (!access?.canSwitchProvince || offices.length === 0) {
     return <div dir={getLocaleDirection(locale)} aria-label={`${label}: ${selectedProvinceName}`} title={`${label}: ${selectedProvinceName}`} className="pointer-events-auto flex h-9 max-w-44 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-2 text-xs text-[var(--foreground)] sm:max-w-52 sm:px-3"><MapPinned size={17} aria-hidden="true" /><span className="truncate text-sm">{selectedProvinceName}</span></div>;
   }
   if (embedded) {

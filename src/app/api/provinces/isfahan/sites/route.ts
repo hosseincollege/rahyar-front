@@ -20,9 +20,9 @@ async function authorized(request: NextRequest) {
     cache: 'no-store',
   }).catch(() => null);
   if (!response?.ok) return false;
-  const payload = await response.json() as { data?: { isAdmin?: boolean; province?: string | null }; isAdmin?: boolean; province?: string | null };
+  const payload = await response.json() as { data?: { isAdmin?: boolean; province?: string | null; provinces?: string[] }; isAdmin?: boolean; province?: string | null; provinces?: string[] };
   const access = payload.data ?? payload;
-  return Boolean(access.isAdmin || access.province === 'isfahan');
+  return Boolean(access.provinces?.includes('isfahan') && (access.isAdmin || access.province === 'isfahan'));
 }
 
 function validWorkbook(bytes: Buffer) {

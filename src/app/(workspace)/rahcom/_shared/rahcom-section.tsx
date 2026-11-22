@@ -5,6 +5,7 @@ import { animateRahcomTableChange } from '@/components/rahcom/table';
 import { CircleOff, ClipboardList, Combine, Copy, Download, Layers, LocateFixed, Plus, Route, Scan, Search, SquaresIntersect, Sun, Ticket, Trash2, Upload, X } from 'lucide-react';
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
 import { OpenStreetMap, type IncidentMapSummary, type UnmappedSolarDetail } from '@/app/(workspace)/rahcom/map/open-street-map';
 import { RahcomActions } from '@/app/(workspace)/rahcom/actions/rahcom-actions';
@@ -180,9 +181,12 @@ function MapSystemsCapsule({ systemsCount, details, locale }: { systemsCount: nu
 export function RahcomSectionPage({ section }: { section: RahcomSection }) {
   const { locale } = usePreferences();
   const { date } = useRahcomDate();
-  const [province, setProvince] = useState('isfahan');
+  const [province, setProvince] = useState('');
+  const [organizationProvinces, setOrganizationProvinces] = useState<string[] | null>(null);
+  const [accessState, setAccessState] = useState<'loading' | 'allowed' | 'denied' | 'error' | 'no-province'>('loading');
   const [ticketsWrapLongText, setTicketsWrapLongText] = useState(false);
   const loadSectionMarkedDates = useCallback(async (from: string, to: string) => {
+    if (!organizationProvinces?.length || !province) return [];
     const range = { from, to };
     const [solar, ticketDates, activities, trafficDates] = await Promise.all([
       section === 'solar-daily' || section === 'aggregate' ? rahcomApi.solarSnapshotDates(province, from, to) : Promise.resolve([]),
@@ -197,7 +201,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       ...activities.map((item) => item.activityDate.slice(0, 10)).filter(inRange),
       ...trafficDates,
     ])].sort();
-  }, [section, province]);
+  }, [organizationProvinces, section, province]);
   const [focusProvince, setFocusProvince] = useState(true);
   const [mapSystemsCount, setMapSystemsCount] = useState(0);
   const [mapSearchQuery, setMapSearchQuery] = useState('');
@@ -238,7 +242,6 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     || renderedMapSourceFilterActive !== mapSourceFilterActive
     || renderedSolarSnapshotId !== selectedSolarSnapshotId;
   const [mapLocationError, setMapLocationError] = useState(false);
-  const [accessState, setAccessState] = useState<'loading' | 'allowed' | 'denied' | 'error'>('loading');
   const [canManageRahcom, setCanManageRahcom] = useState(false);
   const [canRecordActivities, setCanRecordActivities] = useState(false);
   const [solarFormOpen, setSolarFormOpen] = useState(false);
@@ -272,7 +275,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     setSelectedSolarSnapshotId((current) => daySnapshots.some((snapshot) => snapshot.id === current) ? current : daySnapshots[0]?.id ?? '');
   }, [date]);
   useEffect(() => {
-    if (!['map', 'daily-traffic', 'solar-daily', 'aggregate'].includes(section)) return;
+    if (accessState !== 'allowed' || !organizationProvinces?.length || !province || !['map', 'daily-traffic', 'solar-daily', 'aggregate'].includes(section)) return;
     let active = true;
     const clearFrame = window.requestAnimationFrame(() => { if (active) handleSolarSnapshots(null); });
     void rahcomApi.solarSnapshots(province, date ?? undefined).then((snapshots) => {
@@ -285,7 +288,7 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       handleSolarSnapshots([]);
     });
     return () => { active = false; window.cancelAnimationFrame(clearFrame); };
-  }, [date, handleSolarSnapshots, province, section]);
+  }, [accessState, date, handleSolarSnapshots, organizationProvinces, province, section]);
   const snapshotsForDate = solarSnapshots.filter((snapshot) => tehranDateKey(snapshot.capturedAt) === (date ?? tehranDateKey()));
   const selectedSolarSnapshot = snapshotsForDate.find((snapshot) => snapshot.id === selectedSolarSnapshotId) ?? snapshotsForDate[0] ?? null;
   const openSolarHeadingPreview = () => {
@@ -345,9 +348,21 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     }
     void Promise.all([settingsApi.getOrganizationAccess(organizationId), rahcomApi.access()]).then(([access, rahcomAccess]) => {
       if (!active) return;
+      const provinces = Array.isArray(rahcomAccess.provinces) ? rahcomAccess.provinces : [];
+      setOrganizationProvinces(provinces);
       setCanManageRahcom(Boolean(access.canManageRahcom));
       setCanRecordActivities(rahcomAccess.canRecordActivities);
-      if (rahcomAccess.selectedProvince) setProvince(rahcomAccess.selectedProvince);
+      if (!provinces.length) {
+        setProvince('');
+        setAccessState(access.canViewRahcom ? 'no-province' : 'denied');
+        return;
+      }
+      if (!rahcomAccess.hasProvinceAccess || !provinces.includes(rahcomAccess.selectedProvince ?? '')) {
+        setProvince('');
+        setAccessState('no-province');
+        return;
+      }
+      setProvince(rahcomAccess.selectedProvince!);
       setAccessState(access.canViewRahcom ? 'allowed' : 'denied');
     }).catch(() => {
       if (active) setAccessState('error');
@@ -359,15 +374,14 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
     const userId = getCurrentUser()?.id;
     const key = `rahyar-selected-province:${userId || 'current'}`;
     const frame = window.requestAnimationFrame(() => {
-      setProvince(window.localStorage.getItem(key) || 'isfahan');
       setFocusProvince(window.localStorage.getItem('rahyar-rahcom-focus-province') !== 'false');
     });
     const onProvinceChange = (event: Event) => {
       const selected = (event as CustomEvent<{ province?: string }>).detail?.province;
-      if (selected) setProvince(selected);
+      if (selected && (selected === 'all' || organizationProvinces?.includes(selected))) setProvince(selected);
     };
     const onStorageChange = (event: StorageEvent) => {
-      if (event.key === key) setProvince(event.newValue || 'isfahan');
+      if (event.key === key && event.newValue && (event.newValue === 'all' || organizationProvinces?.includes(event.newValue))) setProvince(event.newValue);
       if (event.key === 'rahyar-rahcom-focus-province') setFocusProvince(event.newValue !== 'false');
     };
     window.addEventListener('rahyar:province-change', onProvinceChange);
@@ -377,11 +391,11 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
       window.removeEventListener('rahyar:province-change', onProvinceChange);
       window.removeEventListener('storage', onStorageChange);
     };
-  }, []);
+  }, [organizationProvinces]);
 
   return (
     <main dir={getLocaleDirection(locale)} className={section === 'map' ? 'mx-auto flex h-full min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden' : section === 'solar-daily' ? 'flex min-h-full w-full min-w-0 max-w-full flex-col' : section === 'systems' || section === 'sites' || section === 'tickets' || section === 'aggregate' || section === 'daily-traffic' || section === 'inventory' ? `flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden ${section === 'daily-traffic' ? 'rahcom-horizontal-overflow-page' : ''}` : section === 'actions' ? 'w-full max-w-none space-y-3' : 'mx-auto max-w-5xl space-y-5'}>
-      {section !== 'systems' && section !== 'sites' && section !== 'daily-traffic' && section !== 'actions' && section !== 'inventory' && <RahcomToolbar as="header" className={`rahcom-mobile-toolbar ${section === 'map' ? 'mb-[4px] max-sm:-mb-[4px] flex shrink-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap sm:overflow-x-auto' : section === 'solar-daily' || section === 'aggregate' ? 'mb-[8px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto py-1' : section === 'tickets' ? 'mb-[12px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center justify-start gap-2' : 'space-y-2 rounded-2xl border border-border bg-card p-3 sm:p-4'} max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2`}>
+      {accessState !== 'no-province' && section !== 'systems' && section !== 'sites' && section !== 'daily-traffic' && section !== 'actions' && section !== 'inventory' && <RahcomToolbar as="header" className={`rahcom-mobile-toolbar ${section === 'map' ? 'mb-[4px] max-sm:-mb-[4px] flex shrink-0 flex-wrap items-center gap-1 overflow-visible sm:flex-nowrap sm:overflow-x-auto' : section === 'solar-daily' || section === 'aggregate' ? 'mb-[8px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto py-1' : section === 'tickets' ? 'mb-[12px] max-sm:mb-[4px] flex shrink-0 flex-wrap items-center justify-start gap-2' : 'space-y-2 rounded-2xl border border-border bg-card p-3 sm:p-4'} max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2`}>
         <div className={section === 'map' || section === 'solar-daily' || section === 'aggregate' ? 'contents' : 'flex flex-wrap items-center gap-2'}>
           {section === 'map' && <><RahcomHeaderDate compact /><SolarSnapshotPicker snapshots={snapshotsForDate} selectedId={selectedSolarSnapshot?.id ?? ''} locale={locale} onSelect={setSelectedSolarSnapshotId} canDelete={canManageRahcom} deletingId={deletingSolarSnapshotId} onDelete={(snapshot) => void deleteSolarSnapshot(snapshot)} /></>}
           {section === 'map' && <MapSystemsCapsule systemsCount={mapSystemsCount} details={mapDiscrepancyDetails} locale={locale} />}
@@ -455,6 +469,11 @@ export function RahcomSectionPage({ section }: { section: RahcomSection }) {
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessDenied')}</p>
       ) : accessState === 'error' ? (
         <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{uiMessage(locale, 'rahcomAccessCheckFailed')}</p>
+      ) : accessState === 'no-province' ? (
+        <section role="status" dir={getLocaleDirection(locale)} className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          <p>{organizationProvinces?.length ? uiMessage(locale, 'rahcomProvinceSelectionRequired') : uiMessage(locale, 'rahcomNoProvinceConfigured')}</p>
+          {!organizationProvinces?.length && <Link href="/settings/organization" className="mt-3 inline-flex font-medium text-primary hover:underline">{uiMessage(locale, 'sidebarSettings')} · {uiMessage(locale, 'sidebarOrganizationStructure')}</Link>}
+        </section>
       ) : section === 'map' ? (
         <section aria-label={uiMessage(locale, 'rahcomMap')} className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
           <OpenStreetMap focusProvince={focusProvince} canManage={canManageRahcom} mapSearchQuery={renderedMapSearchQuery} mapSourceFilterActive={renderedMapSourceFilterActive} mapFilterSource={renderedMapFilterSource} aggregateSetOperation={aggregateSetOperation} aggregateSources={aggregateSources} selectedSolarSnapshotId={renderedSolarSnapshotId} showMapIncidents={renderedShowMapIncidents} onSystemsCountChange={handleMapCount} onUnmappedSolarDetailsChange={handleUnmappedSolarDetails} onIncidentMapSummaryChange={handleIncidentMapSummary} onSystemsErrorChange={handleMapError} onLocationStatusChange={handleLocationStatus} onLocateMeReady={handleLocateMeReady} onSolarSnapshotsChange={handleSolarSnapshots} />
