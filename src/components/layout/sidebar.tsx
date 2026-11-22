@@ -59,6 +59,7 @@ const navigation: NavigationItem[] = [
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
       { titleKey: 'rahcomBillIdentifiers', href: '/rahcom/bill-identifiers' },
       { titleKey: 'rahcomInventory', href: '/rahcom/inventory' },
+      { titleKey: 'accountingInvoices', href: '/rahcom/invoices' },
       { titleKey: 'rahcomSites', href: '/rahcom/sites' },
     ],
   },

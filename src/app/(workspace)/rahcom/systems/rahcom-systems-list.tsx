@@ -165,18 +165,20 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
   const trafficSnapshot = trafficSnapshotState?.province === selectedProvince && trafficSnapshotState.date === (date ?? null)
     ? trafficSnapshotState.snapshot
     : null;
-  const theftDamageHeader = trafficSnapshot?.headers.find((header) => {
+  const trafficHeaders = Array.isArray(trafficSnapshot?.headers) ? trafficSnapshot.headers : [];
+  const trafficRows = Array.isArray(trafficSnapshot?.rows) ? trafficSnapshot.rows : [];
+  const theftDamageHeader = trafficHeaders.find((header) => {
     const normalized = normalizeTrafficHeader(header);
     return normalized.includes('\u0633\u0631\u0642\u062a') && normalized.includes('\u062a\u062e\u0631\u06cc\u0628');
   })?.trim() || '\u0633\u0631\u0642\u062a - \u062a\u062e\u0631\u06cc\u0628';
   const trafficDetailsBySystem = useMemo(() => {
     const details = new Map<string, { theftDamage: string[] }>();
     if (!trafficSnapshot) return details;
-    const headers = trafficSnapshot.headers.map(normalizeTrafficHeader);
+    const headers = trafficHeaders.map(normalizeTrafficHeader);
     const codeIndex = headers.findIndex((header) => header.includes(normalizeTrafficHeader('\u06a9\u062f \u0633\u0627\u0645\u0627\u0646\u0647')) || header.includes('systemcode') || header === 'code');
     if (codeIndex < 0) return details;
     const incidentIndexes = headers.flatMap((header, index) => header.includes('\u0633\u0631\u0642\u062a') || header.includes('\u062a\u062e\u0631\u06cc\u0628') || header.includes('theft') || header.includes('damage') ? [index] : []);
-    for (const row of trafficSnapshot.rows) {
+    for (const row of trafficRows) {
       const key = normalizeRahcomSystemCode(row[codeIndex] ?? '');
       if (!key) continue;
       const value = details.get(key) ?? { theftDamage: [] };
@@ -187,7 +189,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
       details.set(key, value);
     }
     return details;
-  }, [trafficSnapshot]);
+  }, [trafficSnapshot, trafficHeaders, trafficRows]);
 
   useEffect(() => {
     let active = true;

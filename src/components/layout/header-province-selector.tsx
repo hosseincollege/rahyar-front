@@ -82,9 +82,12 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
         .filter((branch): branch is { id: string; name: string } => Boolean(branch.id))
         .filter((branch, index, list) => list.findIndex((candidate) => candidate.id === branch.id) === index)
         .sort((a, b) => iranProvinces.findIndex(([id]) => id === a.id) - iranProvinces.findIndex(([id]) => id === b.id));
-      const available = rahcomAccess.canSwitchProvince
-        ? iranProvinces.map(([id, name]) => ({ id, name }))
-        : isDemoUser ? branchProvinces.filter(({ id }) => id === 'isfahan') : branchProvinces;
+      // The selector must reflect the organization's configured active branches.
+      // iranProvinces is only used to normalize/display known branch names; it is
+      // not the source of available provinces.
+      const available = isDemoUser
+        ? branchProvinces.filter(({ id }) => id === 'isfahan')
+        : branchProvinces;
       setAccess(rahcomAccess);
       setOffices(available);
       const preferredProvince = isDemoUser ? 'isfahan' : rahcomAccess.canSwitchProvince ? rahcomAccess.selectedProvince : rahcomAccess.province;
