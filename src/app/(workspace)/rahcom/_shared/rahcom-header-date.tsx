@@ -27,6 +27,11 @@ function shiftIsoDay(isoDate: string, delta: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function localizedWeekdayInitial(label: string, locale: string) {
+  const characters = Array.from(label.trim());
+  return (locale.startsWith('zh') ? characters.at(-1) : characters[0]) ?? label;
+}
+
 function jalaliTextFromGregorian(isoDate: string) {
   const { year, month, day } = persianParts(isoDate);
   return `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
@@ -72,8 +77,8 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
     const updatePosition = () => {
       const anchor = wrapperRef.current?.getBoundingClientRect();
       if (!anchor) return;
-      const width = weekOpen ? Math.min(192, window.innerWidth - 24) : Math.min(320, window.innerWidth - 24);
-      const height = open ? 390 : 300;
+      const width = weekOpen ? Math.min(192, window.innerWidth - 24) : Math.min(360, window.innerWidth - 24);
+      const height = open ? 420 : 300;
       const left = Math.max(12, Math.min(anchor.right - width, window.innerWidth - width - 12));
       const top = anchor.bottom + height + 12 <= window.innerHeight
         ? anchor.bottom + 8
@@ -118,15 +123,18 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
   ], [days, leadingEmptyDays]);
   const weekdayLabels = useMemo(() => {
     const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
-    return Array.from({ length: 7 }, (_, index) => weekday.format(new Date(Date.UTC(2024, 0, 6 + index, 12))));
+    return Array.from({ length: 7 }, (_, index) => {
+      const fullLabel = weekday.format(new Date(Date.UTC(2024, 0, 6 + index, 12))).trim();
+      return { fullLabel, initial: localizedWeekdayInitial(fullLabel, locale) };
+    });
   }, [locale]);
   const number = useMemo(() => new Intl.NumberFormat(locale, { useGrouping: false }), [locale]);
   const toggleCalendar = () => {
     setWeekOpen(false);
     const anchor = wrapperRef.current?.getBoundingClientRect();
     if (anchor) {
-      const width = Math.min(320, window.innerWidth - 24);
-      const height = 390;
+      const width = Math.min(360, window.innerWidth - 24);
+      const height = 420;
       const left = Math.max(12, Math.min(anchor.right - width, window.innerWidth - width - 12));
       const top = anchor.bottom + height + 12 <= window.innerHeight
         ? anchor.bottom + 8
@@ -153,7 +161,7 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
     <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={uiMessage(locale, 'rahcomVisitDate')} onClick={toggleCalendar} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap border-s border-border px-1 font-mono text-[13px] font-medium tabular-nums transition-colors hover:bg-transparent ${open ? 'text-primary' : 'text-foreground group-hover/date-capsule:text-primary'}`}>
       <span dir="ltr">{dateText}</span>
     </button>
-    {(open || weekOpen) && popoverPosition && typeof document !== 'undefined' && createPortal(<div ref={popoverRef} dir={direction} role="dialog" aria-label={weekOpen ? 'انتخاب روز هفته' : uiMessage(locale, 'rahcomVisitDate')} className={`fixed z-[9999] ${weekOpen ? 'w-[min(12rem,calc(100vw-1.5rem))]' : 'w-[min(20rem,calc(100vw-1.5rem))]'} rounded-xl border border-border p-2.5 text-foreground shadow-2xl ring-1 ring-black/10 dark:ring-white/10`} style={{ top: popoverPosition.top, left: popoverPosition.left, backgroundColor: 'var(--card)' }}>
+    {(open || weekOpen) && popoverPosition && typeof document !== 'undefined' && createPortal(<div ref={popoverRef} dir={direction} role="dialog" aria-label={weekOpen ? 'انتخاب روز هفته' : uiMessage(locale, 'rahcomVisitDate')} className={`fixed z-[9999] ${weekOpen ? 'w-[min(12rem,calc(100vw-1.5rem))]' : 'w-[min(22.5rem,calc(100vw-1.5rem))]'} rounded-xl border border-border p-2.5 text-foreground shadow-2xl ring-1 ring-black/10 dark:ring-white/10`} style={{ top: popoverPosition.top, left: popoverPosition.left, backgroundColor: 'var(--card)' }}>
       {open ? <>
       <div className="mb-3 flex items-center justify-between gap-2">
         <button type="button" onClick={() => { setDateText(todayJalaliDate()); setViewMonth(persianParts(fallbackDate)); setOpen(false); }} className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold text-foreground hover:bg-muted">{uiMessage(locale, 'rahcomGoToToday')}</button>
@@ -161,7 +169,7 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
         <strong className="text-sm text-foreground">{monthLabel}</strong>
         <button type="button" aria-label={uiMessage(locale, 'rahcomNextMonth')} onClick={() => setViewMonth((month) => shiftedMonth(month.year, month.month, 1))} className="grid size-9 place-items-center rounded-lg border border-border text-foreground hover:bg-muted">{direction === 'rtl' ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}</button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">{weekdayLabels.map((label, index) => <span key={`${index}-${label}`} className="py-1">{label}</span>)}</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-sm font-semibold text-muted-foreground">{weekdayLabels.map(({ fullLabel, initial }, index) => <span key={`${index}-${fullLabel}`} aria-label={fullLabel} title={fullLabel} className="py-1">{initial}</span>)}</div>
       <div className="grid grid-cols-7 gap-1" role="grid">
         {cells.map((day) => typeof day === 'string'
           ? <span key={day} aria-hidden="true" />
@@ -182,7 +190,9 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
           {weekDays.map((day) => {
             const isSelected = day === date;
             const dayDate = new Intl.DateTimeFormat(locale, { calendar: 'persian', month: 'long', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
-            return <button key={day} type="button" aria-pressed={isSelected} onClick={() => { setDateText(jalaliTextFromGregorian(day)); setWeekOpen(false); }} className={`flex min-h-8 w-full items-center justify-between rounded-md px-2 text-xs transition-colors hover:bg-primary/10 ${isSelected ? 'bg-primary text-primary-foreground hover:bg-primary' : 'text-foreground'}`}><span>{new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`))}</span><span className="text-[11px] tabular-nums">{dayDate}</span></button>;
+            const weekdayLabel = new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
+            const weekdayInitial = localizedWeekdayInitial(weekdayLabel, locale);
+            return <button key={day} type="button" aria-label={`${weekdayLabel} ${dayDate}`} title={weekdayLabel} aria-pressed={isSelected} onClick={() => { setDateText(jalaliTextFromGregorian(day)); setWeekOpen(false); }} className={`flex min-h-8 w-full items-center justify-between rounded-md px-2 text-xs transition-colors hover:bg-primary/10 ${isSelected ? 'bg-primary text-primary-foreground hover:bg-primary' : 'text-foreground'}`}><span className="min-w-6 text-center text-sm font-semibold">{weekdayInitial}</span><span className="text-[11px] tabular-nums">{dayDate}</span></button>;
           })}
         </div>
       </>}

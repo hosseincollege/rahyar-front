@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, LoaderCircle, Plus, Search, Trash2, X } from 'lucide-react';
-import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import * as XLSX from 'xlsx';
+import { LoaderCircle, Plus, Trash2, Zap } from 'lucide-react';
+import { RahcomDataListLayout, RahcomDataListToolbar } from '@/components/rahcom/data-list-layout';
 import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 import { rahcomApi, type RahcomInventoryEntry, type RahcomSystem } from '@/lib/api/rahcom/rahcom-api';
 import { formatJalaliDate } from '@/lib/api/rahcom/jalali-date';
@@ -22,6 +23,7 @@ export function RahcomInventory({ selectedProvince, canManage }: { selectedProvi
   const [usageDate, setUsageDate] = useState(tehranDateKey());
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState('');
+  const [wrapTableText, setWrapTableText] = useState(false);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -53,25 +55,42 @@ export function RahcomInventory({ selectedProvince, canManage }: { selectedProvi
     catch { setError(uiMessage(locale, 'rahcomInventorySaveFailed')); }
     finally { setDeletingId(''); }
   };
+  const downloadInventory = () => {
+    if (filtered.length === 0) return;
+    const headers = [uiMessage(locale, 'rahcomInventoryEquipment'), uiMessage(locale, 'rahcomInventorySystem'), uiMessage(locale, 'rahcomInventoryDate')];
+    const rows = filtered.map((item) => [item.equipmentName, `${item.systemNameSnapshot} (${item.systemCodeSnapshot})`, formatJalaliDate(item.usageDate.slice(0, 10))]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headers, ...rows]), 'Inventory');
+    XLSX.writeFile(workbook, `rahcom-inventory-${tehranDateKey()}.xlsx`);
+  };
 
-  return <section dir={getLocaleDirection(locale)} className="flex h-full min-h-0 w-full min-w-0 flex-col gap-3 overflow-hidden">
-    <RahcomToolbar className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3">
-      <span className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-sm" aria-label={uiMessage(locale, 'rahcomInventory')}><Archive size={16} className="text-primary"/>{new Intl.NumberFormat(locale).format(filtered.length)}</span>
-      <label className="inline-flex h-9 min-w-44 flex-1 items-center gap-2 rounded-full border border-border bg-background px-3"><Search size={16}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={uiMessage(locale, 'rahcomInventorySearch')} className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
-      {canManage && selectedProvince !== 'all' && <button type="button" onClick={() => setOpen((v) => !v)} aria-label={uiMessage(locale, 'rahcomAdd')} title={uiMessage(locale, 'rahcomAdd')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background transition-colors hover:border-primary hover:text-primary">{open ? <X size={17}/> : <Plus size={17}/>}</button>}
-    </RahcomToolbar>
-    {error && <p role="alert" className="rounded-xl border border-destructive/40 bg-card px-4 py-2 text-sm text-destructive">{error}</p>}
-    {open && <form onSubmit={(e) => void submit(e)} className="grid shrink-0 grid-cols-1 gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-4">
-      <label className="grid gap-1 text-sm">{uiMessage(locale, 'rahcomInventoryEquipment')}<input required maxLength={200} value={equipmentName} onChange={(e) => setEquipmentName(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3" placeholder="مودم SXT" /></label>
-      <label className="grid gap-1 text-sm">{uiMessage(locale, 'rahcomInventorySystem')}<select required value={systemId} onChange={(e) => setSystemId(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3"><option value="">—</option>{systems.map((system) => <option key={system.id} value={system.id}>{system.systemName} ({system.systemCode})</option>)}</select></label>
-      <label className="grid gap-1 text-sm">{uiMessage(locale, 'rahcomInventoryDate')}<input required type="date" value={usageDate} onChange={(e) => setUsageDate(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3" /></label>
-      <button type="submit" disabled={busy} className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? <LoaderCircle size={16} className="animate-spin"/> : <Plus size={16}/>} {uiMessage(locale, 'rahcomSave')}</button>
-    </form>}
-    <div className="min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-card">
+  return <RahcomDataListLayout
+    dir={getLocaleDirection(locale)}
+    toolbar={<RahcomDataListToolbar
+      count={filtered.length > 0 && <span role="status" aria-label={uiMessage(locale, 'rahcomInventory')} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Zap size={16} className="text-primary" aria-hidden="true"/><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(filtered.length)}</strong></span>}
+      add={canManage && selectedProvince !== 'all' ? { label: uiMessage(locale, 'rahcomAdd'), onClick: () => setOpen((value) => !value) } : { label: uiMessage(locale, 'rahcomAdd'), disabled: true }}
+      upload={{ label: uiMessage(locale, 'rahcomUploadExcel'), disabled: true }}
+      wrap={{ label: uiMessage(locale, 'rahcomWrapLongTableText'), singleLineLabel: uiMessage(locale, 'rahcomKeepTableTextSingleLine'), pressed: wrapTableText, onToggle: () => setWrapTableText((value) => !value) }}
+      download={{ label: uiMessage(locale, 'solarDownloadExcel'), onClick: downloadInventory, disabled: filtered.length === 0 }}
+      search={{ value: query, onChange: setQuery, placeholder: uiMessage(locale, 'rahcomInventorySearch'), label: uiMessage(locale, 'rahcomInventory') }}
+      backup={{ open: false, onToggle: () => undefined, label: uiMessage(locale, 'rahcomSaveSystemsBackup'), disabled: true, save: { label: uiMessage(locale, 'rahcomSaveSystemsBackup'), disabled: true }, restore: { label: uiMessage(locale, 'rahcomRestoreSystemsBackup'), disabled: true } }}
+    />}
+    isLoading={loading}
+    loadingMessage={uiMessage(locale, 'reportsLoading')}
+    error={entries.length === 0 ? error : undefined}
+    emptyMessage={query.trim() ? uiMessage(locale, 'searchNoResults') : uiMessage(locale, 'rahcomInventoryEmpty')}
+    hasRows={filtered.length > 0}
+    beforeResults={<>
+      {entries.length > 0 && error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 bg-card p-3 text-sm text-destructive">{error}</p>}
+      {open && <form onSubmit={(e) => void submit(e)} className="grid shrink-0 grid-cols-1 gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-4">
+        <label className="grid gap-1 text-sm">{uiMessage(locale, 'rahcomInventoryEquipment')}<input required maxLength={200} value={equipmentName} onChange={(e) => setEquipmentName(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3" placeholder="مودم SXT" /></label>
+        <label className="grid gap-1 text-sm">{uiMessage(locale, 'rahcomInventorySystem')}<select required value={systemId} onChange={(e) => setSystemId(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3"><option value="">—</option>{systems.map((system) => <option key={system.id} value={system.id}>{system.systemName} ({system.systemCode})</option>)}</select></label>
+        <label className="grid gap-1 text-sm">{uiMessage(locale, 'rahcomInventoryDate')}<input required type="date" value={usageDate} onChange={(e) => setUsageDate(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3" /></label>
+        <button type="submit" disabled={busy} className="mt-auto inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? <LoaderCircle size={16} className="animate-spin"/> : <Plus size={16}/>} {uiMessage(locale, 'rahcomSave')}</button>
+      </form>}
+    </>}
+  >
       <table className="w-full min-w-[640px] border-collapse text-sm"><thead className="sticky top-0 z-10 bg-muted/90"><tr>{['rahcomInventoryEquipment','rahcomInventorySystem','rahcomInventoryDate'].map((key) => <th key={key} className="border-b border-border px-4 py-3 text-start font-semibold">{uiMessage(locale, key as 'rahcomInventoryEquipment')}</th>)}{canManage && <th className="w-16 border-b border-border px-3 py-3"/>}</tr></thead>
-      <tbody>{!loading && filtered.map((item) => <tr key={item.id} className="border-b border-border/70 last:border-0 hover:bg-muted/30"><td className="px-4 py-3">{item.equipmentName}</td><td className="px-4 py-3">{item.systemNameSnapshot} <span className="text-muted-foreground">({item.systemCodeSnapshot})</span></td><td className="px-4 py-3">{formatJalaliDate(item.usageDate.slice(0, 10))}</td>{canManage && <td className="px-3 py-2 text-center"><button type="button" onClick={() => void remove(item.id)} disabled={deletingId === item.id} aria-label={uiMessage(locale, 'rahcomDelete')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-destructive">{deletingId === item.id ? <LoaderCircle size={16} className="animate-spin"/> : <Trash2 size={16}/>}</button></td>}</tr>)}
-      {!loading && filtered.length === 0 && <tr><td colSpan={canManage ? 4 : 3} className="p-8 text-center text-muted-foreground">{uiMessage(locale, 'rahcomInventoryEmpty')}</td></tr>}</tbody></table>
-      {loading && <div className="p-10 text-center text-muted-foreground"><LoaderCircle className="mx-auto animate-spin"/></div>}
-    </div>
-  </section>;
+      <tbody>{filtered.map((item) => <tr key={item.id} className="border-b border-border/70 last:border-0 hover:bg-muted/30"><td className={`px-4 py-3 ${wrapTableText ? 'whitespace-normal break-words' : 'whitespace-nowrap'}`}>{item.equipmentName}</td><td className={`px-4 py-3 ${wrapTableText ? 'whitespace-normal break-words' : 'whitespace-nowrap'}`}>{item.systemNameSnapshot} <span className="text-muted-foreground">({item.systemCodeSnapshot})</span></td><td className="whitespace-nowrap px-4 py-3">{formatJalaliDate(item.usageDate.slice(0, 10))}</td>{canManage && <td className="px-3 py-2 text-center"><button type="button" onClick={() => void remove(item.id)} disabled={deletingId === item.id} aria-label={uiMessage(locale, 'rahcomDelete')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-destructive">{deletingId === item.id ? <LoaderCircle size={16} className="animate-spin"/> : <Trash2 size={16}/>}</button></td>}</tr>)}</tbody></table>
+  </RahcomDataListLayout>;
 }

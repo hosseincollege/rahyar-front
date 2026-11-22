@@ -1,12 +1,13 @@
 'use client';
 
-import { RahcomToolbar } from '@/components/rahcom/toolbar';
+import { RahcomDataListToolbar } from '@/components/rahcom/data-list-layout';
+import { RahcomTableFrame } from '@/components/rahcom/table';
 import { DataTable } from '@/components/ui/data-table';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { ArchiveRestore, Download, LoaderCircle, Plus, Save, Search, Trash2, Upload, WrapText, X, Zap } from 'lucide-react';
+import { LoaderCircle, Plus, Search, Trash2, X, Zap } from 'lucide-react';
 import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
 
 import { getAccessToken } from '@/lib/api-client';
@@ -501,33 +502,23 @@ export function RahcomBillIdentifiers() {
   };
 
   return <section dir={direction} className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-    <RahcomToolbar as="header" className=" flex shrink-0 flex-wrap items-center justify-start gap-3">
-      {(workbook?.rows.length ?? 0) > 0 && <span role="status" aria-label={`تعداد شناسه‌ها: ${new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}`} title="تعداد شناسه‌ها" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Zap size={16} className="text-primary" aria-hidden="true" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}</strong></span>}
-      {canManageBillIdentifiers && <button type="button" onClick={() => { setAddBillError(''); setNewBillIdentifier(''); setNewBillSystemIds([]); setNewBillSystemQuery(''); setNewBillFields({}); setNewExternalSystems([]); setNewExternalDraft({ type: 'USO', code: '', name: '' }); setAddingBill(true); }} aria-label={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} title={'\u0627\u0641\u0632\u0648\u062f\u0646 \u0634\u0646\u0627\u0633\u0647 \u0642\u0628\u0636'} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Plus size={18} /></button>}
-      {canManageBillIdentifiers && <button type="button" onClick={() => { setOperationError(''); uploadInputRef.current?.click(); }} disabled={importBusy} aria-label={uiMessage(locale, 'rahcomUploadExcel')} title={uiMessage(locale, 'rahcomUploadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}</button>}
-      {canManageBillIdentifiers && <input ref={uploadInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />}
-      <button type="button" aria-pressed={wrapTableText} onClick={() => setWrapTableText((enabled) => !enabled)} aria-label={uiMessage(locale, wrapTableText ? 'rahcomKeepTableTextSingleLine' : 'rahcomWrapLongTableText')} title={uiMessage(locale, wrapTableText ? 'rahcomKeepTableTextSingleLine' : 'rahcomWrapLongTableText')} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${wrapTableText ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}><WrapText size={17} aria-hidden="true" /></button>
-      <button type="button" onClick={downloadDisplayedTable} aria-label={uiMessage(locale, 'solarDownloadExcel')} title={uiMessage(locale, 'solarDownloadExcel')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary"><Download size={17} aria-hidden="true" /></button>
-      <label className="rahcom-search-capsule relative block w-full max-w-[15rem] rounded-full">
-        <Search aria-hidden="true" size={17} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiMessage(locale, 'headerSearch')} aria-label={uiMessage(locale, 'rahcomBillIdentifiersSearch')} className="h-9 w-full rounded-full border border-border bg-background ps-9 pe-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
-      </label>
-      {canManageBillIdentifiers && <div className="flex shrink-0 items-center gap-2">
-        <button type="button" aria-expanded={backupActionsOpen} aria-pressed={backupActionsOpen} aria-controls="bill-backup-actions" onClick={toggleBackupActions} aria-label="همگام‌سازی ابری" title="همگام‌سازی ابری" style={backupActionsOpen ? { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', borderColor: 'var(--primary)' } : undefined} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors ${backupActionsOpen ? '' : 'border-border bg-background text-muted-foreground hover:border-primary hover:text-primary'}`}><span aria-hidden="true" className="size-[26px] bg-current" style={{ maskImage: "url(/cloud-sync-exact.svg)", WebkitMaskImage: "url(/cloud-sync-exact.svg)", maskSize: "contain", WebkitMaskSize: "contain", maskRepeat: "no-repeat", WebkitMaskRepeat: "no-repeat", maskPosition: "center", WebkitMaskPosition: "center" }} /></button>
-        {backupActionsOpen && <div id="bill-backup-actions" className="flex items-center gap-2">
-          <button type="button" onClick={() => void saveBackup()} disabled={backupBusy || loading || !workbook?.headers.length} aria-label={uiMessage(locale, 'rahcomSaveSystemsBackup')} title={uiMessage(locale, 'rahcomSaveSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{backupBusy ? <LoaderCircle size={17} className="animate-spin" /> : <Save size={17} />}</button>
-          <button type="button" onClick={() => void restoreBillBackup()} disabled={importBusy || loading} aria-label={uiMessage(locale, 'rahcomRestoreSystemsBackup')} title={uiMessage(locale, 'rahcomRestoreSystemsBackup')} className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50">{importBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArchiveRestore size={17} />}</button>
-        </div>}
-      </div>}
-    </RahcomToolbar>
+    <RahcomDataListToolbar
+      count={(workbook?.rows.length ?? 0) > 0 && <span role="status" aria-label={`تعداد شناسه‌ها: ${new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}`} title="تعداد شناسه‌ها" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm text-foreground"><Zap size={16} className="text-primary" aria-hidden="true" /><strong className="font-bold tabular-nums">{new Intl.NumberFormat(locale).format(workbook?.rows.length ?? 0)}</strong></span>}
+      add={canManageBillIdentifiers ? { label: 'افزودن شناسه قبض', onClick: () => { setAddBillError(''); setNewBillIdentifier(''); setNewBillSystemIds([]); setNewBillSystemQuery(''); setNewBillFields({}); setNewExternalSystems([]); setNewExternalDraft({ type: 'USO', code: '', name: '' }); setAddingBill(true); } } : undefined}
+      upload={canManageBillIdentifiers ? { label: uiMessage(locale, 'rahcomUploadExcel'), onClick: () => { setOperationError(''); uploadInputRef.current?.click(); }, disabled: importBusy, busy: importBusy } : undefined}
+      uploadInput={canManageBillIdentifiers && <input ref={uploadInputRef} type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importBillWorkbook(file); }} />}
+      wrap={{ label: uiMessage(locale, 'rahcomWrapLongTableText'), singleLineLabel: uiMessage(locale, 'rahcomKeepTableTextSingleLine'), pressed: wrapTableText, onToggle: () => setWrapTableText((enabled) => !enabled) }}
+      download={{ label: uiMessage(locale, 'solarDownloadExcel'), onClick: downloadDisplayedTable }}
+      search={{ value: query, onChange: setQuery, placeholder: uiMessage(locale, 'rahcomBillIdentifiersSearch'), label: uiMessage(locale, 'rahcomBillIdentifiersSearch') }}
+      backup={canManageBillIdentifiers ? { open: backupActionsOpen, onToggle: toggleBackupActions, label: 'همگام‌سازی ابری', controlsId: 'bill-backup-actions', save: { label: uiMessage(locale, 'rahcomSaveSystemsBackup'), onClick: () => void saveBackup(), disabled: loading || !workbook?.headers.length, busy: backupBusy }, restore: { label: uiMessage(locale, 'rahcomRestoreSystemsBackup'), onClick: () => void restoreBillBackup(), disabled: loading || importBusy, busy: importBusy } } : undefined}
+    />
     {operationError && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-3 text-sm text-destructive">{operationError}</p>}
     {accessLoaded && !canManageBillIdentifiers && <p role="status" className="shrink-0 rounded-xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">{'\u062f\u0633\u062a\u0631\u0633\u06cc \u0627\u06cc\u0646 \u062d\u0633\u0627\u0628 \u0628\u0647 \u0646\u0645\u0627\u06cc\u0634 \u0645\u062d\u062f\u0648\u062f \u0627\u0633\u062a\u061b \u0628\u0631\u0627\u06cc \u062a\u063a\u06cc\u06cc\u0631 \u0641\u0647\u0631\u0633\u062a \u0634\u0646\u0627\u0633\u0647\u200c\u0647\u0627\u06cc \u0642\u0628\u0636 \u0628\u0627 \u0645\u062f\u06cc\u0631 \u0631\u0647\u06a9\u0627\u0645 \u0647\u0645\u0627\u0647\u0646\u06af \u06a9\u0646\u06cc\u062f.'}</p>}
     {loading && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{uiMessage(locale, 'reportsLoading')}</p>}
     {!loading && loadFailed && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{uiMessage(locale, 'rahcomBillIdentifiersLoadFailed')}</p>}
     {!loading && !loadFailed && !workbook?.headers.length && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
-    {!loading && Boolean(workbook?.headers.length) && rows.length === 0 && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{query ? uiMessage(locale, 'searchNoResults') : uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
-    {!loading && Boolean(workbook?.headers.length) && rows.length > 0 && <div className="rahcom-table-scroll rahcom-traffic-table-frame flex min-h-0 min-w-0 max-w-full flex-col overflow-auto rounded-2xl border border-border bg-card">
-      <div className="w-max min-w-full">
+    {!loading && Boolean(workbook?.headers.length) && rows.length === 0 && <p className="shrink-0 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{query.trim() ? uiMessage(locale, 'rahcomBillIdentifiersNoResults') : uiMessage(locale, 'rahcomBillIdentifiersEmpty')}</p>}
+    {!loading && Boolean(workbook?.headers.length) && rows.length > 0 && <RahcomTableFrame className="rahcom-traffic-table-frame" viewportClassName="w-max min-w-full">
         <DataTable className="rahcom-sticky-table rahcom-bill-identifiers-table w-full min-w-max text-sm">
           <thead className="bg-muted/50"><tr>{displayColumns.map(({ header, index }) => {
             const normalizedHeader = normalizeBillHeader(header);
@@ -560,8 +551,7 @@ export function RahcomBillIdentifiers() {
             })}
           </tr>)}</tbody>
         </DataTable>
-      </div>
-    </div>}
+    </RahcomTableFrame>}
     {addingBill && <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }} onMouseDown={(event) => { if (event.target === event.currentTarget && !savingNewBill) setAddingBill(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="bill-identifier-add-title" dir={direction} style={{ backgroundColor: 'var(--surface)' }} className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border p-4 text-foreground shadow-2xl">
         <div className="mb-4 flex items-center justify-between gap-3">

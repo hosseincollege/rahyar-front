@@ -98,6 +98,8 @@ export const iranProvinces = [
 export const rahcomApi = {
   access: () => apiClient.get<RahcomAccess>('/rahcom/me'),
   sites: (province: string) => apiClient.get<Array<{ name: string; rows: string[][] }>>(`/rahcom/sites?province=${encodeURIComponent(province)}`),
+  replaceSites: (province: string, headers: string[], rows: string[][]) =>
+    apiClient.put<{ saved: boolean; province: string }>('/rahcom/sites', { province, headers, rows }),
   setSelectedProvince: (province: string) => apiClient.put<{ rahcomSelectedProvince: string }>('/rahcom/me/province', { province }),
   memberProvinces: () => apiClient.get<RahcomMemberProvince[]>('/rahcom/members'),
   setMemberProvince: (id: string, province: string | null) => apiClient.put<{ id: string; rahcomProvince: string | null }>(`/rahcom/members/${encodeURIComponent(id)}/province`, { province }),

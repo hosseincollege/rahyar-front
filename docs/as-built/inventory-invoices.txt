@@ -1,0 +1,7 @@
+Rahcom Inventory and Invoices
+
+The Inventory page reads and writes inventory records through the Rahcom API. It uses `RahcomDataListLayout` and `RahcomDataListToolbar` in `src/components/rahcom/data-list-layout.tsx` for the shared list frame, the Electricity toolbar icons/search capsule, loading/error/empty states, and table frame. The inventory table is rendered only when filtered database records are available. Download exports the filtered records to XLSX; unsupported upload/backup actions remain disabled.
+
+The Invoices page uses the same toolbar and layout components, but no invoice database model, API endpoint, or record table is implemented. The page must not display placeholder invoice rows or counts. Non-search toolbar actions remain disabled until invoice behavior exists. Add the table when a real invoice data source and its column contract are implemented.
+
+New Rahcom list pages must use `RahcomDataListLayout`; global toolbar, status, and table-frame adjustments belong in that shared component so all adopting pages stay aligned.

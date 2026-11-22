@@ -60,3 +60,6 @@ Daily actions workflow: selected systems are one record per system. The date too
 
 
 Rahcom Sites page: `/rahcom/sites` presents all seven sheets from the supplied USO sites workbook with local search, province filtering, paginated rows, and Excel export. Its workbook data is served through the authenticated `/rahcom/sites?province=...` API; the backend enforces Rahcom access and filters province rows before returning any data. The source workbook values are bundled privately in `rahyar-back/src/rahcom/data/uso-sites.json`; the page does not expose a public all-province workbook.
+Shared toolbar date picker
+
+Rahcom toolbar date capsules use `src/app/(workspace)/rahcom/_shared/rahcom-header-date.tsx`. Month-calendar weekday headings show one localized character, while retaining the complete weekday in accessible labels and titles. The month picker is 360px wide on desktop and constrained to the viewport on mobile. The same initial-label rule is used in the week selector.

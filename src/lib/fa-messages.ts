@@ -824,6 +824,7 @@ const faMessages = {
   rahcomSystemsLoading: "در حال بارگذاری سامانه‌ها…",
   rahcomSystemsLoadError: "بارگذاری فهرست سامانه‌ها ناموفق بود.",
   rahcomSystemsEmpty: "سامانه‌ای برای این جست‌وجو پیدا نشد.",
+  rahcomSitesEmpty: "هیچ رکوردی برای نمایش وجود ندارد.",
   rahcomCopy: "کپی",
   rahcomCopyCode: "کپی کد",
   rahcomCopyCoordinates: "کپی مختصات",

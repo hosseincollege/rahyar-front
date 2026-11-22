@@ -26,6 +26,12 @@ git clean -fd
 
 
 
+مایگریشن دیتابیس لوکال
+
+npx prisma migrate deploy --schema=prisma/schema
+
+
+
 ریست خودکار و کامل با Prisma
 
 npx prisma migrate reset --force
