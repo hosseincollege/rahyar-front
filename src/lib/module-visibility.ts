@@ -9,8 +9,8 @@ export const OPTIONAL_MODULE_IDS = [] as const;
 
 let visibilityWriteQueue: Promise<void> = Promise.resolve();
 
-export type NavigationModuleId = 'rahcom' | 'settings' | 'development';
-export const NAVIGATION_MODULE_IDS: readonly NavigationModuleId[] = ['rahcom', 'settings', 'development'];
+export type NavigationModuleId = 'rahcom' | 'documents' | 'settings' | 'development';
+export const NAVIGATION_MODULE_IDS: readonly NavigationModuleId[] = ['rahcom', 'documents', 'settings', 'development'];
 
 export type OptionalModuleId = (typeof OPTIONAL_MODULE_IDS)[number];
 

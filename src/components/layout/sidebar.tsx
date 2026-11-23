@@ -20,6 +20,7 @@ import { readShellVisibility } from '@/lib/module-visibility';
 import {
   Cctv,
   Code2,
+  Files,
   ExternalLink,
   LogOut,
   Settings,
@@ -57,10 +58,19 @@ const navigation: NavigationItem[] = [
       { titleKey: 'rahcomSolarDaily', href: '/rahcom/solar-daily' },
       { titleKey: 'rahcomAggregateList', href: '/rahcom/aggregate' },
       { titleKey: 'rahcomActions', href: '/rahcom/actions' },
+    ],
+  },
+  {
+    id: 'documents',
+    titleKey: 'sidebarDocuments',
+    icon: Files,
+    href: '/documents',
+    sub: [
       { titleKey: 'rahcomBillIdentifiers', href: '/rahcom/bill-identifiers' },
       { titleKey: 'rahcomInventory', href: '/rahcom/inventory' },
       { titleKey: 'accountingInvoices', href: '/rahcom/invoices' },
       { titleKey: 'rahcomSites', href: '/rahcom/sites' },
+      { titleKey: 'sidebarMission', href: '/documents/mission' },
     ],
   },
   {
@@ -158,11 +168,16 @@ export function Sidebar({
   // ????? ????? ????? ?? ???? ????
   const getMatchedModuleId = useCallback(() => {
     if (pathname === '/') return 'rahcom';
-    const matched = navigation.find(
-      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`) ||
-        item.sub?.some((subItem) => pathname === subItem.href.split('?')[0] || pathname.startsWith(`${subItem.href.split('?')[0]}/`))
-    );
-    return matched?.id || null;
+    const matchedSubItem = navigation
+      .flatMap((item) => (item.sub ?? []).map((subItem) => ({ item, href: subItem.href.split('?')[0] })))
+      .filter(({ href }) => pathname === href || pathname.startsWith(`${href}/`))
+      .sort((left, right) => right.href.length - left.href.length)[0];
+    if (matchedSubItem) return matchedSubItem.item.id;
+
+    const matchedModule = navigation
+      .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+      .sort((left, right) => right.href.length - left.href.length)[0];
+    return matchedModule?.id || null;
   }, [pathname]);
 
   const [selectedTab, setSelectedTab] = useState<{ pathname: string; value: string | null }>(() => ({
@@ -287,7 +302,7 @@ export function Sidebar({
   const activeGroup = localizedNavigation.find((item) => item.id === activeTab);
   const activePath = optimisticPath?.sourcePath === pathname ? optimisticPath.targetPath : pathname;
   const isModuleLandingActive = Boolean(activeGroup && activePath === activeGroup.href);
-  const activeSubItemPath = activeGroup?.sub
+  const activeSubItemPath = !isModuleLandingActive && activeGroup?.sub
     ?.flatMap((subItem) => (subItem.activeHrefs ?? [subItem.href]).map((href) => href.split(/[?#]/)[0]))
     .filter((href) => activePath === href || activePath.startsWith(`${href}/`))
     .sort((left, right) => right.length - left.length)[0];

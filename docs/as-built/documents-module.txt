@@ -1,0 +1,7 @@
+Documents module
+
+The authenticated sidebar places Documents immediately after Rahcom. Its landing page is /documents and links to the existing Rahcom pages for Electricity (bill identifiers), Inventory, Invoices, and Sites. The Mission item at /documents/mission is a separate mission request page and does not change the global Form, Command, or AI workspace mode. Employees can submit and view their own business trip requests; the API resolves the employee profile from the authenticated user and active organization.
+
+Frontend implementation: src/components/layout/sidebar.tsx, src/app/(workspace)/documents/page.tsx, src/app/(workspace)/documents/mission/page.tsx, src/app/(workspace)/settings/modules/page.tsx, src/lib/api/business-trips-api.ts, and src/lib/module-visibility.ts.
+
+Backend implementation: rahyar-back/src/business-trips/ provides authenticated GET /business-trips/mine and POST /business-trips endpoints backed by the existing BusinessTripRequest model. No schema migration is required.

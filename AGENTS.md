@@ -59,6 +59,7 @@ Help authorized users across provinces find their assigned systems, understand o
 - **Shell accent consistency:** Use `--primary`, `--primary-soft`, and `--primary-hover` for accents in the authenticated header, sidebar, and Rahcom pages; do not hardcode blue utility colors for shell accents.
 - **Organization logo:** The saved header logo shadow is one of `NONE`, `DARK`, or `LIGHT` (white). Keep settings, API, import/export data, and header behavior aligned; do not add a surrounding frame.
 - **Top header hover:** Hovering the first two navigation control icons or the account capsule must not change their colors. Preserve their existing active-state accent styling.
+- **Global workspace modes:** The header mode control cycles between Form, Command, and AI workspace modes. These are global interaction modes available throughout the application; do not label, place, or implement the control as Mission-only. Keep Mission as a separate feature and preserve its existing UI and behavior when changing the global mode control.
 - **Notifications:** Keep any Rahcom alerts organization-scoped and province-aware. Do not restore dashboard-only notification pages or create client-side notification history as a substitute for persisted records.
 
 ### Backend (NestJS + Prisma):
