@@ -404,6 +404,7 @@ export function OrganizationStructurePage() {
         showToast('success', 'شعبه جدید با موفقیت افزوده شد.');
       }
 
+      window.dispatchEvent(new Event('organization-branches-changed'));
       setIsBranchModalOpen(false);
       setEditingBranchId(null);
       setBranchForm({ ...INITIAL_BRANCH_FORM });
@@ -439,6 +440,7 @@ export function OrganizationStructurePage() {
 
     try {
       await settingsApi.deleteBranch(branch.id);
+      window.dispatchEvent(new Event('organization-branches-changed'));
 
       setBranches((current) => current.filter((item) => item.id !== branch.id));
       setSelectedBranchId((current) => current === branch.id ? null : current);
@@ -655,6 +657,7 @@ export function OrganizationStructurePage() {
     setImportErrors([]);
     try {
       await settingsApi.importOrganization(pendingImport.organizationId, pendingImport.payload);
+      window.dispatchEvent(new Event('organization-branches-changed'));
       setIsImportModalOpen(false);
       setImportErrors([]);
       setImportFileName('');

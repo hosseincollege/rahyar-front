@@ -25,11 +25,14 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
   const currentUser = getCurrentUser();
   const isDemoUser = currentUser?.role?.trim().toUpperCase() === 'DEMO_USER';
   const [province, setProvince] = useState('all');
+  const provinceRef = useRef(province);
+  provinceRef.current = province;
   const [offices, setOffices] = useState<Array<{ id: string; name: string }>>([]);
   const [access, setAccess] = useState<RahcomAccess | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [provinceSaveFailed, setProvinceSaveFailed] = useState(false);
+  const [organizationBranchesVersion, setOrganizationBranchesVersion] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const provinceRequest = useRef(0);
   const label = uiMessage(locale, 'rahcomProvince');
@@ -41,6 +44,12 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
       : offices.find(({ id }) => id === province)?.name ?? uiMessage(locale, 'rahcomUnassignedProvince');
   const sortedOffices = [...offices].sort((a, b) => a.name.localeCompare(b.name, 'fa'));
   const numberFormat = new Intl.NumberFormat(locale);
+
+  useEffect(() => {
+    const refreshBranches = () => setOrganizationBranchesVersion((version) => version + 1);
+    window.addEventListener('organization-branches-changed', refreshBranches);
+    return () => window.removeEventListener('organization-branches-changed', refreshBranches);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -90,10 +99,15 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
         : branchProvinces;
       setAccess(rahcomAccess);
       setOffices(available);
-      const preferredProvince = isDemoUser ? 'isfahan' : rahcomAccess.canSwitchProvince ? rahcomAccess.selectedProvince : rahcomAccess.province;
-      const initial = available.some(({ id }) => id === preferredProvince)
-        ? preferredProvince!
-        : 'all';
+      const currentProvince = provinceRef.current;
+      const preferredProvince = rahcomAccess.canSwitchProvince
+        ? rahcomAccess.selectedProvince
+        : rahcomAccess.province;
+      const initial = available.some(({ id }) => id === currentProvince)
+        ? currentProvince
+        : available.some(({ id }) => id === preferredProvince)
+          ? preferredProvince!
+          : 'all';
       setProvince(initial);
       window.localStorage.setItem(storageKey(userId), initial);
       window.dispatchEvent(new CustomEvent('rahyar:province-change', { detail: { userId, province: initial } }));
@@ -110,7 +124,7 @@ export function HeaderProvinceSelector({ userId, embedded = false }: { userId?: 
     });
 
     return () => { active = false; };
-  }, [isDemoUser, userId]);
+  }, [isDemoUser, organizationBranchesVersion, userId]);
 
   async function selectProvince(value: string) {
     if (!access?.canSwitchProvince) return;

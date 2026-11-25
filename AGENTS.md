@@ -150,3 +150,13 @@ Whenever assigned a task:
 - Preserve the Compare control's name, icon, and behavior unless the user explicitly asks to change that specific control. It filters Systems rows to systems carrying their label/incident data in the Systems database or matching theft/damage values in the imported traffic snapshot for the selected date.
 - The theft/damage column is visible only while Compare is active. Its heading comes from the selected day's traffic file, and each cell shows that system's matching traffic-row value; show an em dash when the selected date has no uploaded traffic file/value. The Systems label column continues to use the Systems database record.
 - The Systems table's station-name value comes from `RahcomSystem.stationName`; its heading is “Station Name in Systems” (localized as “نام ایستگاه در سامانه‌ها” in Persian). Do not switch either source without an explicit request.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
