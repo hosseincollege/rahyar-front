@@ -128,7 +128,7 @@ export function RahcomToolbarOption({ icon: Icon, label, pressed, onClick, class
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`inline-flex h-full shrink-0 items-center justify-center gap-1.5 px-3 transition-colors ${pressed ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'} ${className}`}
+      className={`inline-flex h-full shrink-0 items-center justify-center gap-1.5 px-3 transition-colors ${pressed ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'} ${className}`}
     >
       <Icon size={15} aria-hidden="true" />
       <span className="rahcom-toolbar-option-label">{shortLabel}</span>

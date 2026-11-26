@@ -1,6 +1,6 @@
-# Rahyar Frontend — Agent Guide
+# Rahyar Project — Agent Guide
 
-This directory is the frontend for Rahyar, an independent multi-province system monitoring and fault management product. ERP is a separate product and is not Rahyar's source of truth.
+This is the single project-wide agent guide for Rahyar. It lives in the frontend directory, but applies to the whole project, including frontend and backend work. Keep shared instructions and durable preferences in this guide and the linked `agents/` topics; organize those topics by domain instead of creating separate frontend and backend agent guides. Rahyar is an independent multi-province system monitoring and fault management product. ERP is a separate product and is not Rahyar's source of truth.
 
 ## Product objective
 
@@ -16,7 +16,9 @@ Help authorized users across provinces find their assigned systems, understand o
 ## User preference memory — keep it current
 
 - The categorized user preferences in [`agents/README.md`](agents/README.md) are part of this project's working instructions. Read that index and the relevant topic file before changing the corresponding UI.
+- For authenticated TopHeader changes, follow [`agents/shared/top-header.md`](agents/shared/top-header.md) through the Shared UI index; its hover rules apply in both light and dark themes.
 - When the user clarifies, corrects, or approves a lasting interaction, layout, or visual preference during development, update the relevant file under `agents/` in the same task as the implementation. Do not wait for the user to ask for the documentation update.
+- **Project-wide interactive-state visual rule:** Whenever creating or editing an interactive menu item, icon button, toggle, or capsule anywhere in Rahyar, define its default, hover, focus, and selected/active appearance to match the established shared UI. An unselected item on hover gets a subtle dark neutral `--background` capsule surface, a `--primary` outline, and `--primary` text/icons; every part of a joined capsule responds as one unit. A selected/active menu item uses the solid `--primary` capsule with black text and icons in both themes, matching the approved sidebar selection. Text-entry fields and search capsules use a border-only `--primary` focus state everywhere; do not add a focus ring, inset glow, or focused-surface change. Preserve visible keyboard focus for non-text controls. Reuse shared components/classes and theme tokens rather than inventing page-specific colors. If a control has a documented specialized treatment, follow that existing contract and update its shared topic; do not make the user repeat this preference. See [`agents/shared/navigation.md`](agents/shared/navigation.md), [`agents/shared/toolbars.md`](agents/shared/toolbars.md), and [`agents/shared/theme.md`](agents/shared/theme.md).
 - Record the durable preference in plain, actionable language and include the current implementation path when useful. Keep topic files organized; add a new topic file when a preference does not fit the existing categories, and link it from `agents/README.md`.
 - If a newer explicit preference changes an older one, update the older note so the guide has one current rule. Preserve unrelated approved preferences and product-specific behavior.
 - Treat these notes as the user's accumulated preferences, not as permission to make unrequested UI changes. Apply them when relevant to requested work and ask only when a material ambiguity cannot be resolved from the project or prior instructions.

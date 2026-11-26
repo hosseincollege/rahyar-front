@@ -31,16 +31,18 @@ import {
   Lock,
   Menu,
   MoreHorizontal,
+  MapPin,
   Monitor,
   Moon,
   Search,
   Sun,
   Unlock,
   User,
+  Workflow,
   X,
 } from 'lucide-react';
 import { useTheme } from '@/components/providers/theme';
-import { getLocaleDirection, usePreferences } from '@/components/providers/preferences-provider';
+import { getLocaleDirection, usePreferences, type WorkspaceMode } from '@/components/providers/preferences-provider';
 import { uiMessage } from '@/lib/ui-messages';
 import { readShellVisibility } from '@/lib/module-visibility';
 import { isReducedEdition } from '@/lib/product-edition';
@@ -50,7 +52,6 @@ import { searchRahcomSystems } from '@/lib/rahcom-system-search';
 import { openRahcomRowInfo, RahcomRowInfoHost } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { HeaderAccountSwitcher } from './header-account-switcher';
 import { HeaderProvinceSelector } from './header-province-selector';
-import type { MissionEntryMode } from './mission-quick-actions';
 
 interface TopHeaderProps {
   enableMobileHorizontalElasticDrag?: boolean;
@@ -62,8 +63,8 @@ interface TopHeaderProps {
   onToggleMobileMenu?: () => void;
   onToggleSidebarLock?: () => void;
   onToggleNavigateOnClick?: () => void;
-  onSelectMissionMode?: (mode: MissionEntryMode) => void;
-  activeMissionMode?: MissionEntryMode;
+  onSelectWorkspaceMode?: (mode: WorkspaceMode) => void;
+  activeWorkspaceMode?: WorkspaceMode;
 }
 
 function QuestionMarkIcon({ mirrored = false }: { mirrored?: boolean }) {
@@ -85,8 +86,8 @@ export function TopHeader({
   onToggleMobileMenu,
   onToggleSidebarLock,
   onToggleNavigateOnClick,
-  onSelectMissionMode,
-  activeMissionMode = 'form',
+  onSelectWorkspaceMode,
+  activeWorkspaceMode = 'form',
 }: TopHeaderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -96,7 +97,7 @@ export function TopHeader({
   const suppressClickAfterHeaderDragRef = useRef(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
-  const [mobileTool, setMobileTool] = useState<'search' | 'accountSwitcher' | 'province' | 'profile' | 'mission' | null>(null);
+  const [mobileTool, setMobileTool] = useState<'search' | 'accountSwitcher' | 'province' | 'profile' | 'workspaceMode' | null>(null);
   const mobileToolsRef = useRef<HTMLDivElement>(null);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [headerSearchProvince, setHeaderSearchProvince] = useState('all');
@@ -307,10 +308,10 @@ export function TopHeader({
     router.push('/login');
   };
 
-  const cycleMissionMode = () => {
-    const modes: MissionEntryMode[] = ['form', 'command', 'ai'];
-    const currentIndex = modes.indexOf(activeMissionMode);
-    onSelectMissionMode?.(modes[(currentIndex + 1 + modes.length) % modes.length]);
+  const cycleWorkspaceMode = () => {
+    const modes: WorkspaceMode[] = ['form', 'command', 'ai'];
+    const currentIndex = modes.indexOf(activeWorkspaceMode);
+    onSelectWorkspaceMode?.(modes[(currentIndex + 1 + modes.length) % modes.length]);
   };
 
   const submitHeaderSearch = (event: React.FormEvent<HTMLFormElement>) => {
@@ -584,16 +585,6 @@ export function TopHeader({
         >
           {themeIcon}
         </button>
-        <button
-          type="button"
-          onClick={toggleToolbarLabels}
-          aria-label={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
-          title={toolbarLabelsEnabled ? 'پنهان کردن نام ابزارها' : 'نمایش نام ابزارها'}
-          aria-pressed={toolbarLabelsEnabled}
-          className={`pointer-events-auto flex h-9 w-9 max-sm:h-8 max-sm:w-8 shrink-0 items-center justify-center rounded-xl border transition-colors min-[1200px]:hidden ${toolbarLabelsEnabled ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'}`}
-        >
-          <QuestionMarkIcon mirrored={direction === 'rtl'} />
-        </button>
         </div>
 
 
@@ -694,9 +685,9 @@ export function TopHeader({
               {renderHeaderSystemSuggestions()}
             </div>}
           </div>
-          <button type="button" onClick={() => { setMobileSearchExpanded(false); setMobileToolsOpen((open) => !open); setMobileTool(null); }} aria-label={message('missionShortcutTitle')} title={message('missionShortcutTitle')} aria-expanded={mobileToolsOpen && mobileTool === null} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] max-sm:h-8 max-sm:w-8"><MoreHorizontal size={19}/></button>
+          <button type="button" onClick={() => { setMobileSearchExpanded(false); setMobileToolsOpen((open) => !open); setMobileTool(null); }} aria-label={message('headerMoreOptions')} title={message('headerMoreOptions')} aria-expanded={mobileToolsOpen && mobileTool === null} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] max-sm:h-8 max-sm:w-8"><MoreHorizontal size={19}/></button>
           {mobileToolsOpen && <div dir={direction} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="fixed left-2 top-14 z-[100] w-[min(9.5rem,calc(100vw-1rem))] rounded-xl border border-[var(--border)] p-1.5 shadow-2xl">
-            {mobileTool === null ? <div>{([['accountSwitcher','settingsHeaderAccountSwitcher'],['province','settingsHeaderProvinceSelector'],['profile','viewProfile'],['mission','missionShortcutTitle']] as const).filter(([id]) => id !== 'province' || isReducedEdition).map(([id,label], index, items) => <button key={id} type="button" onClick={() => setMobileTool(id)} className={`min-h-10 w-full px-3 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] ${index < items.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>{locale === 'fa' && id === 'profile' ? 'پروفایل' : locale === 'fa' && id === 'mission' ? 'فرم و دستیار' : message(label)}</button>)}</div> : <div>
+            {mobileTool === null ? <div>{([['accountSwitcher','settingsHeaderAccountSwitcher',ArrowLeftRight],['province','settingsHeaderProvinceSelector',MapPin],['profile','viewProfile',User],['workspaceMode','workspaceModeTitle',Workflow],['toolbarLabels','dashboardHelp',null]] as const).filter(([id]) => id !== 'province' || isReducedEdition).map(([id,label,Icon], index, items) => id === 'toolbarLabels' ? <button key={id} type="button" onClick={toggleToolbarLabels} aria-pressed={toolbarLabelsEnabled} aria-label={message(label)} className={`flex min-h-10 w-full items-center gap-2 px-3 text-start text-sm font-medium transition-colors hover:bg-[var(--primary-soft)] ${toolbarLabelsEnabled ? 'text-[var(--primary)]' : 'text-[var(--foreground)]'} ${index < items.length - 1 ? 'border-b border-[var(--border)]' : ''}`}><QuestionMarkIcon mirrored={direction === 'rtl'} /><span>{message(label)}</span></button> : <button key={id} type="button" onClick={() => setMobileTool(id)} className={`flex min-h-10 w-full items-center gap-2 px-3 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] ${index < items.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>{Icon && <Icon size={16} aria-hidden="true" />}{locale === 'fa' && id === 'profile' ? 'پروفایل' : message(label)}</button>)}</div> : <div>
               <button type="button" onClick={() => setMobileTool(null)} aria-label="بازگشت" title="بازگشت" className="mb-1 inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"><span>بازگشت</span><ChevronLeft size={16}/></button>
               {mobileTool === 'search' && <div className="relative"><form onSubmit={(event) => { submitHeaderSearch(event); setMobileToolsOpen(false); setMobileTool(null); }} role="search" className="flex gap-2"><div className="relative min-w-0 flex-1"><input autoFocus type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} className="h-12 w-full rounded-xl border border-[var(--border)] bg-background px-3 pe-10 text-sm text-foreground"/>{headerSearchQuery && <button type="button" onClick={() => updateHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={16}/></button>}</div><button type="submit" aria-label={message('headerSearch')} className="rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Search size={17}/></button></form>{renderHeaderSystemSuggestions(true)}</div>}
               {mobileTool === 'accountSwitcher' && shellVisibility.headerControls?.accountSwitcher !== false && <HeaderAccountSwitcher userId={user?.id} embedded/>}
@@ -705,7 +696,7 @@ export function TopHeader({
                 <span className="min-w-0 truncate px-2 py-1 text-xs font-semibold text-[var(--muted-foreground)]">{[user?.firstName,user?.lastName].filter(Boolean).join(' ') || user?.name || message('admin')}</span>
                 <button type="button" onClick={() => { setMobileToolsOpen(false); setMobileTool(null); void handleSignOut(); }} className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400"><LogOut size={14}/>{message('sidebarSignOut')}</button>
               </div>}
-              {mobileTool === 'mission' && <div className="grid gap-1">{([['form',FilePlus2,'missionModeForm'],['command',SquareTerminal,'missionModeCommand'],['ai',Bot,'missionModeAI']] as const).filter(() => isMissionModeVisible()).map(([mode,Icon,label])=><button key={mode} type="button" onClick={()=>{setMobileToolsOpen(false);setMobileTool(null);onSelectMissionMode?.(mode);}} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-start text-sm ${activeMissionMode===mode?'bg-[var(--primary-soft)] text-[var(--primary)]':'text-foreground hover:bg-[var(--primary-soft)]'}`}><Icon size={16}/>{message(label)}</button>)}</div>}
+              {mobileTool === 'workspaceMode' && <div className="grid gap-1">{([['form',FilePlus2,'missionModeForm'],['command',SquareTerminal,'missionModeCommand'],['ai',Bot,'missionModeAI']] as const).filter(() => isMissionModeVisible()).map(([mode,Icon,label])=><button key={mode} type="button" onClick={()=>{setMobileToolsOpen(false);setMobileTool(null);onSelectWorkspaceMode?.(mode);}} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 text-start text-sm ${activeWorkspaceMode===mode?'bg-[var(--primary-soft)] text-[var(--primary)]':'text-foreground hover:bg-[var(--primary-soft)]'}`}><Icon size={16}/>{message(label)}</button>)}</div>}
             </div>}
           </div>}
         </div>
@@ -721,7 +712,7 @@ export function TopHeader({
           href="/rahcom"
           aria-label={message('dashboard')}
           dir="ltr"
-          className="rahcom-header-brand group pointer-events-auto relative flex h-10 w-max items-center justify-center gap-2 rounded-full border border-transparent px-3 transition-colors sm:h-12"
+          className="rahcom-header-brand group pointer-events-auto relative flex h-10 w-10 items-center justify-center gap-2 rounded-full border border-transparent px-0 transition-colors sm:h-12 sm:w-max sm:px-3"
         >
           <span
             className="hidden max-w-[min(24vw,15rem)] flex-col items-center text-center sm:flex font-black tracking-tight text-[var(--foreground)]"
@@ -768,9 +759,9 @@ export function TopHeader({
       </div>
 
       <div className="pointer-events-none absolute end-5 top-1/2 hidden -translate-y-1/2 flex-row-reverse items-center gap-2 min-[1200px]:flex">
-        {(['form', 'command', 'ai'] as MissionEntryMode[]).some(isMissionModeVisible) && <div className="pointer-events-auto relative shrink-0">
-          <button type="button" onClick={cycleMissionMode} title={`${message('missionShortcutTitle')} · ${message(activeMissionMode === 'form' ? 'missionModeForm' : activeMissionMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} aria-label={`${message('missionShortcutTitle')} · ${message(activeMissionMode === 'form' ? 'missionModeForm' : activeMissionMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">
-            {activeMissionMode === 'form' ? <FilePlus2 size={17}/> : activeMissionMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}
+        {(['form', 'command', 'ai'] as WorkspaceMode[]).some(isMissionModeVisible) && <div className="pointer-events-auto relative shrink-0">
+          <button type="button" onClick={cycleWorkspaceMode} title={`${message('workspaceModeTitle')}: ${message(activeWorkspaceMode === 'form' ? 'missionModeForm' : activeWorkspaceMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} aria-label={`${message('workspaceModeTitle')}: ${message(activeWorkspaceMode === 'form' ? 'missionModeForm' : activeWorkspaceMode === 'command' ? 'missionModeCommand' : 'missionModeAI')}`} className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">
+            {activeWorkspaceMode === 'form' ? <FilePlus2 size={17}/> : activeWorkspaceMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}
           </button>
         </div>}
         <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule rahcom-search-capsule--header rahcom-search-capsule--outer-focus group pointer-events-auto relative flex min-w-0 rounded-full border border-[var(--border)] transition-colors hover:border-[var(--primary)] focus-within:border-[var(--primary)]">

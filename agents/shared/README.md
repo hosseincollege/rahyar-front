@@ -3,6 +3,7 @@
 - [Tables and scrolling](tables.md)
 - [Theme and surfaces](theme.md)
 - [Top header](top-header.md)
+- [Workspace modes: Form, Command, and AI](workspace-modes.md)
 - [Sidebar navigation](navigation.md)
 - [Shared toolbars](toolbars.md)
 

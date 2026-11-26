@@ -444,7 +444,7 @@ export function Sidebar({
                 href={activeGroup.href}
                 onClick={() => { setOptimisticPath({ sourcePath: pathname, targetPath: activeGroup.href }); onMobileClose?.(); }}
                 aria-current={isModuleLandingActive ? 'page' : undefined}
-                className={`sidebar-nav-item flex items-center rounded-xl px-3 py-2.5 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${isModuleLandingActive ? 'sidebar-nav-item--active sidebar-module-landing-selected bg-[var(--primary)] shadow-lg shadow-[var(--primary)]/20' : ''}`}
+                className={`sidebar-nav-item flex items-center justify-center rounded-xl px-3 py-2.5 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${isModuleLandingActive ? 'sidebar-nav-item--active sidebar-module-landing-selected bg-[var(--primary)] shadow-lg shadow-[var(--primary)]/20' : ''}`}
               >
                 {activeGroup.title}
               </Link>

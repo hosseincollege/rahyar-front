@@ -1,6 +1,6 @@
-# Rahyar frontend preference guide
+# Rahyar project preference guide
 
-The user's approved and clarified preferences are grouped by the four frontend modules in the navigation and one shared area. Read this index and the relevant topic before changing a module or shared UI. Add each durable preference to the matching topic in the same task as the implementation.
+This is the shared preference index for the whole Rahyar project, including frontend and backend work. The `AGENTS.md` in the frontend directory is the single project-wide agent guide; do not create separate frontend or backend agent guides. Current topics are grouped by the frontend modules and shared UI. Read the relevant topic before changing that area, and add durable preferences for other project domains here under `agents/` as they arise.
 
 ## Modules
 

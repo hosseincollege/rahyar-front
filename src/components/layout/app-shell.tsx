@@ -80,11 +80,19 @@ export function AppShell({ children }: AppShellProps) {
     brightnessPreview,
   } = usePreferences();
   const formattedBuildDate = new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR-u-ca-persian' : locale, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${APP_BUILD_DATE}T12:00:00Z`));
+  const direction = getLocaleDirection(locale);
+  const pageFrameClassName = `${isRahcomMap ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-2 text-right sm:p-3' : isRahcomFixedHeightPage || isRahcomMobileOverflowPage ? 'flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden px-2 pt-2 pb-3 text-right sm:px-3 sm:pt-3 sm:pb-4 lg:pt-3 lg:pb-6' : isRahcomPage ? 'min-h-full min-w-0 w-full px-2 pt-2 pb-3 text-right sm:px-3 sm:pt-3 sm:pb-4 lg:pt-3 lg:pb-6' : 'min-h-full min-w-0 w-full p-3 text-right sm:p-4 lg:p-6'}`;
+  const appFooter = (
+    <footer dir={direction} className="flex h-[55px] shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-0 border-t border-border/70 px-3 text-xs text-muted-foreground">
+      <span className="font-semibold text-foreground">{uiMessage(locale, 'appFooterBrand')}</span>
+      <span>{uiMessage(locale, 'appFooterVersion')}: <bdi dir="ltr" className="font-mono">{APP_VERSION}</bdi></span>
+      <span>{uiMessage(locale, 'appFooterLastUpdated')}: <time dateTime={APP_BUILD_DATE}>{formattedBuildDate}</time></span>
+    </footer>
+  );
   const missionMode: MissionEntryMode | null = workspaceMode === 'form' ? null : workspaceMode;
   const activeAppearance = appearancePreview ?? organizationAppearance;
   const activeContrast = contrastPreview ?? contrastPreferences;
   const activeBrightness = brightnessPreview ?? brightnessPreferences;
-  const direction = getLocaleDirection(locale);
   const sidebarPreferenceSnapshot = useSyncExternalStore(subscribeSidebarPreferences, getSidebarPreferencesSnapshot, () => DEFAULT_SIDEBAR_PREFERENCES);
   const [collapsedValue, lockedValue, navigateValue] = sidebarPreferenceSnapshot.split('|');
   const isCollapsed = collapsedValue === 'true';
@@ -181,8 +189,8 @@ export function AppShell({ children }: AppShellProps) {
     >
       <TopHeader
         enableMobileHorizontalElasticDrag={isRahcomMobileOverflowPage}
-        onSelectMissionMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }}
-        activeMissionMode={workspaceMode}
+        onSelectWorkspaceMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }}
+        activeWorkspaceMode={workspaceMode}
         isCollapsed={isCollapsed}
         isMobileMenuOpen={isMobileNavOpen}
         isSidebarLocked={isSidebarLocked}
@@ -218,17 +226,26 @@ export function AppShell({ children }: AppShellProps) {
 
         <main
           data-workspace-main
+          data-workspace-mode-panel={missionMode ? 'true' : undefined}
           dir={direction === 'rtl' ? 'ltr' : 'rtl'}
           className="erp-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto bg-[color:var(--background)]"
         >
-          <div dir={direction} className={`${isRahcomMap ? 'flex h-full min-h-0 min-w-0 w-full flex-col p-2 text-right sm:p-3' : isRahcomFixedHeightPage || isRahcomMobileOverflowPage ? 'flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden px-2 pt-2 pb-3 text-right sm:px-3 sm:pt-3 sm:pb-4 lg:pt-3 lg:pb-6' : isRahcomPage ? 'min-h-full min-w-0 w-full px-2 pt-2 pb-3 text-right sm:px-3 sm:pt-3 sm:pb-4 lg:pt-3 lg:pb-6' : 'min-h-full min-w-0 w-full p-3 text-right sm:p-4 lg:p-6'}`}>
-            {missionMode ? <div className="grid min-h-full min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)]"><div className="min-w-0">{children}</div><MissionQuickActions key={missionMode} initialMode={missionMode} onSelectMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }} onClose={() => { void saveWorkspaceMode('form').catch((error) => console.error('Could not save workspace mode:', error)); }} /></div> : children}
-          </div>
-          <footer dir={direction} className="flex h-[55px] shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-0 border-t border-border/70 px-3 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{uiMessage(locale, 'appFooterBrand')}</span>
-            <span>{uiMessage(locale, 'appFooterVersion')}: <bdi dir="ltr" className="font-mono">{APP_VERSION}</bdi></span>
-            <span>{uiMessage(locale, 'appFooterLastUpdated')}: <time dateTime={APP_BUILD_DATE}>{formattedBuildDate}</time></span>
-          </footer>
+          {missionMode ? (
+            <div dir={direction} className="grid min-h-full min-w-0 w-full grid-cols-1 gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.42fr)] xl:grid-rows-[minmax(0,1fr)_auto] xl:gap-0">
+              <div className="min-w-0 xl:col-start-1 xl:row-start-1 xl:min-h-0 xl:overflow-y-auto">
+                <div dir={direction} className={pageFrameClassName}>{children}</div>
+              </div>
+              <aside className="mx-3 min-w-0 sm:mx-4 lg:mx-6 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:mx-0 xl:min-h-0 xl:overflow-hidden xl:border-s xl:border-border xl:bg-card">
+                <MissionQuickActions key={missionMode} initialMode={missionMode} onSelectMode={(mode) => { void saveWorkspaceMode(mode).catch((error) => console.error('Could not save workspace mode:', error)); }} onClose={() => { void saveWorkspaceMode('form').catch((error) => console.error('Could not save workspace mode:', error)); }} />
+              </aside>
+              <div className="xl:col-start-1 xl:row-start-2">{appFooter}</div>
+            </div>
+          ) : (
+            <>
+              <div dir={direction} className={pageFrameClassName}>{children}</div>
+              {appFooter}
+            </>
+          )}
         </main>
       </div>
     </div>
