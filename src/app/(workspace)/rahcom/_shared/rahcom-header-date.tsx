@@ -154,11 +154,11 @@ export function RahcomHeaderDate({ loadMarkedDates, compact = false }: { loadMar
     setOpen(false);
   };
 
-  return <div ref={wrapperRef} className={`group/date-capsule grid ${compact ? 'h-9' : 'h-10'} w-[11.5rem] shrink-0 grid-cols-[0.9fr_1fr] overflow-hidden rounded-full border bg-background transition-colors ${open ? 'border-primary bg-primary/5 text-primary' : 'border-border hover:border-primary hover:bg-primary/5'}`}>
+  return <div ref={wrapperRef} className={`rahcom-header-date-capsule group/date-capsule grid ${compact ? 'h-9' : 'h-10'} w-[11.5rem] shrink-0 grid-cols-[0.9fr_1fr] overflow-hidden rounded-full border bg-background transition-colors ${open ? 'border-primary bg-primary/5 text-primary' : 'border-border'}`}>
     <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={weekday} onClick={toggleCalendar} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap px-1 text-sm font-semibold transition-colors hover:bg-transparent ${open ? 'text-primary' : 'text-foreground group-hover/date-capsule:text-primary'}`}>
       {weekday}
     </button>
-    <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={uiMessage(locale, 'rahcomVisitDate')} onClick={toggleCalendar} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap border-s border-border px-1 font-mono text-[13px] font-medium tabular-nums transition-colors hover:bg-transparent ${open ? 'text-primary' : 'text-foreground group-hover/date-capsule:text-primary'}`}>
+    <button type="button" aria-haspopup="dialog" aria-expanded={open} aria-label={uiMessage(locale, 'rahcomVisitDate')} onClick={toggleCalendar} className={`flex h-full min-w-0 items-center justify-center whitespace-nowrap border-s px-1 font-mono text-[13px] font-medium tabular-nums transition-colors hover:bg-transparent ${open ? 'border-primary text-primary' : 'border-border text-foreground group-hover/date-capsule:text-primary'}`}>
       <span dir="ltr">{dateText}</span>
     </button>
     {(open || weekOpen) && popoverPosition && typeof document !== 'undefined' && createPortal(<div ref={popoverRef} dir={direction} role="dialog" aria-label={weekOpen ? 'انتخاب روز هفته' : uiMessage(locale, 'rahcomVisitDate')} className={`fixed z-[9999] ${weekOpen ? 'w-[min(12rem,calc(100vw-1.5rem))]' : 'w-[min(22.5rem,calc(100vw-1.5rem))]'} rounded-xl border border-border p-2.5 text-foreground shadow-2xl ring-1 ring-black/10 dark:ring-white/10`} style={{ top: popoverPosition.top, left: popoverPosition.left, backgroundColor: 'var(--card)' }}>

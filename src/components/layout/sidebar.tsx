@@ -344,11 +344,11 @@ export function Sidebar({
                 aria-label={item.title}
                 onClick={() => handleSelectModule(item)}
                 className={`
-                  relative flex w-full items-center rounded-xl p-2.5 text-start transition-all duration-200 cursor-pointer
+                  sidebar-nav-item relative flex w-full items-center rounded-xl p-2.5 text-start transition-all duration-200 cursor-pointer
                   ${
                     isSelected
-                      ? 'sidebar-module-selected sidebar-primary-module-selected bg-[var(--primary)] font-medium shadow-lg shadow-[var(--primary)]/20'
-                      : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'
+                      ? 'sidebar-nav-item--active sidebar-module-selected sidebar-primary-module-selected bg-[var(--primary)] font-medium shadow-lg shadow-[var(--primary)]/20'
+                      : 'text-[var(--foreground)]'
                   }
                   text-sm
                     ${isMainCollapsed ? 'justify-center' : 'justify-start gap-2'}
@@ -439,12 +439,12 @@ export function Sidebar({
         ) : activeGroup ? (
           /* ???? ???: ????????? ????? ?????? ??? */
           <div className="flex min-h-0 flex-1 flex-col">
-            <h2 className={`shrink-0 overflow-hidden border-b text-sm font-bold transition-[max-height,opacity,transform,margin,padding,color,border-color] duration-200 ease-out motion-reduce:transition-none ${isMainCollapsed ? 'mb-2 border-[var(--border)] pb-3 md:max-h-12 md:translate-y-0 md:opacity-100' : 'mb-2 border-[var(--border)] pb-3 md:mb-0 md:max-h-0 md:translate-y-1 md:border-transparent md:pb-0 md:opacity-0'} ${isModuleLandingActive ? 'text-[var(--primary)]' : 'text-[var(--foreground)]'}`}>
+            <h2 className={`shrink-0 overflow-hidden border-b text-sm font-bold transition-[max-height,opacity,transform,margin,padding,color,border-color] duration-200 ease-out motion-reduce:transition-none ${isMainCollapsed ? 'mb-2 border-[var(--border)] pb-0 md:max-h-12 md:translate-y-0 md:opacity-100' : 'mb-2 border-[var(--border)] pb-0 md:mb-0 md:max-h-0 md:translate-y-1 md:border-transparent md:opacity-0'} ${isModuleLandingActive ? 'text-[var(--primary)]' : 'text-[var(--foreground)]'}`}>
               <Link
                 href={activeGroup.href}
                 onClick={() => { setOptimisticPath({ sourcePath: pathname, targetPath: activeGroup.href }); onMobileClose?.(); }}
                 aria-current={isModuleLandingActive ? 'page' : undefined}
-                className="block rounded-sm ps-2 text-start transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                className={`sidebar-nav-item flex items-center rounded-xl px-3 py-2.5 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${isModuleLandingActive ? 'sidebar-nav-item--active sidebar-module-landing-selected bg-[var(--primary)] shadow-lg shadow-[var(--primary)]/20' : ''}`}
               >
                 {activeGroup.title}
               </Link>
@@ -460,15 +460,14 @@ export function Sidebar({
                       href={subItem.href}
                       onClick={() => { setOptimisticPath({ sourcePath: pathname, targetPath: subItem.href.split(/[?#]/)[0] }); onMobileClose?.(); }}
                       className={`
-                        flex items-center gap-2 rounded-lg px-3 py-2.5 transition-colors
+                        sidebar-nav-item flex items-center gap-2 rounded-xl px-3 py-2.5 transition-colors
                         ${
                           isActive
-                            ? 'bg-[var(--primary-soft)] font-bold text-[var(--primary)] ring-1 ring-[var(--primary)]/20'
-                            : 'text-[var(--foreground)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]'
+                            ? 'sidebar-nav-item--active sidebar-subitem-selected bg-[var(--primary)] font-bold shadow-lg shadow-[var(--primary)]/20'
+                            : 'text-[var(--foreground)]'
                         }
                         text-sm text-start
                       `}
-                      style={isActive ? { color: 'var(--primary)' } : undefined}
                     >
                       <span className="shrink-0 text-xs font-medium tabular-nums text-current" dir="ltr">{index + 1}</span>
                       <span className="truncate leading-none">{subItem.title}</span>

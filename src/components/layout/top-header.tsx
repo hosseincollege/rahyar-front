@@ -637,7 +637,7 @@ export function TopHeader({
               pointer-events-none
               flex h-7 w-7 shrink-0 items-center
               justify-center overflow-hidden rounded-full
-              font-black text-white shadow-inner text-xs
+              font-black text-black shadow-inner text-xs
             "
             style={{ backgroundColor: 'var(--primary)' }}
           >
@@ -721,13 +721,13 @@ export function TopHeader({
           href="/rahcom"
           aria-label={message('dashboard')}
           dir="ltr"
-          className="pointer-events-auto relative flex h-10 w-max items-center justify-center gap-2 rounded-xl sm:h-12"
+          className="rahcom-header-brand group pointer-events-auto relative flex h-10 w-max items-center justify-center gap-2 rounded-full border border-transparent px-3 transition-colors sm:h-12"
         >
           <span
             className="hidden max-w-[min(24vw,15rem)] flex-col items-center text-center sm:flex font-black tracking-tight text-[var(--foreground)]"
           >
-            <span dir="auto" className="w-full truncate" style={{ fontSize: english ? '0.8rem' : '0.95rem' }}>{organizationBranding?.name || 'رهیار'}</span>
-            <span dir="ltr" className="text-[11px] font-bold tracking-wide text-primary">Rahyar</span>
+            <span dir="auto" className="rahcom-header-brand__name w-full truncate transition-colors" style={{ fontSize: english ? '0.8rem' : '0.95rem' }}>{organizationBranding?.name || 'رهیار'}</span>
+            <span dir="ltr" className="rahcom-header-brand__latin-name text-[11px] font-bold tracking-wide text-[var(--foreground)] transition-colors">Rahyar</span>
           </span>
 
           <div

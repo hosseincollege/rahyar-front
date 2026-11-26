@@ -43,7 +43,7 @@ function outageReasonLabel(reason: RahcomSystem['longOutageReason']) {
 
 function SystemsSearchInput({ value, onChange, placeholder, clearLabel }: { value: string; onChange: (value: string) => void; placeholder: string; clearLabel: string }) {
   const update = (nextValue: string) => onChange(nextValue);
-  return <label className="rahcom-search-capsule rahcom-search-capsule--outer-focus group inline-flex h-9 w-44 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-foreground focus-within:border-primary">
+  return <label className="rahcom-search-capsule rahcom-systems-search-capsule rahcom-search-capsule--outer-focus group inline-flex h-9 w-44 shrink-0 items-center gap-2 rounded-full border border-border bg-background px-3 text-foreground focus-within:border-primary">
     <Search size={16} className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
     <input aria-label={placeholder} placeholder={placeholder} value={value} onChange={(event) => update(event.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0" />
     {value && <button type="button" onClick={() => update('')} aria-label={clearLabel} title={clearLabel} className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><X size={14} /></button>}
@@ -562,7 +562,7 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
     : allSystemRows;
   return (
     <section aria-label={t('rahcomSystemsList')} className="rahcom-horizontal-overflow-page flex h-full min-h-0 w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden">
-      <RahcomToolbar className="rahcom-mobile-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
+      <RahcomToolbar className="rahcom-systems-toolbar rahcom-mobile-toolbar max-sm:-mb-2 flex shrink-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2">
         <RahcomHeaderDate compact />
         <RahcomTableCount label={`${numberFormatter.format(systems.length)} ${t('rahcomSystemsList')}`}><RahcomLocationIcon size={16} className="text-primary" />{numberFormatter.format(systems.length)}</RahcomTableCount>
         <SystemsSearchInput value={searchDraft} onChange={(value) => { setSearchDraft(value); startTransition(() => setQuery(value)); }} placeholder={t('rahcomSearchSystems')} clearLabel={t('searchClear')} />

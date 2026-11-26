@@ -166,6 +166,57 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
   box-shadow: inset 0 0 0 2px var(--ring);
 }
 
+.rahcom-search-capsule--header:hover {
+  border-color: var(--primary);
+  background-color: var(--background);
+}
+
+.rahcom-search-capsule--header:hover input {
+  background-color: var(--background) !important;
+}
+
+.rahcom-search-capsule--header:hover input::placeholder {
+  color: var(--primary);
+  opacity: 1;
+}
+
+.rahcom-search-capsule--header:focus-within {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+.rahcom-systems-search-capsule:hover input::placeholder {
+  color: var(--primary);
+  opacity: 1;
+}
+
+.rahcom-header-date-capsule:hover {
+  border-color: var(--primary);
+  background-color: var(--primary-soft);
+}
+
+.rahcom-toolbar .rahcom-header-date-capsule:hover > button {
+  background-color: transparent !important;
+}
+
+.rahcom-header-date-capsule:hover > button + button {
+  border-inline-start-color: var(--primary);
+}
+
+#user-profile-header-btn:hover {
+  border-color: var(--primary);
+}
+
+.rahcom-header-brand:hover {
+  border-color: var(--primary);
+  background-color: color-mix(in srgb, var(--background) 84%, #000 16%);
+}
+
+.rahcom-header-brand:hover .rahcom-header-brand__name,
+.rahcom-header-brand:hover .rahcom-header-brand__latin-name {
+  color: var(--primary);
+}
+
 .rahcom-search-capsule:focus-within input {
   box-shadow: inset 0 0 0 2px var(--ring);
 }
@@ -838,6 +889,21 @@ html[data-toolbar-labels="true"] .rahcom-toolbar {
   color: var(--primary);
 }
 
+.rahcom-toolbar .rahcom-systems-search-capsule:hover,
+.rahcom-toolbar .rahcom-header-date-capsule:hover {
+  background-color: color-mix(in srgb, var(--background) 84%, #000 16%);
+}
+
+.rahcom-systems-toolbar .rahcom-table-count {
+  transition: color 150ms, border-color 150ms, background-color 150ms;
+}
+
+.rahcom-systems-toolbar .rahcom-table-count:hover {
+  border-color: var(--primary);
+  background-color: color-mix(in srgb, var(--background) 84%, #000 16%);
+  color: var(--primary);
+}
+
 .rahcom-toolbar [role="group"] > button {
   display: inline-flex;
   align-items: center;
@@ -904,7 +970,30 @@ html[data-toolbar-labels="true"] .rahcom-toolbar label[data-toolbar-label]::afte
   font-weight: 500;
 }
 
+.erp-app-shell .sidebar-nav-item {
+  min-height: 42px;
+  border: 1px solid transparent;
+  transition-property: color, background-color, border-color;
+  transition-duration: 200ms;
+}
+
+.erp-app-shell .sidebar-nav-item:not(.sidebar-nav-item--active):hover {
+  border-color: var(--primary);
+  background-color: var(--background);
+  color: var(--primary);
+}
+
+.erp-app-shell .sidebar-nav-item--active {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
 .erp-app-shell .sidebar-module-selected {
+  color: #000 !important;
+}
+
+.erp-app-shell .sidebar-subitem-selected,
+.erp-app-shell .sidebar-module-landing-selected {
   color: #000 !important;
 }
 
@@ -1631,7 +1720,7 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
 .rahcom-popup-actions > a[data-popup-action][aria-expanded="true"] {
   border-color: var(--primary);
   background: var(--primary);
-  color: var(--primary-foreground);
+  color: #000 !important;
 }
 
 .rahcom-popup-actions button.danger {
