@@ -773,8 +773,9 @@ export function TopHeader({
             {activeMissionMode === 'form' ? <FilePlus2 size={17}/> : activeMissionMode === 'command' ? <SquareTerminal size={17}/> : <Bot size={17}/>}
           </button>
         </div>}
-        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule rahcom-search-capsule--header pointer-events-auto relative flex min-w-0 rounded-full">
-          <input type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border border-[var(--border)] px-3 pe-9 text-sm text-[var(--foreground)] outline-none transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)] focus:border-[var(--primary)] xl:w-44 2xl:w-52" />
+        <form ref={headerSearchRef} onSubmit={submitHeaderSearch} role="search" className="rahcom-search-capsule rahcom-search-capsule--header rahcom-search-capsule--outer-focus group pointer-events-auto relative flex min-w-0 rounded-full border border-[var(--border)] transition-colors hover:border-[var(--primary)] focus-within:border-[var(--primary)]">
+          <Search aria-hidden="true" size={16} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-hover:text-[var(--primary)]" />
+          <input type="text" value={headerSearchQuery} onChange={(event) => updateHeaderSearchQuery(event.target.value)} aria-label={message('headerSearch')} placeholder={message('headerSearch')} style={{ backgroundColor: 'var(--gray-header, var(--surface))' }} className="h-9 w-36 rounded-full border-0 bg-transparent ps-9 pe-9 text-sm text-[var(--foreground)] outline-none transition-colors hover:border-0 hover:text-[var(--foreground)] focus:border-0 xl:w-44 2xl:w-52" />
           {headerSearchQuery && <button type="button" onClick={() => updateHeaderSearchQuery('')} aria-label={message('searchClear')} title={message('searchClear')} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X size={15}/></button>}
           {renderHeaderSystemSuggestions()}
         </form>

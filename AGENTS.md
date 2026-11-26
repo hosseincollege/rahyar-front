@@ -13,6 +13,14 @@ Help authorized users across provinces find their assigned systems, understand o
 - Keep the Rahyar edition limited to Rahcom, Settings, and Development. ERP-only business modules, Dashboard routes, and ERP services are not Rahyar product features.
 - Preserve Rahyar-specific product-edition and API-environment configuration; never point Rahyar at ERP services or data.
 
+## User preference memory — keep it current
+
+- The categorized user preferences in [`agents/README.md`](agents/README.md) are part of this project's working instructions. Read that index and the relevant topic file before changing the corresponding UI.
+- When the user clarifies, corrects, or approves a lasting interaction, layout, or visual preference during development, update the relevant file under `agents/` in the same task as the implementation. Do not wait for the user to ask for the documentation update.
+- Record the durable preference in plain, actionable language and include the current implementation path when useful. Keep topic files organized; add a new topic file when a preference does not fit the existing categories, and link it from `agents/README.md`.
+- If a newer explicit preference changes an older one, update the older note so the guide has one current rule. Preserve unrelated approved preferences and product-specific behavior.
+- Treat these notes as the user's accumulated preferences, not as permission to make unrequested UI changes. Apply them when relevant to requested work and ask only when a material ambiguity cannot be resolved from the project or prior instructions.
+
 ---
 
 ## 🏗️ 1. Architecture Rules & Conventions

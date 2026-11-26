@@ -158,6 +158,10 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
   max-height: calc(100% - 3rem);
 }
 
+.rahcom-tickets-table-frame {
+  max-height: 100%;
+}
+
 .rahcom-search-capsule:focus-within {
   box-shadow: inset 0 0 0 2px var(--ring);
 }
@@ -172,10 +176,6 @@ table tbody > tr:nth-child(even) > td:not([colspan]) {
 
 .rahcom-search-capsule input:focus-visible {
   outline: none;
-}
-
-[data-app-top-header] .rahcom-search-capsule--header input:hover {
-  background-color: var(--background) !important;
 }
 
 .rahcom-capsule-select:focus {
@@ -763,12 +763,17 @@ html.dark .erp-app-shell[data-dark-contrast="strong"] {
 .rahcom-table-scroll {
   scrollbar-color: var(--border-strong, var(--border)) var(--gray-sidebar-secondary, var(--background));
   scrollbar-width: thin;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
 }
 
 /* Long tables (such as Solar snapshots) keep their own vertical scroll area. */
 .rahcom-table-frame--bounded {
   max-height: calc(100dvh - 18rem);
+}
+
+.rahcom-table-frame--bounded.rahcom-solar-daily-table-frame {
+  max-height: 100%;
 }
 
 @media (max-width: 767px) {
