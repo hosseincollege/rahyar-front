@@ -57,6 +57,13 @@ export type RahcomActivity = {
   system?: Pick<RahcomSystem, 'id' | 'systemName' | 'systemCode' | 'province'> | null;
 };
 export type RahcomInventoryEntry = { id: string; province: string; equipmentName: string; systemId: string | null; systemNameSnapshot: string; systemCodeSnapshot: string; usageDate: string; createdAt: string };
+export type RahcomInventoryRequest = {
+  id: string; province: string; referenceNumber: string; requestedAtText: string; requestDescription: string;
+  items: Array<{ name: string; code?: string; quantity?: string; unit?: string; supplyType?: string; note?: string }>;
+  status: 'REQUESTED' | 'DELIVERED' | 'CONSUMED'; deliveryDate: string | null; deliveryNote: string | null;
+  deliveredItems: Array<{ name: string; quantity?: string }> | null; consumptionDate: string | null; consumptionNote: string | null;
+  consumedItems: Array<{ name: string; quantity?: string }> | null; createdAt: string; updatedAt: string;
+};
 export type RahcomInvoiceList = { headers: string[]; rows: string[][]; updatedAt: string };
 export type RahcomInvoiceAttachmentCategory = 'INVOICE' | 'PAYMENT_RECEIPT' | 'START_PHOTO' | 'END_PHOTO' | 'OTHER';
 export type RahcomInvoiceAttachment = {
@@ -126,7 +133,13 @@ export const rahcomApi = {
     return filterExcludedIsfahanSystems(systems);
   },
   inventory: (province?: string) => apiClient.get<RahcomInventoryEntry[]>(`/rahcom/inventory${province ? `?province=${encodeURIComponent(province)}` : ''}`),
+  inventoryRequests: (province?: string) => apiClient.get<RahcomInventoryRequest[]>(`/rahcom/inventory-requests${province ? `?province=${encodeURIComponent(province)}` : ''}`),
+  createInventoryRequest: (data: { province: string; referenceNumber: string; requestedAtText: string; requestDescription: string; items: RahcomInventoryRequest['items'] }) =>
+    apiClient.post<RahcomInventoryRequest>('/rahcom/inventory-requests', data),
+  updateInventoryRequest: (id: string, data: Partial<Pick<RahcomInventoryRequest, 'status' | 'deliveryDate' | 'deliveryNote' | 'deliveredItems' | 'consumptionDate' | 'consumptionNote' | 'consumedItems'>>) =>
+    apiClient.put<RahcomInventoryRequest>(`/rahcom/inventory-requests/${encodeURIComponent(id)}`, data),
   invoices: (province: string) => apiClient.get<RahcomInvoiceList>(`/rahcom/invoices?province=${encodeURIComponent(province)}`),
+  replaceInvoices: (data: { province: string; headers: string[]; rows: string[][] }) => apiClient.put<RahcomInvoiceList>(`/rahcom/invoices`, data),
   invoiceAttachments: (province: string) => apiClient.get<RahcomInvoiceAttachment[]>(`/rahcom/invoice-attachments?province=${encodeURIComponent(province)}`),
   uploadInvoiceAttachment: (input: { province: string; invoiceNumber: string; category: RahcomInvoiceAttachmentCategory; file: File }) => {
     const form = new FormData();

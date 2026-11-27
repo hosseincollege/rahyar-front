@@ -9,6 +9,7 @@ import { RahcomTable } from '@/components/rahcom/table';
 import { RahcomInfoHeader, RahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { useBackupActionsPreference } from '@/components/rahcom/use-backup-actions-preference';
 import { uiMessage } from '@/lib/ui-messages';
+import { getAccessToken } from '@/lib/api-client';
 import { rahcomApi, type RahcomAccess, type RahcomMissionDefaults, type RahcomMissionList } from '@/lib/api/rahcom/rahcom-api';
 
 const provinceId = 'isfahan';
@@ -138,12 +139,36 @@ export default function DocumentsMissionPage() {
     }
   };
 
+  const restoreMissionBackup = async () => {
+    if (busy || loading || !canManage) return;
+    const token = getAccessToken();
+    if (!token) { setOperationError(uiMessage(locale, 'rahcomSystemsLoadError')); return; }
+    setOperationError('');
+    setBusy(true);
+    try {
+      const response = await fetch('/api/provinces/isfahan/missions/backup', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(uiMessage(locale, 'rahcomSystemsLoadError'));
+      const workbook = XLSX.read(new Uint8Array(await response.arrayBuffer()), { type: 'array' });
+      const parsed = parseMissionWorkbook('ESF-missions.xlsx', workbook);
+      if (list?.rows.length && !window.confirm(`ÙÙ‡Ø±Ø³Øª ÙØ¹Ù„ÛŒ ${list.rows.length} Ø±Ø¯ÛŒÙ Ø¯Ø§Ø±Ø¯. Ø¨Ø§ Ø¨Ø§Ø²ÛŒØ§Ø¨ÛŒ Ù¾Ø´ØªÛŒØ¨Ø§Ù† Ø§ØµÙÙ‡Ø§Ù†ØŒ ÙÙ‡Ø±Ø³Øª Ø¬Ø§ÛŒÚ¯Ø²ÛŒÙ† Ø´ÙˆØ¯ØŸ`)) return;
+      const saved = await rahcomApi.replaceMissionList({ province: provinceId, ...parsed });
+      setList({ province: provinceId, ...parsed, rowCount: saved.rowCount, updatedAt: saved.updatedAt });
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : uiMessage(locale, 'rahcomSystemsLoadError'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const downloadWorkbook = (rows = list?.rows) => {
     if (!list || !rows) return;
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.aoa_to_sheet([list.headers, ...rows]);
     XLSX.utils.book_append_sheet(workbook, sheet, 'Data-Rp');
-    XLSX.writeFile(workbook, 'Rahyar-Missions-Isfahan.xlsx');
+    XLSX.writeFile(workbook, 'ESF-missions.xlsx');
   };
 
   const canManage = Boolean(access?.canManageAssignments);
@@ -176,7 +201,7 @@ export default function DocumentsMissionPage() {
       label: uiMessage(locale, 'rahcomSaveSystemsBackup'),
       controlsId: 'missions-backup-actions',
       save: { label: uiMessage(locale, 'rahcomSaveSystemsBackup'), onClick: () => downloadWorkbook(), disabled: loading || !list },
-      restore: { label: uiMessage(locale, 'rahcomRestoreSystemsBackup'), onClick: () => uploadRef.current?.click(), disabled: loading || busy },
+      restore: { label: uiMessage(locale, 'rahcomRestoreSystemsBackup'), onClick: () => void restoreMissionBackup(), disabled: loading || busy || (access?.selectedProvince ?? access?.province) !== provinceId, busy },
     } : undefined}
   />;
 

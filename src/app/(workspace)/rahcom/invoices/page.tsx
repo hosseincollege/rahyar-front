@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { FileText, Info, Paperclip } from 'lucide-react';
 import { RahcomDataListLayout, RahcomDataListToolbar } from '@/components/rahcom/data-list-layout';
+import { useBackupActionsPreference } from '@/components/rahcom/use-backup-actions-preference';
 import { RahcomTableCount } from '@/components/rahcom/table';
 import { DataTable } from '@/components/ui/data-table';
 import { usePreferences, getLocaleDirection } from '@/components/providers/preferences-provider';
@@ -11,6 +12,7 @@ import { rahcomApi, type RahcomInvoiceAttachment, type RahcomInvoiceList } from 
 import { uiMessage } from '@/lib/ui-messages';
 import { openRahcomRowInfo } from '@/app/(workspace)/rahcom/_shared/rahcom-row-info';
 import { RahcomInvoiceAttachments } from './rahcom-invoice-attachments';
+import { getAccessToken } from '@/lib/api-client';
 
 function normalizeSearch(value: string) {
   return value.trim().normalize('NFKC').toLocaleLowerCase('fa')
@@ -20,27 +22,32 @@ function normalizeSearch(value: string) {
 
 export default function RahcomInvoicesPage() {
   const { locale } = usePreferences();
+  const { open: backupActionsOpen, toggle: toggleBackupActions } = useBackupActionsPreference();
   const direction = getLocaleDirection(locale);
   const [invoiceList, setInvoiceList] = useState<RahcomInvoiceList | null>(null);
   const [invoiceAttachments, setInvoiceAttachments] = useState<RahcomInvoiceAttachment[]>([]);
   const [province, setProvince] = useState('');
+  const [canManageInvoices, setCanManageInvoices] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [wrapTableText, setWrapTableText] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [restoreBusy, setRestoreBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
     void rahcomApi.access().then(async (access) => {
       if (!access.selectedProvince) throw new Error('Select a province before viewing invoices.');
       const selectedProvince = access.selectedProvince;
+      const canManage = access.canManageAssignments;
       const data = await rahcomApi.invoices(selectedProvince);
       const attachments = await rahcomApi.invoiceAttachments(selectedProvince).catch(() => []);
-      return { selectedProvince, data, attachments };
-    }).then(({ selectedProvince, data, attachments }) => {
+      return { selectedProvince, canManage, data, attachments };
+    }).then(({ selectedProvince, canManage, data, attachments }) => {
       if (active) {
         setProvince(selectedProvince);
+        setCanManageInvoices(canManage);
         setInvoiceList(data);
         setInvoiceAttachments(attachments);
       }
@@ -67,6 +74,39 @@ export default function RahcomInvoicesPage() {
     XLSX.writeFile(workbook, 'فاکتورهای-رهکام-اصفهان.xlsx');
   }, [filteredRows, invoiceList]);
 
+  const downloadBackup = useCallback(() => {
+    if (!invoiceList) return;
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([invoiceList.headers, ...invoiceList.rows]), 'Invoices');
+    XLSX.writeFile(workbook, 'ESF-invoices.xlsx');
+  }, [invoiceList]);
+
+  const restoreBackup = useCallback(async () => {
+    if (restoreBusy || province !== 'isfahan' || !canManageInvoices) return;
+    const token = getAccessToken();
+    if (!token) { setError(locale === 'fa' ? '\u062f\u0631\u06cc\u0627\u0641\u062a \u062f\u0633\u062a\u0631\u0633\u06cc \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062f.' : 'Invoice backup could not be accessed.'); return; }
+    if (!window.confirm(locale === 'fa' ? '\u0641\u0627\u06cc\u0644 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646 \u0641\u0627\u06a9\u062a\u0648\u0631\u0647\u0627\u06cc \u0627\u0635\u0641\u0647\u0627\u0646 \u062f\u0631 \u067e\u0627\u06cc\u06af\u0627\u0647 \u062f\u0627\u062f\u0647 \u062c\u0627\u06cc\u06af\u0632\u06cc\u0646 \u0634\u0648\u062f\u061f' : 'Replace Isfahan invoices in the database with the project backup?')) return;
+    setRestoreBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/provinces/isfahan/invoices/backup', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+      if (!response.ok) throw new Error(locale === 'fa' ? '\u0628\u0627\u0632\u06cc\u0627\u0628\u06cc \u067e\u0634\u062a\u06cc\u0628\u0627\u0646 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062f.' : 'Invoice backup restore failed.');
+      const workbook = XLSX.read(new Uint8Array(await response.arrayBuffer()), { type: 'array' });
+      const sheet = workbook.Sheets['Invoices'] ?? workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error(locale === 'fa' ? '\u0641\u0627\u06cc\u0644 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646 \u0645\u0639\u062a\u0628\u0631 \u0646\u06cc\u0633\u062a.' : 'Invoice backup is invalid.');
+      const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '', blankrows: false });
+      const headers = (matrix[0] ?? []).map((value) => String(value ?? '').trim());
+      const rows = matrix.slice(1).map((row) => headers.map((_, index) => String(row[index] ?? '').trim())).filter((row) => row.some(Boolean));
+      if (headers.length < 2 || !rows.length || rows.length > 20000) throw new Error(locale === 'fa' ? '\u0641\u0627\u06cc\u0644 \u067e\u0634\u062a\u06cc\u0628\u0627\u0646 \u0645\u0639\u062a\u0628\u0631 \u0646\u06cc\u0633\u062a.' : 'Invoice backup is invalid.');
+      const saved = await rahcomApi.replaceInvoices({ province: 'isfahan', headers, rows });
+      setInvoiceList({ headers, rows, updatedAt: saved.updatedAt });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : locale === 'fa' ? '\u0628\u0627\u0632\u06cc\u0627\u0628\u06cc \u067e\u0634\u062a\u06cc\u0628\u0627\u0646 \u0646\u0627\u0645\u0648\u0641\u0642 \u0628\u0648\u062f.' : 'Invoice backup restore failed.');
+    } finally {
+      setRestoreBusy(false);
+    }
+  }, [canManageInvoices, locale, province, restoreBusy]);
+
   const headers = invoiceList?.headers ?? [];
   const attachmentCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -86,7 +126,7 @@ export default function RahcomInvoicesPage() {
       wrap={{ label: uiMessage(locale, 'rahcomWrapLongTableText'), singleLineLabel: uiMessage(locale, 'rahcomKeepTableTextSingleLine'), pressed: wrapTableText, onToggle: () => setWrapTableText((value) => !value) }}
       download={{ label: uiMessage(locale, 'solarDownloadExcel'), onClick: downloadDisplayedTable, disabled: !invoiceList }}
       search={{ value: query, onChange: setQuery, placeholder: uiMessage(locale, 'rahcomInvoicesSearch'), label: uiMessage(locale, 'rahcomInvoicesSearch') }}
-      backup={{ open: false, onToggle: () => undefined, label: uiMessage(locale, 'rahcomSaveSystemsBackup'), disabled: true, save: { label: uiMessage(locale, 'rahcomSaveSystemsBackup'), disabled: true }, restore: { label: uiMessage(locale, 'rahcomRestoreSystemsBackup'), disabled: true } }}
+      backup={{ open: backupActionsOpen, onToggle: toggleBackupActions, label: uiMessage(locale, 'rahcomSaveSystemsBackup'), save: { label: uiMessage(locale, 'rahcomSaveSystemsBackup'), onClick: downloadBackup, disabled: !invoiceList }, restore: { label: uiMessage(locale, 'rahcomRestoreSystemsBackup'), onClick: () => void restoreBackup(), disabled: loading || restoreBusy || province !== 'isfahan' || !canManageInvoices, busy: restoreBusy } }}
     />}
     isLoading={loading}
     loadingMessage={uiMessage(locale, 'reportsLoading')}
