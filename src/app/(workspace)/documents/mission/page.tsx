@@ -208,12 +208,12 @@ export default function DocumentsMissionPage() {
         <thead className="bg-muted/50"><tr>
           <th className="whitespace-nowrap p-3 text-center align-middle">{uiMessage(locale, 'rahcomRowNumber')}</th>
           <th className="w-9 whitespace-nowrap px-1 py-3 text-center"><RahcomInfoHeader /></th>
-          {list?.headers.map((header, index) => <th key={`${index}-${header}`} className="whitespace-nowrap p-3 text-start">{header}</th>)}
+          {(list?.headers ?? []).map((header, index) => <th key={`${index}-${header}`} className="whitespace-nowrap p-3 text-start">{header}</th>)}
         </tr></thead>
         <tbody>{filteredRows.map((row, rowIndex) => <tr key={`${row[0] ?? 'mission'}-${rowIndex}`} className="border-t border-border text-foreground hover:bg-muted/40">
           <td className="p-2 text-center tabular-nums">{(rowIndex + 1).toLocaleString(locale)}</td>
           <td className="w-9 px-1 py-1 text-center"><RahcomRowInfo title={row[0] || row[1] || uiMessage(locale, 'hrRequestsMission')} fields={(list?.headers ?? []).map((header, index) => ({ label: header, value: row[index] ?? '' }))} /></td>
-          {list?.headers.map((_, columnIndex) => <td key={columnIndex} className={`max-w-72 p-2 ${wrap ? 'whitespace-normal' : 'truncate whitespace-nowrap'}`} title={row[columnIndex] ?? ''}>{row[columnIndex] ?? '—'}</td>)}
+          {(list?.headers ?? []).map((_, columnIndex) => <td key={columnIndex} className={`max-w-72 p-2 ${wrap ? 'whitespace-normal' : 'truncate whitespace-nowrap'}`} title={row[columnIndex] ?? ''}>{row[columnIndex] ?? '—'}</td>)}
         </tr>)}</tbody>
       </RahcomTable>
     </RahcomDataListLayout>
