@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
-import { API_BASE_URL } from '@/lib/api-environment';
+import { SERVER_API_BASE_URL } from '@/lib/api-environment';
 import { esfElectricityWorkbook } from '@/province-backup';
 
 export const dynamic = 'force-dynamic';
@@ -31,14 +31,14 @@ const splitSystemAssignments = (value: string) => value.split(/[;,|]/).map((code
 function jsonError(status: number, error: string) { return NextResponse.json({ error }, { status }); }
 function authHeader(request: NextRequest) { return request.headers.get('authorization') ?? ''; }
 async function readList(authorization: string): Promise<{ response: Response; data: BillList }> {
-  const response = await fetch(`${API_BASE_URL}/rahcom/bill-identifiers?province=${province}`, {
+  const response = await fetch(`${SERVER_API_BASE_URL}/rahcom/bill-identifiers?province=${province}`, {
     headers: { Authorization: authorization, Accept: 'application/json' }, cache: 'no-store',
   });
   const payload = await response.json().catch(() => ({})) as Partial<BillList>;
   return { response, data: { headers: Array.isArray(payload.headers) ? payload.headers : [], rows: Array.isArray(payload.rows) ? payload.rows : [] } };
 }
 async function saveList(authorization: string, data: BillList) {
-  return fetch(`${API_BASE_URL}/rahcom/bill-identifiers`, {
+  return fetch(`${SERVER_API_BASE_URL}/rahcom/bill-identifiers`, {
     method: 'PUT', headers: { Authorization: authorization, Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ province, headers: data.headers, rows: data.rows }),
   });
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest) {
   if ((request.headers.get('content-type') ?? '').includes('spreadsheetml.sheet')) {
     if (process.env.NODE_ENV !== 'development') return jsonError(501, 'local_backup_only');
     try {
-      const accessResponse = await fetch(`${API_BASE_URL}/rahcom/me`, {
+      const accessResponse = await fetch(`${SERVER_API_BASE_URL}/rahcom/me`, {
         headers: { Authorization: authHeader(request), Accept: 'application/json' },
         cache: 'no-store',
       });

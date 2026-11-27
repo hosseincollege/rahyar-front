@@ -1,4 +1,4 @@
-﻿// File: frontend/src/app/(workspace)/settings/users/users-json.ts
+// File: frontend/src/app/(workspace)/settings/users/users-json.ts
 // Frontend - منطق JSON حساب‌های کاربری: نمونه، اعتبارسنجی و تبدیل داده‌ها
 
 import type { UserItem, UserRoleItem } from '@/lib/api/settings-api';
@@ -33,19 +33,10 @@ export interface UsersImportResult {
 }
 
 /**
- * فایل نمونه برای دانلود از رابط کاربری همراه با کاربر دمو.
+ * فایل نمونه برای دانلود از رابط کاربری همراه با کاربران نمونه.
  */
 export const usersImportSample: UsersImportData = {
   users: [
-    {
-      name: 'کاربر نمایشی (دمو)',
-      username: 'demo',
-      password: 'GAPGPTMASKTOKENin931f88goX0X',
-      email: 'demo@example.com',
-      role: 'ADMIN',
-      department: 'فناوری اطلاعات',
-      isActive: true,
-    },
     {
       name: 'علی رضایی',
       username: 'ali.rezaei',

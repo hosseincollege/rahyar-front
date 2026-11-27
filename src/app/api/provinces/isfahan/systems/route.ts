@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
-import { API_BASE_URL } from '@/lib/api-environment';
+import { SERVER_API_BASE_URL } from '@/lib/api-environment';
 import { esfSystemsWorkbook } from '@/province-backup';
 import { isExcludedIsfahanSystemCode } from '@/lib/api/rahcom/system-exclusions';
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const accessResponse = await fetch(`${API_BASE_URL}/rahcom/me`, {
+    const accessResponse = await fetch(`${SERVER_API_BASE_URL}/rahcom/me`, {
       headers: { Authorization: authorization, Accept: 'application/json' },
       cache: 'no-store',
     });
@@ -51,17 +51,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const persistedSystemsByCode = new Map<string, { longOutage: boolean; reason: string | null; details: string | null; stationName: string | null; aggregationCode: string | null; axisCode: string | null; announcedAxis: string | null }>();
+    const persistedSystemsByCode = new Map<string, { longOutage: boolean; reason: string | null; longOutageDetails: string | null; systemDetails: string | null; stationName: string | null; aggregationCode: string | null; axisCode: string | null; announcedAxis: string | null }>();
     try {
-      const persistedResponse = await fetch(`${API_BASE_URL}/rahcom/systems?province=isfahan`, {
+      const persistedResponse = await fetch(`${SERVER_API_BASE_URL}/rahcom/systems?province=isfahan`, {
         headers: { Authorization: authorization, Accept: 'application/json' },
         cache: 'no-store',
       });
       if (persistedResponse.ok) {
-        const payload = await persistedResponse.json() as { data?: Array<{ systemCode?: string; longOutage?: boolean; longOutageReason?: string | null; longOutageDetails?: string | null; stationName?: string | null; aggregationCode?: string | null; axisCode?: string | null; announcedAxis?: string | null }> } | Array<{ systemCode?: string; longOutage?: boolean; longOutageReason?: string | null; longOutageDetails?: string | null; stationName?: string | null; aggregationCode?: string | null; axisCode?: string | null; announcedAxis?: string | null }>;
+        const payload = await persistedResponse.json() as { data?: Array<{ systemCode?: string; longOutage?: boolean; longOutageReason?: string | null; longOutageDetails?: string | null; details?: string | null; stationName?: string | null; aggregationCode?: string | null; axisCode?: string | null; announcedAxis?: string | null }> } | Array<{ systemCode?: string; longOutage?: boolean; longOutageReason?: string | null; longOutageDetails?: string | null; details?: string | null; stationName?: string | null; aggregationCode?: string | null; axisCode?: string | null; announcedAxis?: string | null }>;
         const persistedSystems = Array.isArray(payload) ? payload : payload.data ?? [];
         for (const system of persistedSystems) {
-          if (system.systemCode) persistedSystemsByCode.set(system.systemCode.normalize('NFKC').trim().toUpperCase(), { longOutage: Boolean(system.longOutage), reason: system.longOutageReason ?? null, details: system.longOutageDetails ?? null, stationName: system.stationName ?? null, aggregationCode: system.aggregationCode ?? null, axisCode: system.axisCode ?? null, announcedAxis: system.announcedAxis ?? null });
+          if (system.systemCode) persistedSystemsByCode.set(system.systemCode.normalize('NFKC').trim().toUpperCase(), { longOutage: Boolean(system.longOutage), reason: system.longOutageReason ?? null, longOutageDetails: system.longOutageDetails ?? null, systemDetails: system.details ?? null, stationName: system.stationName ?? null, aggregationCode: system.aggregationCode ?? null, axisCode: system.axisCode ?? null, announcedAxis: system.announcedAxis ?? null });
         }
       }
     } catch {
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         updatedAt: nullableText('updatedAt') ?? new Date(0).toISOString(),
         longOutage: persistedSystem?.longOutage ?? workbookLongOutage,
         longOutageReason: persistedSystem?.reason ?? nullableText('longOutageReason'),
-        longOutageDetails: persistedSystem ? persistedSystem.details : nullableText('longOutageDetails'),
+        longOutageDetails: persistedSystem ? persistedSystem.longOutageDetails : nullableText('longOutageDetails'),
         stationName: persistedSystem ? persistedSystem.stationName : nullableText('stationName'),
         aggregationCode: persistedSystem ? persistedSystem.aggregationCode : nullableText('aggregationCode'),
         axisCode: persistedSystem?.axisCode ?? nullableText('axisCode'),
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
         incidentDetails: nullableText('incidentDetails'),
         latitude,
         longitude,
-        details: nullableText('details'),
+        details: persistedSystem ? persistedSystem.systemDetails : nullableText('details'),
         electricityBillId: nullableText('electricityBillId'),
         simIp: nullableText('simIp'),
         radarIp: nullableText('radarIp'),
@@ -137,7 +137,7 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const accessResponse = await fetch(`${API_BASE_URL}/rahcom/me`, {
+    const accessResponse = await fetch(`${SERVER_API_BASE_URL}/rahcom/me`, {
       headers: { Authorization: authorization, Accept: 'application/json' },
       cache: 'no-store',
     });

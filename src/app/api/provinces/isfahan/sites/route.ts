@@ -3,7 +3,7 @@ import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { API_BASE_URL } from '@/lib/api-environment';
+import { SERVER_API_BASE_URL } from '@/lib/api-environment';
 import { esfSitesWorkbook } from '@/province-backup';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,7 @@ const workbookPath = () => path.join(process.cwd(), 'src', 'province-backup', es
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) return false;
-  const response = await fetch(`${API_BASE_URL}/rahcom/me`, {
+  const response = await fetch(`${SERVER_API_BASE_URL}/rahcom/me`, {
     headers: { Authorization: authorization, Accept: 'application/json' },
     cache: 'no-store',
   }).catch(() => null);

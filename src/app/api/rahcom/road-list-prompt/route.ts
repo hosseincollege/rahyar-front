@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { API_BASE_URL } from '@/lib/api-environment';
+import { SERVER_API_BASE_URL } from '@/lib/api-environment';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,7 +14,7 @@ async function checkAccess(request: NextRequest, manage: boolean) {
   if (!authorization?.startsWith('Bearer ') || !organizationId) return { response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
 
   try {
-    const accessResponse = await fetch(`${API_BASE_URL}/settings/organization/${encodeURIComponent(organizationId)}/access`, {
+    const accessResponse = await fetch(`${SERVER_API_BASE_URL}/settings/organization/${encodeURIComponent(organizationId)}/access`, {
       headers: { Authorization: authorization, Accept: 'application/json' },
       cache: 'no-store',
     });

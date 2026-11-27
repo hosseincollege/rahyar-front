@@ -227,9 +227,6 @@ export function PublicHeader() {
               <p>
                 در حال حاضر افزودن کاربران جدید و تخصیص نقش‌ها فقط توسط مدیر سامانه و از طریق بخش مدیریت کاربران انجام می‌شود. جهت دریافت دسترسی، با مدیر سامانه در ارتباط باشید.
               </p>
-              <p className="text-xs text-muted-foreground pt-1 border-t border-border/60">
-                💡 <span className="font-semibold text-foreground/90">تست آزمایشی:</span> در صفحه ورود امکان ورود بصورت دمو قرار داده شده است.
-              </p>
             </div>
 
             {/* دکمه‌ها */}

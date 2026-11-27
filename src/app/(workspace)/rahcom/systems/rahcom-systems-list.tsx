@@ -659,6 +659,10 @@ export function RahcomSystemsList({ canManage = false, selectedProvince = 'all' 
                           </header>
                           <div className="rahcom-popup-data">
                             <div className="rahcom-popup-row rahcom-popup-axis"><span>{t('rahcomAxis')}:</span><b className="rahcom-popup-axis-value"><span>{axisName || '—'}</span>{axisCode && <><span aria-hidden="true">/</span><bdi dir="ltr">{axisCode}</bdi></>}</b></div>
+                            <section aria-label={t('rahcomDescription')} className="mt-2 rounded-lg border border-border/70 bg-background p-2">
+                              <h3 className="text-xs font-semibold text-muted-foreground">{t('rahcomDescription')}</h3>
+                              <p dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{system.details?.trim() || '—'}</p>
+                            </section>
                           </div>
                           <div role="status" className="rahcom-popup-status"></div>
                           <div className="rahcom-popup-actions">

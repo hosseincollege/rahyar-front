@@ -20,11 +20,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
-  const handleFillDemo = () => {
-    setFormData({ email: 'demo', password: 'demo' });
-    setError(null);
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -72,20 +67,6 @@ export default function LoginPage() {
           <h1 className="mb-6 text-center text-2xl font-bold text-[var(--foreground)]">
             ورود به سیستم
           </h1>
-
-          <div className="mb-5 rounded-xl border border-primary/20 bg-primary/10 p-3 text-sm">
-            <p className="font-semibold">{uiMessage(locale, 'loginDemoTitle')}</p>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{uiMessage(locale, 'loginDemoCredentials')}</p>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                <span><span className="text-muted-foreground">{uiMessage(locale, 'loginDemoUsernameLabel')}: </span><b dir="ltr" className="font-mono">demo</b></span>
-                <span><span className="text-muted-foreground">{uiMessage(locale, 'loginDemoPasswordLabel')}: </span><b dir="ltr" className="font-mono">demo</b></span>
-              </div>
-              <button type="button" onClick={handleFillDemo} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">
-                {uiMessage(locale, 'loginFillDemo')}
-              </button>
-            </div>
-          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error ? (

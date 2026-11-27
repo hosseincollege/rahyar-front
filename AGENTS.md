@@ -172,3 +172,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Local Windows server configuration
+
+- Keep local development on frontend/API ports 3015/3016. The separate Windows server build uses frontend/API ports 3115/3116; a browser opened at `localhost:3115` uses `localhost:3116`, while domain access uses `https://api.rahyar-erp.ir`. Caddy routes `rahyar-erp.ir` to 3115 and `api.rahyar-erp.ir` to 3116.
+- Preserve server-only build output in `.next-server`; do not reuse Vercel or local-development build output for the Windows server.
+- Rahyar has no demo login or demo account. Do not restore demo credentials, demo account provisioning, or demo users in account import samples.
+- Apply database changes to the existing Windows server database with `npm exec -- prisma migrate deploy --schema=prisma/schema`; preserve the database and migration history.

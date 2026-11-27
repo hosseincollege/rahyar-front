@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import packageJson from "./package.json";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.RAHYAR_SERVER_MODE === '1' ? '.next-server' : '.next',
   outputFileTracingIncludes: {
     '/api/provinces/isfahan/systems': ['./src/province-backup/ESF-systems.xlsx'],
     '/api/provinces/isfahan/sites': ['./src/province-backup/ESF-sites.xlsx'],

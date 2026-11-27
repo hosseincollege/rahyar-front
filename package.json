@@ -5,7 +5,9 @@
     "scripts": {
         "dev": "start http://localhost:3015 && next dev --webpack -p 3015",
         "build": "next build",
+        "build:server": "node scripts/next-server.mjs build",
         "start": "next start -p 3015",
+        "start:server": "node scripts/next-server.mjs start -p 3115 -H 127.0.0.1",
         "lint": "eslint"
     },
     "dependencies": {
