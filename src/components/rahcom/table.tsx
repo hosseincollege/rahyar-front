@@ -105,12 +105,13 @@ type RahcomTableCountProps = {
   children: ReactNode;
   label: string;
   title?: string;
+  count?: number;
 };
 
 /** Shared count capsule for Rahcom data tables. */
-export function RahcomTableCount({ children, label, title }: RahcomTableCountProps) {
+export function RahcomTableCount({ children, label, title, count }: RahcomTableCountProps) {
   return (
-    <span role="status" aria-label={label} title={title} className="rahcom-table-count inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground">
+      <span role="status" aria-label={label} title={title} data-count={count} className="rahcom-table-count inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-sm font-bold tabular-nums text-foreground">
       {children}
     </span>
   );

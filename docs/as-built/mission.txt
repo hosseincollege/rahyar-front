@@ -1,0 +1,21 @@
+Rahyar Documents / Mission — implementation note
+Reviewed: 2026-11-27
+
+Implemented behavior
+- The /documents/mission route is an Isfahan field-mission report list with the shared Rahcom toolbar and sticky data table.
+- Upload accepts the Data-Rp worksheet (or the first worksheet), flattens the two header rows, keeps Jalali dates as strings, and preserves every populated source column. The upload replaces the selected province's current full list after a browser confirmation if rows already exist.
+- Search filters every cell. The wrapping control changes long cells between single-line and wrapped display. Download exports the current stored list as an Excel backup.
+- The authenticated /rahcom/missions GET and PUT endpoints enforce organization/province scope and manage permissions. The PostgreSQL JSONB table is RahcomMissionList / rahcom_mission_lists.
+
+Files
+- Frontend: src/app/(workspace)/documents/mission/page.tsx
+- API client: src/lib/api/rahcom/rahcom-api.ts
+- Backend: rahyar-back/src/rahcom/rahcom.controller.ts, rahcom.service.ts, rahcom.dto.ts
+- Prisma: rahyar-back/prisma/schema/rahcom.prisma and organization.prisma
+- Migration: rahyar-back/prisma/migrations/20261127120000_add_rahcom_mission_lists/migration.sql
+
+Data/migration status
+- Source workbook inspected: 89 data rows in Data-Rp, all Isfahan, covering 31 distinct Jalali dates from 1405/07/28 through 1405/09/04. Two rows are dated 1405/09/04.
+- The workbook has two header rows and one populated column with no header; the importer retains that column with a generated label.
+- The source workbook was not copied into the repository. Import it from the Mission page to persist it in the active organization database and then use Download Excel to save a database-backed backup.
+- The migration file and Prisma schema are prepared. No migration was run, and the data was not written into a live database as part of this code change.

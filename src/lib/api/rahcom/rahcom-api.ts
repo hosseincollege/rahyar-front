@@ -57,6 +57,12 @@ export type RahcomActivity = {
   system?: Pick<RahcomSystem, 'id' | 'systemName' | 'systemCode' | 'province'> | null;
 };
 export type RahcomInventoryEntry = { id: string; province: string; equipmentName: string; systemId: string | null; systemNameSnapshot: string; systemCodeSnapshot: string; usageDate: string; createdAt: string };
+export type RahcomInvoiceList = { headers: string[]; rows: string[][]; updatedAt: string };
+export type RahcomInvoiceAttachmentCategory = 'INVOICE' | 'PAYMENT_RECEIPT' | 'START_PHOTO' | 'END_PHOTO' | 'OTHER';
+export type RahcomInvoiceAttachment = {
+  id: string; invoiceNumber: string; category: RahcomInvoiceAttachmentCategory;
+  originalName: string; mimeType: string; size: number; createdAt: string;
+};
 export type RahcomSolarSnapshot = {
   id: string; province: string | null; capturedAt: string; createdAt: string; downText: string;
   unreachableText: string; equipmentColumns: string[];
@@ -69,6 +75,13 @@ export type RahcomTrafficSnapshot = {
 export type RahcomRoadListSnapshot = {
   id: string; province: string; fileName: string; sheetName: string; headers: string[];
   rows: string[][]; rowCount: number; importedAt: string; listDate: string;
+};
+export type RahcomMissionList = {
+  province: string; fileName: string; sheetName: string; headers: string[]; rows: string[][]; rowCount: number; updatedAt: string;
+};
+export type RahcomMissionDefaults = {
+  province: string; requestType: string; provincialManager: string; missionField: string;
+  provincialOfficeSupervisor: string; provincialOperationsExpert: string; updatedAt?: string;
 };
 export type RahcomTrafficSystemHistory = Pick<RahcomTrafficSnapshot, 'id' | 'fileName' | 'sheetName' | 'rowCount' | 'createdAt' | 'headers'> & { row: string[] };
 export type RahcomImportedTicket = {
@@ -100,6 +113,11 @@ export const rahcomApi = {
   sites: (province: string) => apiClient.get<Array<{ name: string; rows: string[][] }>>(`/rahcom/sites?province=${encodeURIComponent(province)}`),
   replaceSites: (province: string, headers: string[], rows: string[][]) =>
     apiClient.put<{ saved: boolean; province: string }>('/rahcom/sites', { province, headers, rows }),
+  missionList: (province: string) => apiClient.get<RahcomMissionList | null>(`/rahcom/missions?province=${encodeURIComponent(province)}`),
+  replaceMissionList: (data: Pick<RahcomMissionList, 'province' | 'fileName' | 'sheetName' | 'headers' | 'rows'>) =>
+    apiClient.put<{ saved: boolean; province: string; rowCount: number; updatedAt: string }>('/rahcom/missions', data),
+  missionDefaults: (province: string) => apiClient.get<RahcomMissionDefaults | null>(`/rahcom/missions/defaults?province=${encodeURIComponent(province)}`),
+  saveMissionDefaults: (data: Omit<RahcomMissionDefaults, 'updatedAt'>) => apiClient.put<RahcomMissionDefaults>('/rahcom/missions/defaults', data),
   setSelectedProvince: (province: string) => apiClient.put<{ rahcomSelectedProvince: string }>('/rahcom/me/province', { province }),
   memberProvinces: () => apiClient.get<RahcomMemberProvince[]>('/rahcom/members'),
   setMemberProvince: (id: string, province: string | null) => apiClient.put<{ id: string; rahcomProvince: string | null }>(`/rahcom/members/${encodeURIComponent(id)}/province`, { province }),
@@ -108,6 +126,17 @@ export const rahcomApi = {
     return filterExcludedIsfahanSystems(systems);
   },
   inventory: (province?: string) => apiClient.get<RahcomInventoryEntry[]>(`/rahcom/inventory${province ? `?province=${encodeURIComponent(province)}` : ''}`),
+  invoices: (province: string) => apiClient.get<RahcomInvoiceList>(`/rahcom/invoices?province=${encodeURIComponent(province)}`),
+  invoiceAttachments: (province: string) => apiClient.get<RahcomInvoiceAttachment[]>(`/rahcom/invoice-attachments?province=${encodeURIComponent(province)}`),
+  uploadInvoiceAttachment: (input: { province: string; invoiceNumber: string; category: RahcomInvoiceAttachmentCategory; file: File }) => {
+    const form = new FormData();
+    form.append('province', input.province);
+    form.append('invoiceNumber', input.invoiceNumber);
+    form.append('category', input.category);
+    form.append('file', input.file, input.file.name);
+    return apiClient.post<RahcomInvoiceAttachment>('/rahcom/invoice-attachments', form);
+  },
+  invoiceAttachmentFile: (id: string) => apiClient.getBlob(`/rahcom/invoice-attachments/${encodeURIComponent(id)}/file`),
   createInventory: (data: { province: string; equipmentName: string; systemId: string; usageDate: string }) => apiClient.post<RahcomInventoryEntry>('/rahcom/inventory', data),
   deleteInventory: (id: string) => apiClient.delete<{ deleted: boolean }>(`/rahcom/inventory/${encodeURIComponent(id)}`),
   searchSystems: async (province: string | undefined, query: string) => filterExcludedIsfahanSystems(

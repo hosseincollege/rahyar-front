@@ -1797,3 +1797,22 @@ html.dark .leaflet-tooltip.rahcom-system-code-tooltip {
   text-overflow: clip;
   white-space: normal;
 }
+
+.rahcom-sticky-table.rahcom-invoices-wrap tbody > tr > td:not([colspan]) {
+  box-sizing: border-box;
+  height: 36px;
+  max-height: 36px;
+  overflow: hidden;
+  padding-block: 3px !important;
+  text-overflow: clip;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  line-height: 14px !important;
+}
+
+.rahcom-sticky-table.rahcom-invoices-wrap tbody > tr > td:nth-child(1),
+.rahcom-sticky-table.rahcom-invoices-wrap tbody > tr > td:nth-child(4),
+.rahcom-sticky-table.rahcom-invoices-wrap tbody > tr > td:nth-child(5),
+.rahcom-sticky-table.rahcom-invoices-wrap tbody > tr > td:nth-child(7) {
+  white-space: nowrap !important;
+}

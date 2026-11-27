@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
-import { ArchiveRestore, Download, LoaderCircle, Plus, Search, Save, Upload, WrapText, X } from 'lucide-react';
+import { ArchiveRestore, Download, LoaderCircle, Plus, Search, Save, Settings2, Upload, WrapText, X } from 'lucide-react';
 import { RahcomToolbar } from '@/components/rahcom/toolbar';
 import { RahcomTableFrame } from '@/components/rahcom/table';
 
 type ToolbarAction = { label: string; onClick?: () => void; disabled?: boolean; busy?: boolean };
 
 type RahcomDataListToolbarProps = {
+  compactOnNarrow?: boolean;
   count?: ReactNode;
   add?: ToolbarAction;
+  settings?: ToolbarAction;
   upload?: ToolbarAction;
   uploadInput?: ReactNode;
   wrap?: { label: string; singleLineLabel: string; pressed: boolean; onToggle: () => void; disabled?: boolean };
@@ -19,10 +21,11 @@ type RahcomDataListToolbarProps = {
 const toolbarButtonClass = 'grid size-9 shrink-0 place-items-center rounded-full border border-border bg-background text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50';
 
 /** Shared icon order, control sizing, and search capsule used by Rahcom data-list toolbars. */
-export function RahcomDataListToolbar({ count, add, upload, uploadInput, wrap, download, search, backup }: RahcomDataListToolbarProps) {
-  return <RahcomToolbar as="header" className="flex shrink-0 flex-wrap items-center justify-start gap-3">
+export function RahcomDataListToolbar({ compactOnNarrow = false, count, add, settings, upload, uploadInput, wrap, download, search, backup }: RahcomDataListToolbarProps) {
+  return <RahcomToolbar as="header" className={`flex shrink-0 items-center justify-start ${compactOnNarrow ? 'rahcom-mobile-toolbar mb-[8px] max-sm:mb-[4px] flex-wrap gap-2 overflow-visible py-1 sm:flex-nowrap sm:overflow-x-auto max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pb-2' : 'flex-wrap gap-3'}`}>
     {count}
     {add && <button type="button" onClick={add.onClick} disabled={add.disabled} aria-label={add.label} title={add.label} className={toolbarButtonClass}><Plus size={18} /></button>}
+    {settings && <button type="button" onClick={settings.onClick} disabled={settings.disabled || settings.busy} aria-label={settings.label} title={settings.label} className={toolbarButtonClass}>{settings.busy ? <LoaderCircle size={17} className="animate-spin" /> : <Settings2 size={17} />}</button>}
     {upload && <><button type="button" onClick={upload.onClick} disabled={upload.disabled || upload.busy} aria-label={upload.label} title={upload.label} className={toolbarButtonClass}>{upload.busy ? <LoaderCircle size={17} className="animate-spin" /> : <Upload size={17} />}</button>{uploadInput}</>}
     {wrap && <button type="button" aria-pressed={wrap.pressed} onClick={wrap.onToggle} disabled={wrap.disabled} aria-label={wrap.pressed ? wrap.singleLineLabel : wrap.label} title={wrap.pressed ? wrap.singleLineLabel : wrap.label} className={`grid size-9 shrink-0 place-items-center rounded-full border transition-colors disabled:opacity-50 ${wrap.pressed ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground hover:border-primary hover:text-primary'}`}><WrapText size={17} aria-hidden="true" /></button>}
     {download && <button type="button" onClick={download.onClick} disabled={download.disabled || download.busy} aria-label={download.label} title={download.label} className={toolbarButtonClass}>{download.busy ? <LoaderCircle size={17} className="animate-spin" /> : <Download size={17} />}</button>}
@@ -44,6 +47,7 @@ export function RahcomDataListToolbar({ count, add, upload, uploadInput, wrap, d
 type RahcomDataListLayoutProps = {
   dir?: 'rtl' | 'ltr';
   toolbar: ReactNode;
+  compactToolbarSpacing?: boolean;
   isLoading?: boolean;
   loadingMessage?: string;
   error?: string;
@@ -57,6 +61,7 @@ type RahcomDataListLayoutProps = {
 export function RahcomDataListLayout({
   dir,
   toolbar,
+  compactToolbarSpacing = false,
   isLoading = false,
   loadingMessage,
   error,
@@ -66,7 +71,7 @@ export function RahcomDataListLayout({
   children,
 }: RahcomDataListLayoutProps) {
   return <section dir={dir} className="flex h-full min-h-0 w-full min-w-0 flex-col gap-3 overflow-hidden">
-    {toolbar}
+    <div className={compactToolbarSpacing ? '-mb-3 shrink-0' : 'shrink-0'}>{toolbar}</div>
     {beforeResults}
     {isLoading && <p role="status" className="shrink-0 p-4 text-sm text-muted-foreground">{loadingMessage}</p>}
     {!isLoading && error && <p role="alert" className="shrink-0 rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{error}</p>}

@@ -202,6 +202,8 @@ async function request<T>(
   init?: RequestInit,
 ): Promise<T> {
   const headers = buildAuthHeaders(init?.headers);
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (isFormData) headers.delete('Content-Type');
 
   const requestInit: RequestInit = {
     ...init,
@@ -210,7 +212,7 @@ async function request<T>(
   };
 
   if (body !== undefined) {
-    requestInit.body = JSON.stringify(body);
+    requestInit.body = isFormData ? (body as FormData) : JSON.stringify(body);
   }
 
   let response: Response;
@@ -272,6 +274,19 @@ export const apiClient = {
       init,
     );
     return unwrapData<T>(response);
+  },
+
+  async getBlob(path: string, init?: RequestInit): Promise<Blob> {
+    const response = await fetch(buildUrl(path), {
+      ...init,
+      method: 'GET',
+      headers: buildAuthHeaders(init?.headers),
+    });
+    if (!response.ok) {
+      await parseResponse<unknown>(response);
+      throw new ApiError('Failed to read file.', response.status);
+    }
+    return response.blob();
   },
 
   async post<TResponse, TBody = unknown>(

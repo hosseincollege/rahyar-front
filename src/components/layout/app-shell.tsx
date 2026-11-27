@@ -67,7 +67,7 @@ export function AppShell({ children }: AppShellProps) {
   const isRahcomTickets = pathname === '/rahcom/tickets';
   const isRahcomAggregate = pathname === '/rahcom/aggregate';
   const isRahcomBillIdentifiers = pathname === '/rahcom/bill-identifiers';
-  const isRahcomFixedHeightPage = isRahcomMap || isRahcomSystems || pathname === '/rahcom/sites' || isRahcomTickets || isRahcomAggregate || isRahcomBillIdentifiers;
+  const isRahcomFixedHeightPage = isRahcomMap || isRahcomSystems || pathname === '/rahcom/sites' || pathname === '/documents/mission' || isRahcomTickets || isRahcomAggregate || isRahcomBillIdentifiers;
   const {
     locale,
     workspaceMode,
