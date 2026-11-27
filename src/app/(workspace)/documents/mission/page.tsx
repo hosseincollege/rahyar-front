@@ -19,6 +19,10 @@ const cellText = (value: unknown) => value == null ? '' : String(value).trim();
 
 type ParsedMissionWorkbook = Pick<RahcomMissionList, 'fileName' | 'sheetName' | 'headers' | 'rows'>;
 type MissionDefaultValues = Omit<RahcomMissionDefaults, 'updatedAt'>;
+const missionListRowCount = (list: RahcomMissionList | null) =>
+  typeof list?.rowCount === 'number'
+    ? list.rowCount
+    : Array.isArray(list?.rows) ? list.rows.length : 0;
 const initialMissionDefaults: MissionDefaultValues = {
   province: provinceId,
   requestType: 'ماموریت',
@@ -129,7 +133,7 @@ export default function DocumentsMissionPage() {
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const parsed = parseMissionWorkbook(file.name, workbook);
-      if (list?.rows.length && !window.confirm(`فهرست فعلی ${list.rows.length} ردیف دارد. با واردکردن این فایل، فهرست استان اصفهان با ${parsed.rows.length} ردیف جایگزین شود؟`)) return;
+      if (missionListRowCount(list) && !window.confirm(`فهرست فعلی ${missionListRowCount(list)} ردیف دارد. با واردکردن این فایل، فهرست استان اصفهان با ${parsed.rows.length} ردیف جایگزین شود؟`)) return;
       const saved = await rahcomApi.replaceMissionList({ province: provinceId, ...parsed });
       setList({ province: provinceId, ...parsed, rowCount: saved.rowCount, updatedAt: saved.updatedAt });
     } catch (error) {
@@ -153,7 +157,7 @@ export default function DocumentsMissionPage() {
       if (!response.ok) throw new Error(uiMessage(locale, 'rahcomSystemsLoadError'));
       const workbook = XLSX.read(new Uint8Array(await response.arrayBuffer()), { type: 'array' });
       const parsed = parseMissionWorkbook('ESF-missions.xlsx', workbook);
-      if (list?.rows.length && !window.confirm(`ÙÙ‡Ø±Ø³Øª ÙØ¹Ù„ÛŒ ${list.rows.length} Ø±Ø¯ÛŒÙ Ø¯Ø§Ø±Ø¯. Ø¨Ø§ Ø¨Ø§Ø²ÛŒØ§Ø¨ÛŒ Ù¾Ø´ØªÛŒØ¨Ø§Ù† Ø§ØµÙÙ‡Ø§Ù†ØŒ ÙÙ‡Ø±Ø³Øª Ø¬Ø§ÛŒÚ¯Ø²ÛŒÙ† Ø´ÙˆØ¯ØŸ`)) return;
+      if (missionListRowCount(list) && !window.confirm(`ÙÙ‡Ø±Ø³Øª ÙØ¹Ù„ÛŒ ${missionListRowCount(list)} Ø±Ø¯ÛŒÙ Ø¯Ø§Ø±Ø¯. Ø¨Ø§ Ø¨Ø§Ø²ÛŒØ§Ø¨ÛŒ Ù¾Ø´ØªÛŒØ¨Ø§Ù† Ø§ØµÙÙ‡Ø§Ù†ØŒ ÙÙ‡Ø±Ø³Øª Ø¬Ø§ÛŒÚ¯Ø²ÛŒÙ† Ø´ÙˆØ¯ØŸ`)) return;
       const saved = await rahcomApi.replaceMissionList({ province: provinceId, ...parsed });
       setList({ province: provinceId, ...parsed, rowCount: saved.rowCount, updatedAt: saved.updatedAt });
     } catch (error) {
