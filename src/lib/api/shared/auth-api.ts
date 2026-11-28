@@ -4,9 +4,9 @@ import {
   apiClient,
   ApiError,
   ApiClientError,
+  AUTH_USER_STORAGE_KEY,
   clearAccessToken,
   getAccessToken,
-  isAuthenticated,
   setAccessToken,
 } from '@/lib/api-client';
 
@@ -120,8 +120,6 @@ export interface AuthResponse {
   user: AuthResponseUser;
 }
 
-const USER_STORAGE_KEY = 'auth_user';
-
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
@@ -164,12 +162,12 @@ function normalizeUser(
 
 function saveUser(user: AuthUser): void {
   if (!isBrowser()) return;
-  window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
 }
 
 function clearUser(): void {
   if (!isBrowser()) return;
-  window.localStorage.removeItem(USER_STORAGE_KEY);
+  window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
 }
 
 function persistSession(response: AuthResponse, fallbackUser: Partial<AuthUser>): AuthUser {
@@ -225,7 +223,7 @@ export async function register(payload: RegisterPayload): Promise<AuthResponse> 
 export function getCurrentUser(): AuthUser | null {
   if (!isBrowser()) return null;
 
-  const rawUser = window.localStorage.getItem(USER_STORAGE_KEY);
+  const rawUser = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
   if (!rawUser) return null;
 
   try {
@@ -271,7 +269,7 @@ export function getCurrentOrganizationId(): string | null {
 }
 
 export function isUserAuthenticated(): boolean {
-  return Boolean(getAccessToken() || isAuthenticated() || getCurrentUser());
+  return Boolean(getAccessToken() && getCurrentUser());
 }
 
 export async function logout(): Promise<void> {

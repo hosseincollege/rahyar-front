@@ -31,12 +31,7 @@ type SetupStatusResponse = {
 };
 
 function getBackendBaseUrl(): string {
-  const url =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_BASE_URL ||
-    API_BASE_URL;
-  return url.replace(/\/+$/, '');
+  return API_BASE_URL.replace(/\/+$/, '');
 }
 
 async function fetchSetupStatus(): Promise<SetupStatusResponse> {

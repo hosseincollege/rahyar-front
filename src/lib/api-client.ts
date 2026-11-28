@@ -47,6 +47,7 @@ export class ApiError extends Error {
 export { ApiError as ApiClientError };
 
 export const ACCESS_TOKEN_KEY = 'access_token';
+export const AUTH_USER_STORAGE_KEY = 'auth_user';
 let authRedirectStarted = false;
 
 function isBrowser(): boolean {
@@ -67,6 +68,13 @@ export function setAccessToken(token: string): void {
 export function clearAccessToken(): void {
   if (!isBrowser()) return;
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+export function clearAuthSession(): void {
+  clearAccessToken();
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  window.dispatchEvent(new Event('auth:logout'));
 }
 
 export function isAuthenticated(): boolean {
@@ -174,7 +182,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 401) {
-      clearAccessToken();
+      clearAuthSession();
       // هدایت خودکار کاربر به صفحه لاگین هنگام نامعتبر بودن یا انقضای توکن
       if (
         isBrowser() &&
@@ -345,7 +353,7 @@ export const apiClient = {
 };
 
 export function logout(): void {
-  clearAccessToken();
+  clearAuthSession();
   if (isBrowser()) {
     window.location.href = '/login';
   }
